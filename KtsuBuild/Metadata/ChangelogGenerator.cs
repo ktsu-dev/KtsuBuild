@@ -44,14 +44,14 @@ public class ChangelogGenerator(IGitService gitService, IBuildLogger logger)
 		Ensure.NotNull(outputPath);
 		Ensure.NotNull(lineEnding);
 
-		var tags = await gitService.GetTagsAsync(workingDirectory, cancellationToken).ConfigureAwait(false);
+		IReadOnlyList<string> tags = await gitService.GetTagsAsync(workingDirectory, cancellationToken).ConfigureAwait(false);
 		bool hasTags = tags.Count > 0;
 		string previousTag = hasTags ? tags[0] : "v0.0.0";
 		string currentTag = $"v{version}";
 
 		logger.WriteInfo($"Generating changelog from {previousTag} to {currentTag} (commit: {commitHash})");
 
-		var changelog = new StringBuilder();
+		StringBuilder changelog = new();
 		string latestVersionNotes = string.Empty;
 
 		// Generate entry for current version
@@ -130,16 +130,15 @@ public class ChangelogGenerator(IGitService gitService, IBuildLogger logger)
 		string range = fromSha is null ? resolvedToSha : $"{fromSha}..{resolvedToSha}";
 
 		// Get commits
-		var commits = await gitService.GetCommitsAsync(workingDirectory, range, cancellationToken).ConfigureAwait(false);
+		IReadOnlyList<CommitInfo> commits = await gitService.GetCommitsAsync(workingDirectory, range, cancellationToken).ConfigureAwait(false);
 
 		// Filter out bot and PR merge commits
-		var filteredCommits = commits
-			.Where(c => !IsBotOrMergeCommit(c.Subject))
-			.DistinctBy(c => c.Hash)
-			.ToList();
+		List<CommitInfo> filteredCommits = [.. commits
+			.Where(static c => !IsBotOrMergeCommit(c.Subject))
+			.DistinctBy(static c => c.Hash)];
 
 		// Build changelog entry
-		var sb = new StringBuilder();
+		StringBuilder sb = new();
 		string versionType = DetermineVersionType(fromTag, toTag);
 
 		sb.Append($"## {toTag}");
@@ -157,7 +156,7 @@ public class ChangelogGenerator(IGitService gitService, IBuildLogger logger)
 				sb.Append($"Changes since {fromTag}:{lineEnding}{lineEnding}");
 			}
 
-			foreach (var commit in filteredCommits.Where(c => !c.Subject.Contains("[skip ci]", StringComparison.OrdinalIgnoreCase)))
+			foreach (CommitInfo commit in filteredCommits.Where(static c => !c.Subject.Contains("[skip ci]", StringComparison.OrdinalIgnoreCase)))
 			{
 				sb.Append($"- {commit.FormattedEntry}{lineEnding}");
 			}
@@ -187,25 +186,32 @@ public class ChangelogGenerator(IGitService gitService, IBuildLogger logger)
 
 	private static string DetermineVersionType(string fromTag, string toTag)
 	{
-		var fromVersion = ParseVersion(fromTag);
-		var toVersion = ParseVersion(toTag);
+		(int Major, int Minor, int Patch, int Prerelease) = ParseVersion(fromTag);
+		int fromMajor = Major;
+		int fromMinor = Minor;
+		int fromPatch = Patch;
+		(Major, Minor, Patch, Prerelease) = ParseVersion(toTag);
+		int toMajor = Major;
+		int toMinor = Minor;
+		int toPatch = Patch;
+		int toPrerelease = Prerelease;
 
-		if (toVersion.Prerelease > 0)
+		if (toPrerelease > 0)
 		{
 			return "prerelease";
 		}
 
-		if (toVersion.Major > fromVersion.Major)
+		if (toMajor > fromMajor)
 		{
 			return "major";
 		}
 
-		if (toVersion.Minor > fromVersion.Minor)
+		if (toMinor > fromMinor)
 		{
 			return "minor";
 		}
 
-		if (toVersion.Patch > fromVersion.Patch)
+		if (toPatch > fromPatch)
 		{
 			return "patch";
 		}

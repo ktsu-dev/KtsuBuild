@@ -6,6 +6,7 @@ namespace KtsuBuild.Publishing;
 
 using System.Text.Json;
 using KtsuBuild.Abstractions;
+using KtsuBuild.Utilities;
 using static Polyfill;
 
 /// <summary>
@@ -39,14 +40,14 @@ public class GitHubService(IProcessRunner processRunner, IGitService gitService,
 			cancellationToken).ConfigureAwait(false);
 
 		// Build release command
-		var args = new List<string>
-		{
+		List<string> args =
+		[
 			"release",
 			"create",
 			tagName,
 			"--target",
 			options.CommitHash,
-		};
+		];
 
 		if (options.GenerateNotes)
 		{
@@ -99,14 +100,14 @@ public class GitHubService(IProcessRunner processRunner, IGitService gitService,
 			}
 		}
 
-		string argsString = string.Join(' ', args.Select(a => a.Contains(' ') ? $"\"{a}\"" : a));
+		string argsString = string.Join(' ', args.Select(static a => a.Contains(' ') ? $"\"{a}\"" : a));
 
 		int exitCode = await processRunner.RunWithCallbackAsync(
 			"gh",
 			argsString,
 			options.WorkingDirectory,
-			line => logger.WriteInfo(line),
-			line => logger.WriteError(line),
+			logger.WriteInfo,
+			logger.WriteError,
 			cancellationToken).ConfigureAwait(false);
 
 		if (exitCode != 0)
@@ -121,7 +122,7 @@ public class GitHubService(IProcessRunner processRunner, IGitService gitService,
 		Ensure.NotNull(version);
 		Ensure.NotNull(assetPaths);
 		string tagName = $"v{version}";
-		var assets = assetPaths.ToList();
+		List<string> assets = [.. assetPaths];
 
 		if (assets.Count == 0)
 		{
@@ -145,8 +146,8 @@ public class GitHubService(IProcessRunner processRunner, IGitService gitService,
 				"gh",
 				args,
 				null,
-				line => logger.WriteInfo(line),
-				line => logger.WriteError(line),
+				logger.WriteInfo,
+				logger.WriteError,
 				cancellationToken).ConfigureAwait(false);
 
 			if (exitCode != 0)
@@ -160,7 +161,7 @@ public class GitHubService(IProcessRunner processRunner, IGitService gitService,
 	public async Task<RepositoryInfo?> GetRepositoryInfoAsync(string workingDirectory, CancellationToken cancellationToken = default)
 	{
 		Ensure.NotNull(workingDirectory);
-		var result = await processRunner.RunAsync("gh", "repo view --json owner,nameWithOwner,isFork", workingDirectory, cancellationToken).ConfigureAwait(false);
+		ProcessResult result = await processRunner.RunAsync("gh", "repo view --json owner,nameWithOwner,isFork", workingDirectory, cancellationToken).ConfigureAwait(false);
 
 		if (!result.Success || string.IsNullOrWhiteSpace(result.StandardOutput))
 		{
@@ -169,8 +170,8 @@ public class GitHubService(IProcessRunner processRunner, IGitService gitService,
 
 		try
 		{
-			using var doc = JsonDocument.Parse(result.StandardOutput);
-			var root = doc.RootElement;
+			using JsonDocument doc = JsonDocument.Parse(result.StandardOutput);
+			JsonElement root = doc.RootElement;
 
 			string owner = root.GetProperty("owner").GetProperty("login").GetString() ?? string.Empty;
 			string nameWithOwner = root.GetProperty("nameWithOwner").GetString() ?? string.Empty;
@@ -193,7 +194,7 @@ public class GitHubService(IProcessRunner processRunner, IGitService gitService,
 	{
 		Ensure.NotNull(workingDirectory);
 		Ensure.NotNull(expectedOwner);
-		var repoInfo = await GetRepositoryInfoAsync(workingDirectory, cancellationToken).ConfigureAwait(false);
+		RepositoryInfo? repoInfo = await GetRepositoryInfoAsync(workingDirectory, cancellationToken).ConfigureAwait(false);
 
 		if (repoInfo is null)
 		{

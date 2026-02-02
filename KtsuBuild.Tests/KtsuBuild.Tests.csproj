@@ -6,6 +6,9 @@
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
+    <!-- Suppress test naming conventions and string comparison warnings in test code -->
+    <!-- CA1515: Test classes must be public for MSTest discovery -->
+    <NoWarn>$(NoWarn);CA1707;CA1307;CA1515</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

@@ -55,8 +55,8 @@ public class NuGetPublisher(IProcessRunner processRunner, IBuildLogger logger) :
 			"dotnet",
 			args,
 			null,
-			line => logger.WriteInfo(line),
-			line => logger.WriteError(line),
+			logger.WriteInfo,
+			logger.WriteError,
 			cancellationToken).ConfigureAwait(false);
 
 		if (exitCode != 0)

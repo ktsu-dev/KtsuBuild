@@ -27,22 +27,23 @@ public class GitService(IProcessRunner processRunner, IBuildLogger logger) : IGi
 			await processRunner.RunAsync("git", $"config versionsort.suffix \"{suffix}\"", workingDirectory, cancellationToken).ConfigureAwait(false);
 		}
 
-		var result = await processRunner.RunAsync("git", "tag --list --sort=-v:refname", workingDirectory, cancellationToken).ConfigureAwait(false);
+		ProcessResult result = await processRunner.RunAsync("git", "tag --list --sort=-v:refname", workingDirectory, cancellationToken).ConfigureAwait(false);
 		if (!result.Success || string.IsNullOrWhiteSpace(result.StandardOutput))
 		{
 			return [];
 		}
 
-		return result.StandardOutput
-			.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-			.ToList();
+		return [.. result.StandardOutput
+			.Split('\n', StringSplitOptions.RemoveEmptyEntries)
+			.Select(static s => s.Trim())
+			.Where(static s => !string.IsNullOrEmpty(s))];
 	}
 
 	/// <inheritdoc/>
 	public async Task<string> GetCurrentCommitHashAsync(string workingDirectory, CancellationToken cancellationToken = default)
 	{
 		Ensure.NotNull(workingDirectory);
-		var result = await processRunner.RunAsync("git", "rev-parse HEAD", workingDirectory, cancellationToken).ConfigureAwait(false);
+		ProcessResult result = await processRunner.RunAsync("git", "rev-parse HEAD", workingDirectory, cancellationToken).ConfigureAwait(false);
 		return result.StandardOutput.Trim();
 	}
 
@@ -51,7 +52,7 @@ public class GitService(IProcessRunner processRunner, IBuildLogger logger) : IGi
 	{
 		Ensure.NotNull(workingDirectory);
 		Ensure.NotNull(tag);
-		var result = await processRunner.RunAsync("git", $"rev-list -n 1 {tag}", workingDirectory, cancellationToken).ConfigureAwait(false);
+		ProcessResult result = await processRunner.RunAsync("git", $"rev-list -n 1 {tag}", workingDirectory, cancellationToken).ConfigureAwait(false);
 		return result.Success ? result.StandardOutput.Trim() : null;
 	}
 
@@ -59,7 +60,7 @@ public class GitService(IProcessRunner processRunner, IBuildLogger logger) : IGi
 	public async Task<string?> GetRemoteUrlAsync(string workingDirectory, string remoteName = "origin", CancellationToken cancellationToken = default)
 	{
 		Ensure.NotNull(workingDirectory);
-		var result = await processRunner.RunAsync("git", $"remote get-url {remoteName}", workingDirectory, cancellationToken).ConfigureAwait(false);
+		ProcessResult result = await processRunner.RunAsync("git", $"remote get-url {remoteName}", workingDirectory, cancellationToken).ConfigureAwait(false);
 		return result.Success ? result.StandardOutput.Trim() : null;
 	}
 
@@ -67,7 +68,7 @@ public class GitService(IProcessRunner processRunner, IBuildLogger logger) : IGi
 	public async Task<string> GetLineEndingAsync(string workingDirectory, CancellationToken cancellationToken = default)
 	{
 		Ensure.NotNull(workingDirectory);
-		var helper = new LineEndingHelper(processRunner);
+		LineEndingHelper helper = new(processRunner);
 		return await helper.GetLineEndingAsync(workingDirectory, cancellationToken).ConfigureAwait(false);
 	}
 
@@ -76,15 +77,16 @@ public class GitService(IProcessRunner processRunner, IBuildLogger logger) : IGi
 	{
 		Ensure.NotNull(workingDirectory);
 		Ensure.NotNull(range);
-		var result = await processRunner.RunAsync("git", $"log --format=format:%s \"{range}\"", workingDirectory, cancellationToken).ConfigureAwait(false);
+		ProcessResult result = await processRunner.RunAsync("git", $"log --format=format:%s \"{range}\"", workingDirectory, cancellationToken).ConfigureAwait(false);
 		if (!result.Success || string.IsNullOrWhiteSpace(result.StandardOutput))
 		{
 			return [];
 		}
 
-		return result.StandardOutput
-			.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-			.ToList();
+		return [.. result.StandardOutput
+			.Split('\n', StringSplitOptions.RemoveEmptyEntries)
+			.Select(static s => s.Trim())
+			.Where(static s => !string.IsNullOrEmpty(s))];
 	}
 
 	/// <inheritdoc/>
@@ -93,14 +95,14 @@ public class GitService(IProcessRunner processRunner, IBuildLogger logger) : IGi
 		Ensure.NotNull(workingDirectory);
 		Ensure.NotNull(range);
 		const string format = "%h|%s|%aN";
-		var result = await processRunner.RunAsync("git", $"log --pretty=format:\"{format}\" \"{range}\"", workingDirectory, cancellationToken).ConfigureAwait(false);
+		ProcessResult result = await processRunner.RunAsync("git", $"log --pretty=format:\"{format}\" \"{range}\"", workingDirectory, cancellationToken).ConfigureAwait(false);
 		if (!result.Success || string.IsNullOrWhiteSpace(result.StandardOutput))
 		{
 			return [];
 		}
 
-		var commits = new List<CommitInfo>();
-		foreach (string line in result.StandardOutput.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+		List<CommitInfo> commits = [];
+		foreach (string line in result.StandardOutput.Split('\n', StringSplitOptions.RemoveEmptyEntries).Select(static s => s.Trim()).Where(static s => !string.IsNullOrEmpty(s)))
 		{
 			string[] parts = line.Split('|');
 			if (parts.Length >= 3)
@@ -123,12 +125,13 @@ public class GitService(IProcessRunner processRunner, IBuildLogger logger) : IGi
 		Ensure.NotNull(workingDirectory);
 		Ensure.NotNull(range);
 		string args = $"diff \"{range}\"";
+		ProcessResult result;
 		if (!string.IsNullOrEmpty(pathSpec))
 		{
 			args += $" -- \"{pathSpec}\"";
 		}
 
-		var result = await processRunner.RunAsync("git", args, workingDirectory, cancellationToken).ConfigureAwait(false);
+		result = await processRunner.RunAsync("git", args, workingDirectory, cancellationToken).ConfigureAwait(false);
 		return result.StandardOutput;
 	}
 
@@ -137,7 +140,7 @@ public class GitService(IProcessRunner processRunner, IBuildLogger logger) : IGi
 	{
 		Ensure.NotNull(workingDirectory);
 		Ensure.NotNull(commitHash);
-		var result = await processRunner.RunAsync("git", "show-ref --tags -d", workingDirectory, cancellationToken).ConfigureAwait(false);
+		ProcessResult result = await processRunner.RunAsync("git", "show-ref --tags -d", workingDirectory, cancellationToken).ConfigureAwait(false);
 		return result.StandardOutput.Contains(commitHash);
 	}
 
@@ -145,9 +148,9 @@ public class GitService(IProcessRunner processRunner, IBuildLogger logger) : IGi
 	public async Task<string> GetFirstCommitAsync(string workingDirectory, CancellationToken cancellationToken = default)
 	{
 		Ensure.NotNull(workingDirectory);
-		var result = await processRunner.RunAsync("git", "rev-list HEAD", workingDirectory, cancellationToken).ConfigureAwait(false);
-		string[] commits = result.StandardOutput.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-		return commits.Length > 0 ? commits[^1] : string.Empty;
+		ProcessResult result = await processRunner.RunAsync("git", "rev-list HEAD", workingDirectory, cancellationToken).ConfigureAwait(false);
+		string[] commits = result.StandardOutput.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+		return commits.Length > 0 ? commits[^1].Trim() : string.Empty;
 	}
 
 	/// <inheritdoc/>
@@ -157,13 +160,13 @@ public class GitService(IProcessRunner processRunner, IBuildLogger logger) : IGi
 		Ensure.NotNull(tagName);
 		Ensure.NotNull(commitHash);
 		Ensure.NotNull(message);
-		var createResult = await processRunner.RunAsync("git", $"tag -a \"{tagName}\" \"{commitHash}\" -m \"{message}\"", workingDirectory, cancellationToken).ConfigureAwait(false);
+		ProcessResult createResult = await processRunner.RunAsync("git", $"tag -a \"{tagName}\" \"{commitHash}\" -m \"{message}\"", workingDirectory, cancellationToken).ConfigureAwait(false);
 		if (!createResult.Success)
 		{
 			throw new InvalidOperationException($"Failed to create tag: {createResult.StandardError}");
 		}
 
-		var pushResult = await processRunner.RunAsync("git", $"push origin \"{tagName}\"", workingDirectory, cancellationToken).ConfigureAwait(false);
+		ProcessResult pushResult = await processRunner.RunAsync("git", $"push origin \"{tagName}\"", workingDirectory, cancellationToken).ConfigureAwait(false);
 		if (!pushResult.Success)
 		{
 			throw new InvalidOperationException($"Failed to push tag: {pushResult.StandardError}");
@@ -175,8 +178,8 @@ public class GitService(IProcessRunner processRunner, IBuildLogger logger) : IGi
 	{
 		Ensure.NotNull(workingDirectory);
 		Ensure.NotNull(files);
-		string fileList = string.Join(" ", files.Select(f => $"\"{f}\""));
-		var result = await processRunner.RunAsync("git", $"add {fileList}", workingDirectory, cancellationToken).ConfigureAwait(false);
+		string fileList = string.Join(" ", files.Select(static f => $"\"{f}\""));
+		ProcessResult result = await processRunner.RunAsync("git", $"add {fileList}", workingDirectory, cancellationToken).ConfigureAwait(false);
 		if (!result.Success)
 		{
 			throw new InvalidOperationException($"Failed to stage files: {result.StandardError}");
@@ -188,7 +191,7 @@ public class GitService(IProcessRunner processRunner, IBuildLogger logger) : IGi
 	{
 		Ensure.NotNull(workingDirectory);
 		Ensure.NotNull(message);
-		var result = await processRunner.RunAsync("git", $"commit -m \"{message}\"", workingDirectory, cancellationToken).ConfigureAwait(false);
+		ProcessResult result = await processRunner.RunAsync("git", $"commit -m \"{message}\"", workingDirectory, cancellationToken).ConfigureAwait(false);
 		if (!result.Success)
 		{
 			throw new InvalidOperationException($"Failed to commit: {result.StandardError}");
@@ -201,7 +204,7 @@ public class GitService(IProcessRunner processRunner, IBuildLogger logger) : IGi
 	public async Task PushAsync(string workingDirectory, CancellationToken cancellationToken = default)
 	{
 		Ensure.NotNull(workingDirectory);
-		var result = await processRunner.RunAsync("git", "push", workingDirectory, cancellationToken).ConfigureAwait(false);
+		ProcessResult result = await processRunner.RunAsync("git", "push", workingDirectory, cancellationToken).ConfigureAwait(false);
 		if (!result.Success)
 		{
 			throw new InvalidOperationException($"Failed to push: {result.StandardError}");
@@ -212,7 +215,7 @@ public class GitService(IProcessRunner processRunner, IBuildLogger logger) : IGi
 	public async Task<bool> HasUncommittedChangesAsync(string workingDirectory, CancellationToken cancellationToken = default)
 	{
 		Ensure.NotNull(workingDirectory);
-		var result = await processRunner.RunAsync("git", "status --porcelain", workingDirectory, cancellationToken).ConfigureAwait(false);
+		ProcessResult result = await processRunner.RunAsync("git", "status --porcelain", workingDirectory, cancellationToken).ConfigureAwait(false);
 		return !string.IsNullOrWhiteSpace(result.StandardOutput);
 	}
 
@@ -224,13 +227,13 @@ public class GitService(IProcessRunner processRunner, IBuildLogger logger) : IGi
 		Ensure.NotNull(email);
 		logger.WriteInfo($"Configuring git user: {name} <{email}>");
 
-		var nameResult = await processRunner.RunAsync("git", $"config --global user.name \"{name}\"", workingDirectory, cancellationToken).ConfigureAwait(false);
+		ProcessResult nameResult = await processRunner.RunAsync("git", $"config --global user.name \"{name}\"", workingDirectory, cancellationToken).ConfigureAwait(false);
 		if (!nameResult.Success)
 		{
 			throw new InvalidOperationException($"Failed to set git user name: {nameResult.StandardError}");
 		}
 
-		var emailResult = await processRunner.RunAsync("git", $"config --global user.email \"{email}\"", workingDirectory, cancellationToken).ConfigureAwait(false);
+		ProcessResult emailResult = await processRunner.RunAsync("git", $"config --global user.email \"{email}\"", workingDirectory, cancellationToken).ConfigureAwait(false);
 		if (!emailResult.Success)
 		{
 			throw new InvalidOperationException($"Failed to set git user email: {emailResult.StandardError}");

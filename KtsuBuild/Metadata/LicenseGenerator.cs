@@ -4,16 +4,16 @@
 
 namespace KtsuBuild.Metadata;
 
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using KtsuBuild.Utilities;
+using static Polyfill;
 
 /// <summary>
 /// Generates license and copyright files.
 /// </summary>
 public static class LicenseGenerator
 {
-	private const string TemplateResourceName = "KtsuBuild.scripts.LICENSE.template";
-
 	/// <summary>
 	/// Generates LICENSE.md and COPYRIGHT.md files.
 	/// </summary>
@@ -23,6 +23,7 @@ public static class LicenseGenerator
 	/// <param name="outputPath">The output directory.</param>
 	/// <param name="lineEnding">The line ending to use.</param>
 	/// <param name="cancellationToken">A cancellation token.</param>
+	[SuppressMessage("Microsoft.Design", "CA1054:UriParametersShouldNotBeStrings", Justification = "String URLs are simpler for CLI tool configuration")]
 	public static async Task GenerateAsync(
 		string serverUrl,
 		string owner,
@@ -31,6 +32,12 @@ public static class LicenseGenerator
 		string lineEnding,
 		CancellationToken cancellationToken = default)
 	{
+		Ensure.NotNull(serverUrl);
+		Ensure.NotNull(owner);
+		Ensure.NotNull(repository);
+		Ensure.NotNull(outputPath);
+		Ensure.NotNull(lineEnding);
+
 		string template = GetTemplate();
 		int year = DateTime.UtcNow.Year;
 
@@ -56,7 +63,7 @@ public static class LicenseGenerator
 
 	private static string GetTemplate()
 	{
-		var assembly = Assembly.GetExecutingAssembly();
+		Assembly assembly = Assembly.GetExecutingAssembly();
 
 		// Try to find the embedded resource
 		string[] resourceNames = assembly.GetManifestResourceNames();
@@ -68,13 +75,13 @@ public static class LicenseGenerator
 			return GetDefaultTemplate();
 		}
 
-		using var stream = assembly.GetManifestResourceStream(resourceName);
+		using Stream? stream = assembly.GetManifestResourceStream(resourceName);
 		if (stream is null)
 		{
 			return GetDefaultTemplate();
 		}
 
-		using var reader = new StreamReader(stream);
+		using StreamReader reader = new(stream);
 		return reader.ReadToEnd();
 	}
 

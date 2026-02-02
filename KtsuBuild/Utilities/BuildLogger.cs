@@ -4,12 +4,15 @@
 
 namespace KtsuBuild.Utilities;
 
+using System.Diagnostics.CodeAnalysis;
 using KtsuBuild.Abstractions;
 using Microsoft.Extensions.Logging;
+using static Polyfill;
 
 /// <summary>
 /// Implementation of build logger with colored console output.
 /// </summary>
+[SuppressMessage("Performance", "CA1848:Use the LoggerMessage delegates", Justification = "This is a simple utility logger; LoggerMessage delegates add unnecessary complexity")]
 public class BuildLogger : IBuildLogger
 {
 	private readonly ILogger<BuildLogger>? _logger;
@@ -27,6 +30,7 @@ public class BuildLogger : IBuildLogger
 	/// <param name="logger">The logger instance.</param>
 	public BuildLogger(ILogger<BuildLogger> logger)
 	{
+		Ensure.NotNull(logger);
 		_logger = logger;
 	}
 
@@ -36,7 +40,8 @@ public class BuildLogger : IBuildLogger
 	/// <inheritdoc/>
 	public void WriteStepHeader(string message)
 	{
-		var header = $"\n=== {message} ===\n";
+		Ensure.NotNull(message);
+		string header = $"\n=== {message} ===\n";
 		WriteColored(header, ConsoleColor.Cyan);
 		_logger?.LogInformation("{Message}", header);
 	}
@@ -44,6 +49,7 @@ public class BuildLogger : IBuildLogger
 	/// <inheritdoc/>
 	public void WriteInfo(string message)
 	{
+		Ensure.NotNull(message);
 		Console.WriteLine(message);
 		_logger?.LogInformation("{Message}", message);
 	}
@@ -51,6 +57,7 @@ public class BuildLogger : IBuildLogger
 	/// <inheritdoc/>
 	public void WriteWarning(string message)
 	{
+		Ensure.NotNull(message);
 		WriteColored(message, ConsoleColor.Yellow);
 		_logger?.LogWarning("{Message}", message);
 	}
@@ -58,6 +65,7 @@ public class BuildLogger : IBuildLogger
 	/// <inheritdoc/>
 	public void WriteError(string message)
 	{
+		Ensure.NotNull(message);
 		WriteColored(message, ConsoleColor.Red);
 		_logger?.LogError("{Message}", message);
 	}
@@ -65,6 +73,7 @@ public class BuildLogger : IBuildLogger
 	/// <inheritdoc/>
 	public void WriteSuccess(string message)
 	{
+		Ensure.NotNull(message);
 		WriteColored(message, ConsoleColor.Green);
 		_logger?.LogInformation("{Message}", message);
 	}
@@ -72,6 +81,7 @@ public class BuildLogger : IBuildLogger
 	/// <inheritdoc/>
 	public void WriteVerbose(string message)
 	{
+		Ensure.NotNull(message);
 		if (VerboseEnabled)
 		{
 			WriteColored(message, ConsoleColor.DarkGray);
@@ -81,7 +91,7 @@ public class BuildLogger : IBuildLogger
 
 	private static void WriteColored(string message, ConsoleColor color)
 	{
-		var originalColor = Console.ForegroundColor;
+		ConsoleColor originalColor = Console.ForegroundColor;
 		try
 		{
 			Console.ForegroundColor = color;

@@ -37,7 +37,7 @@ public static class ManifestGenerator
 
 		Directory.CreateDirectory(outputDirectory);
 
-		var files = new List<string>();
+		List<string> files = [];
 		string releaseDate = DateTime.UtcNow.ToString("yyyy-MM-dd");
 
 		// Version manifest
@@ -74,7 +74,7 @@ public static class ManifestGenerator
 
 	private static async Task WriteLocaleManifestAsync(string path, ManifestConfig config, ProjectInfo projectInfo, CancellationToken cancellationToken)
 	{
-		var sb = new StringBuilder();
+		StringBuilder sb = new();
 		sb.AppendLine("# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.10.0.schema.json");
 		sb.AppendLine($"PackageIdentifier: {config.PackageId}");
 		sb.AppendLine($"PackageVersion: {config.Version}");
@@ -126,7 +126,7 @@ public static class ManifestGenerator
 		string releaseDate,
 		CancellationToken cancellationToken)
 	{
-		var sb = new StringBuilder();
+		StringBuilder sb = new();
 		sb.AppendLine("# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.10.0.schema.json");
 		sb.AppendLine($"PackageIdentifier: {config.PackageId}");
 		sb.AppendLine($"PackageVersion: {config.Version}");

@@ -17,10 +17,12 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger) : 
 {
 	private const string QuietLogger = "-logger:\"Microsoft.Build.Logging.ConsoleLogger,Microsoft.Build;Summary;ForceNoAlign;ShowTimestamp;ShowCommandLine;Verbosity=quiet\"";
 
+#pragma warning disable SYSLIB1045 // GeneratedRegex not available in netstandard2.0/2.1
 	private static readonly Regex OutputTypeExeRegex = new(@"<OutputType>\s*Exe\s*</OutputType>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 	private static readonly Regex OutputTypeWinExeRegex = new(@"<OutputType>\s*WinExe\s*</OutputType>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 	private static readonly Regex SdkAppRegex = new(@"Sdk=""[^""]*\.App[/""]", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 	private static readonly Regex SdkTestRegex = new(@"Sdk=""[^""]*\.Test[/""]", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+#pragma warning restore SYSLIB1045
 
 	/// <inheritdoc/>
 	public async Task RestoreAsync(string workingDirectory, bool lockedMode = true, CancellationToken cancellationToken = default)
@@ -29,17 +31,18 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger) : 
 		logger.WriteStepHeader("Restoring Dependencies");
 
 		string args = $"restore {QuietLogger}";
+		int exitCode;
 		if (lockedMode)
 		{
 			args += " --locked-mode";
 		}
 
-		int exitCode = await processRunner.RunWithCallbackAsync(
+		exitCode = await processRunner.RunWithCallbackAsync(
 			"dotnet",
 			args,
 			workingDirectory,
-			line => logger.WriteInfo(line),
-			line => logger.WriteError(line),
+			logger.WriteInfo,
+			logger.WriteError,
 			cancellationToken).ConfigureAwait(false);
 
 		if (exitCode != 0)
@@ -64,8 +67,8 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger) : 
 			"dotnet",
 			args,
 			workingDirectory,
-			line => logger.WriteInfo(line),
-			line => logger.WriteError(line),
+			logger.WriteInfo,
+			logger.WriteError,
 			cancellationToken).ConfigureAwait(false);
 
 		if (exitCode != 0)
@@ -77,8 +80,8 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger) : 
 				"dotnet",
 				args,
 				workingDirectory,
-				line => logger.WriteInfo(line),
-				line => logger.WriteError(line),
+				logger.WriteInfo,
+				logger.WriteError,
 				cancellationToken).ConfigureAwait(false);
 
 			if (exitCode != 0)
@@ -95,7 +98,7 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger) : 
 		logger.WriteStepHeader("Running Tests with Coverage");
 
 		// Check for test projects
-		var testProjects = GetProjectFiles(workingDirectory).Where(IsTestProject).ToList();
+		List<string> testProjects = [.. GetProjectFiles(workingDirectory).Where(IsTestProject)];
 		if (testProjects.Count == 0)
 		{
 			logger.WriteInfo("No test projects found in solution. Skipping test execution.");
@@ -116,8 +119,8 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger) : 
 			"dotnet",
 			args,
 			workingDirectory,
-			line => logger.WriteInfo(line),
-			line => logger.WriteError(line),
+			logger.WriteInfo,
+			logger.WriteError,
 			cancellationToken).ConfigureAwait(false);
 
 		if (exitCode != 0)
@@ -138,7 +141,7 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger) : 
 
 		Directory.CreateDirectory(outputPath);
 
-		var projectFiles = GetProjectFiles(workingDirectory);
+		IReadOnlyList<string> projectFiles = GetProjectFiles(workingDirectory);
 		if (projectFiles.Count == 0)
 		{
 			logger.WriteInfo("No .NET library projects found to package");
@@ -158,8 +161,8 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger) : 
 			"dotnet",
 			args,
 			workingDirectory,
-			line => logger.WriteInfo(line),
-			line => logger.WriteError(line),
+			logger.WriteInfo,
+			logger.WriteError,
 			cancellationToken).ConfigureAwait(false);
 
 		if (exitCode != 0)
@@ -210,8 +213,8 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger) : 
 			"dotnet",
 			args,
 			workingDirectory,
-			line => logger.WriteInfo(line),
-			line => logger.WriteError(line),
+			logger.WriteInfo,
+			logger.WriteError,
 			cancellationToken).ConfigureAwait(false);
 
 		if (exitCode != 0)
@@ -224,7 +227,7 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger) : 
 	public IReadOnlyList<string> GetProjectFiles(string workingDirectory)
 	{
 		Ensure.NotNull(workingDirectory);
-		return Directory.GetFiles(workingDirectory, "*.csproj", SearchOption.AllDirectories).ToList();
+		return [.. Directory.GetFiles(workingDirectory, "*.csproj", SearchOption.AllDirectories)];
 	}
 
 	/// <inheritdoc/>
@@ -292,5 +295,4 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger) : 
 			logger.WriteWarning("No coverage file found");
 		}
 	}
-
 }

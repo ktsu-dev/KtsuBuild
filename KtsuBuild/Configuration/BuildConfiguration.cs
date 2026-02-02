@@ -4,6 +4,8 @@
 
 namespace KtsuBuild.Configuration;
 
+using System.Diagnostics.CodeAnalysis;
+
 /// <summary>
 /// Represents the complete build configuration.
 /// </summary>
@@ -72,6 +74,7 @@ public class BuildConfiguration
 	/// <summary>
 	/// Gets or sets the GitHub server URL.
 	/// </summary>
+	[SuppressMessage("Design", "CA1056:URI properties should not be strings", Justification = "String URLs are simpler for CLI tool configuration")]
 	public string ServerUrl { get; set; } = "https://github.com";
 
 	/// <summary>

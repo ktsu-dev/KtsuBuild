@@ -4,11 +4,13 @@
 
 namespace KtsuBuild.Abstractions;
 
+using System.Diagnostics.CodeAnalysis;
 using KtsuBuild.Metadata;
 
 /// <summary>
 /// Interface for project metadata generation and management.
 /// </summary>
+[SuppressMessage("Microsoft.Design", "CA1054:UriParametersShouldNotBeStrings", Justification = "String URLs are simpler for CLI tool configuration")]
 public interface IMetadataService
 {
 	/// <summary>

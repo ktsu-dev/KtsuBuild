@@ -7,6 +7,7 @@ namespace KtsuBuild.Winget;
 using System.Net.Http;
 using System.Security.Cryptography;
 using KtsuBuild.Abstractions;
+using KtsuBuild.Utilities;
 using static Polyfill;
 
 /// <summary>
@@ -16,8 +17,6 @@ using static Polyfill;
 /// <param name="logger">The build logger.</param>
 public class WingetService(IProcessRunner processRunner, IBuildLogger logger) : IWingetService
 {
-	private readonly ProjectDetector _projectDetector = new();
-
 	private static readonly string[] WindowsArchitectures = ["win-x64", "win-x86", "win-arm64"];
 
 	/// <inheritdoc/>
@@ -27,11 +26,11 @@ public class WingetService(IProcessRunner processRunner, IBuildLogger logger) : 
 		logger.WriteStepHeader("Generating Winget Manifests");
 
 		// Detect project info
-		var projectInfo = _projectDetector.Detect(options.RootDirectory);
+		ProjectInfo projectInfo = ProjectDetector.Detect(options.RootDirectory);
 		logger.WriteInfo($"Detected project: {projectInfo.Name} (Type: {projectInfo.Type})");
 
 		// Check if library-only project
-		if (_projectDetector.IsLibraryOnlyProject(options.RootDirectory, projectInfo))
+		if (ProjectDetector.IsLibraryOnlyProject(options.RootDirectory, projectInfo))
 		{
 			logger.WriteWarning("Detected library project - no executable artifacts expected.");
 			logger.WriteWarning("Skipping winget manifest generation as this appears to be a library/NuGet package.");
@@ -53,7 +52,7 @@ public class WingetService(IProcessRunner processRunner, IBuildLogger logger) : 
 			};
 		}
 
-		string[] parts = gitHubRepo.Split('/');
+		string[] parts = gitHubRepo!.Split('/');
 		string owner = parts[0];
 		string repoName = parts[1];
 
@@ -74,11 +73,11 @@ public class WingetService(IProcessRunner processRunner, IBuildLogger logger) : 
 		logger.WriteInfo($"  Command Alias: {commandAlias}");
 
 		// Get SHA256 hashes
-		var sha256Hashes = await GetHashesAsync(options, gitHubRepo, repoName, artifactPattern, cancellationToken).ConfigureAwait(false);
+		Dictionary<string, string> sha256Hashes = await GetHashesAsync(options, gitHubRepo, repoName, artifactPattern, cancellationToken).ConfigureAwait(false);
 
 		if (sha256Hashes.Count == 0)
 		{
-			if (_projectDetector.IsLibraryOnlyProject(options.RootDirectory, projectInfo))
+			if (ProjectDetector.IsLibraryOnlyProject(options.RootDirectory, projectInfo))
 			{
 				logger.WriteWarning("No hashes found, but this appears to be a library-only project.");
 				return new WingetManifestResult
@@ -96,7 +95,7 @@ public class WingetService(IProcessRunner processRunner, IBuildLogger logger) : 
 		}
 
 		// Generate manifests
-		var config = new ManifestConfig
+		ManifestConfig config = new()
 		{
 			PackageId = packageId,
 			Version = options.Version,
@@ -112,7 +111,7 @@ public class WingetService(IProcessRunner processRunner, IBuildLogger logger) : 
 		};
 
 		Directory.CreateDirectory(options.OutputDirectory);
-		var manifestFiles = await ManifestGenerator.GenerateAsync(config, projectInfo, sha256Hashes, options.OutputDirectory, cancellationToken).ConfigureAwait(false);
+		IReadOnlyList<string> manifestFiles = await ManifestGenerator.GenerateAsync(config, projectInfo, sha256Hashes, options.OutputDirectory, cancellationToken).ConfigureAwait(false);
 
 		logger.WriteSuccess("Winget manifests generated successfully!");
 		foreach (string file in manifestFiles)
@@ -142,15 +141,15 @@ public class WingetService(IProcessRunner processRunner, IBuildLogger logger) : 
 
 		logger.WriteInfo($"Uploading {manifestFiles.Length} manifest files to release v{version}...");
 
-		string fileArgs = string.Join(" ", manifestFiles.Select(f => $"\"{f}\""));
+		string fileArgs = string.Join(" ", manifestFiles.Select(static f => $"\"{f}\""));
 		string args = $"release upload v{version} {fileArgs}";
 
 		int exitCode = await processRunner.RunWithCallbackAsync(
 			"gh",
 			args,
 			null,
-			line => logger.WriteInfo(line),
-			line => logger.WriteError(line),
+			logger.WriteInfo,
+			logger.WriteError,
 			cancellationToken).ConfigureAwait(false);
 
 		if (exitCode != 0)
@@ -165,7 +164,7 @@ public class WingetService(IProcessRunner processRunner, IBuildLogger logger) : 
 
 	private async Task<string?> DetectGitHubRepoAsync(string rootDirectory, CancellationToken cancellationToken)
 	{
-		var result = await processRunner.RunAsync("git", "remote get-url origin", rootDirectory, cancellationToken).ConfigureAwait(false);
+		ProcessResult result = await processRunner.RunAsync("git", "remote get-url origin", rootDirectory, cancellationToken).ConfigureAwait(false);
 		if (!result.Success)
 		{
 			return null;
@@ -206,7 +205,7 @@ public class WingetService(IProcessRunner processRunner, IBuildLogger logger) : 
 		string artifactPattern,
 		CancellationToken cancellationToken)
 	{
-		var hashes = new Dictionary<string, string>();
+		Dictionary<string, string> hashes = [];
 
 		// First try to read from local hashes file (from recent build)
 		if (!string.IsNullOrEmpty(options.StagingDirectory))
@@ -251,7 +250,7 @@ public class WingetService(IProcessRunner processRunner, IBuildLogger logger) : 
 		// Fall back to downloading from GitHub release
 		string downloadBaseUrl = $"https://github.com/{gitHubRepo}/releases/download/v{options.Version}";
 
-		using var httpClient = new HttpClient();
+		using HttpClient httpClient = new();
 		httpClient.DefaultRequestHeaders.Add("User-Agent", "KtsuBuild-WingetService");
 
 		foreach (string arch in WindowsArchitectures)
@@ -266,7 +265,13 @@ public class WingetService(IProcessRunner processRunner, IBuildLogger logger) : 
 			try
 			{
 				logger.WriteInfo($"Downloading {fileName} to calculate SHA256...");
-				byte[] fileBytes = await httpClient.GetByteArrayAsync(downloadUrl, cancellationToken).ConfigureAwait(false);
+				Uri downloadUri = new(downloadUrl);
+#if NETSTANDARD
+				cancellationToken.ThrowIfCancellationRequested();
+				byte[] fileBytes = await httpClient.GetByteArrayAsync(downloadUri).ConfigureAwait(false);
+#else
+				byte[] fileBytes = await httpClient.GetByteArrayAsync(downloadUri, cancellationToken).ConfigureAwait(false);
+#endif
 				byte[] hashBytes = SHA256.HashData(fileBytes);
 				string hash = Convert.ToHexString(hashBytes);
 				hashes[arch] = hash;

@@ -23,7 +23,7 @@ public class MetadataService(IGitService gitService, IBuildLogger logger) : IMet
 	public async Task<MetadataUpdateResult> UpdateAllAsync(MetadataUpdateOptions options, CancellationToken cancellationToken = default)
 	{
 		Ensure.NotNull(options);
-		var config = options.BuildConfiguration;
+		Configuration.BuildConfiguration config = options.BuildConfiguration;
 
 		try
 		{
@@ -31,7 +31,7 @@ public class MetadataService(IGitService gitService, IBuildLogger logger) : IMet
 
 			// Generate version
 			logger.WriteInfo("Generating version information...");
-			var versionInfo = await _versionCalculator.GetVersionInfoAsync(config.WorkspacePath, config.ReleaseHash, cancellationToken: cancellationToken).ConfigureAwait(false);
+			VersionInfo versionInfo = await _versionCalculator.GetVersionInfoAsync(config.WorkspacePath, config.ReleaseHash, cancellationToken: cancellationToken).ConfigureAwait(false);
 			string version = versionInfo.Version;
 			logger.WriteInfo($"Version: {version}");
 
@@ -55,8 +55,8 @@ public class MetadataService(IGitService gitService, IBuildLogger logger) : IMet
 
 			if (options.CommitChanges)
 			{
-				var filesToAdd = new List<string>
-				{
+				List<string> filesToAdd =
+				[
 					"VERSION.md",
 					"LICENSE.md",
 					"AUTHORS.md",
@@ -64,7 +64,7 @@ public class MetadataService(IGitService gitService, IBuildLogger logger) : IMet
 					"COPYRIGHT.md",
 					"PROJECT_URL.url",
 					"AUTHORS.url",
-				};
+				];
 
 				if (File.Exists(Path.Combine(config.WorkspacePath, config.LatestChangelogFile)))
 				{
@@ -100,7 +100,9 @@ public class MetadataService(IGitService gitService, IBuildLogger logger) : IMet
 				HasChanges = hasChanges,
 			};
 		}
+#pragma warning disable CA1031 // This is a top-level operation that returns a result object; catching all exceptions is intentional
 		catch (Exception ex)
+#pragma warning restore CA1031
 		{
 			logger.WriteError($"Failed to update metadata: {ex.Message}");
 			return new MetadataUpdateResult

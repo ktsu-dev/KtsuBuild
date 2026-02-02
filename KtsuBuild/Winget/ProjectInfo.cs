@@ -4,9 +4,13 @@
 
 namespace KtsuBuild.Winget;
 
+using System.Diagnostics.CodeAnalysis;
+
 /// <summary>
 /// Represents detected project information for Winget manifest generation.
 /// </summary>
+[SuppressMessage("Usage", "CA2227:Collection properties should be read only", Justification = "This is a simple data transfer object that needs mutable collections")]
+[SuppressMessage("Design", "CA1002:Do not expose generic lists", Justification = "This is a simple data transfer object")]
 public class ProjectInfo
 {
 	/// <summary>
@@ -32,12 +36,12 @@ public class ProjectInfo
 	/// <summary>
 	/// Gets or sets the supported file extensions.
 	/// </summary>
-	public IList<string> FileExtensions { get; set; } = [];
+	public List<string> FileExtensions { get; set; } = [];
 
 	/// <summary>
 	/// Gets or sets the tags for the package.
 	/// </summary>
-	public IList<string> Tags { get; set; } = [];
+	public List<string> Tags { get; set; } = [];
 
 	/// <summary>
 	/// Gets or sets the version.

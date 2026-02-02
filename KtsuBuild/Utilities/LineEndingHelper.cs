@@ -5,6 +5,7 @@
 namespace KtsuBuild.Utilities;
 
 using KtsuBuild.Abstractions;
+using static Polyfill;
 
 /// <summary>
 /// Helper for handling line endings based on Git configuration.
@@ -19,6 +20,7 @@ public class LineEndingHelper
 	/// <param name="processRunner">The process runner.</param>
 	public LineEndingHelper(IProcessRunner processRunner)
 	{
+		Ensure.NotNull(processRunner);
 		_processRunner = processRunner;
 	}
 
@@ -30,8 +32,10 @@ public class LineEndingHelper
 	/// <returns>The line ending string ("\n" or "\r\n").</returns>
 	public async Task<string> GetLineEndingAsync(string workingDirectory, CancellationToken cancellationToken = default)
 	{
+		Ensure.NotNull(workingDirectory);
+
 		// Check core.eol first
-		var eolResult = await _processRunner.RunAsync("git", "config --get core.eol", workingDirectory, cancellationToken).ConfigureAwait(false);
+		ProcessResult eolResult = await _processRunner.RunAsync("git", "config --get core.eol", workingDirectory, cancellationToken).ConfigureAwait(false);
 		if (eolResult.Success && !string.IsNullOrWhiteSpace(eolResult.StandardOutput))
 		{
 			string eol = eolResult.StandardOutput.Trim().ToLowerInvariant();
@@ -44,7 +48,7 @@ public class LineEndingHelper
 		}
 
 		// Fall back to core.autocrlf
-		var autocrlfResult = await _processRunner.RunAsync("git", "config --get core.autocrlf", workingDirectory, cancellationToken).ConfigureAwait(false);
+		ProcessResult autocrlfResult = await _processRunner.RunAsync("git", "config --get core.autocrlf", workingDirectory, cancellationToken).ConfigureAwait(false);
 		if (autocrlfResult.Success && !string.IsNullOrWhiteSpace(autocrlfResult.StandardOutput))
 		{
 			string autocrlf = autocrlfResult.StandardOutput.Trim().ToLowerInvariant();
@@ -69,6 +73,9 @@ public class LineEndingHelper
 	/// <returns>The normalized content.</returns>
 	public static string NormalizeLineEndings(string content, string lineEnding)
 	{
+		Ensure.NotNull(content);
+		Ensure.NotNull(lineEnding);
+
 		// First normalize all line endings to LF
 		string normalized = content
 			.Replace("\r\n", "\n")
@@ -92,6 +99,10 @@ public class LineEndingHelper
 	/// <param name="cancellationToken">A cancellation token.</param>
 	public static async Task WriteFileAsync(string filePath, string content, string lineEnding, CancellationToken cancellationToken = default)
 	{
+		Ensure.NotNull(filePath);
+		Ensure.NotNull(content);
+		Ensure.NotNull(lineEnding);
+
 		string normalizedContent = NormalizeLineEndings(content, lineEnding);
 
 		// Write without BOM (UTF-8)

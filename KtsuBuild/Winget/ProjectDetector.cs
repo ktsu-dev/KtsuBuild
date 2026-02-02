@@ -11,18 +11,28 @@ using static Polyfill;
 /// <summary>
 /// Detects project type and extracts metadata for Winget manifest generation.
 /// </summary>
-public class ProjectDetector
+public static class ProjectDetector
 {
+#pragma warning disable SYSLIB1045 // GeneratedRegex not available in netstandard2.0/2.1
 	private static readonly Regex TitleRegex = new(@"^#\s+(.+?)(?=\r?\n|$)", RegexOptions.Multiline | RegexOptions.Compiled);
+	private static readonly Regex OutputTypeExeRegex = new(@"<OutputType>\s*Exe\s*</OutputType>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+	private static readonly Regex OutputTypeWinExeRegex = new(@"<OutputType>\s*WinExe\s*</OutputType>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+	private static readonly Regex SdkAppRegex = new(@"Sdk=""[^""]*\.App[/""]", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+	private static readonly Regex OutputTypeLibraryRegex = new(@"<OutputType>\s*Library\s*</OutputType>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+	private static readonly Regex SdkLibRegex = new(@"Sdk=""[^""]*\.Lib[/""]", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+	private static readonly Regex NodeNameRegex = new(@"""name""\s*:\s*""([^""]+)""", RegexOptions.Compiled);
+	private static readonly Regex NodeDescriptionRegex = new(@"""description""\s*:\s*""([^""]+)""", RegexOptions.Compiled);
+	private static readonly Regex CargoNameRegex = new(@"name\s*=\s*""([^""]+)""", RegexOptions.Compiled);
+#pragma warning restore SYSLIB1045
 	/// <summary>
 	/// Detects project information from the repository.
 	/// </summary>
 	/// <param name="rootDirectory">The repository root directory.</param>
 	/// <returns>The detected project info.</returns>
-	public ProjectInfo Detect(string rootDirectory)
+	public static ProjectInfo Detect(string rootDirectory)
 	{
 		Ensure.NotNull(rootDirectory);
-		var projectInfo = new ProjectInfo();
+		ProjectInfo projectInfo = new();
 
 		// Try to get version from VERSION.md
 		string versionFile = Path.Combine(rootDirectory, "VERSION.md");
@@ -49,7 +59,7 @@ public class ProjectDetector
 			string content = File.ReadAllText(readmeFile);
 
 			// Extract name from title
-			var titleMatch = TitleRegex.Match(content);
+			Match titleMatch = TitleRegex.Match(content);
 			if (titleMatch.Success)
 			{
 				projectInfo.Name = titleMatch.Groups[1].Value.Trim();
@@ -92,8 +102,10 @@ public class ProjectDetector
 		if (File.Exists(tagsFile))
 		{
 			string tagsContent = File.ReadAllText(tagsFile).Trim();
-			projectInfo.Tags = [.. tagsContent.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-				.Select(t => t.Replace(" ", "-").Replace("--", "-"))
+			projectInfo.Tags = [.. tagsContent.Split(';', StringSplitOptions.RemoveEmptyEntries)
+				.Select(static t => t.Trim())
+				.Where(static t => !string.IsNullOrEmpty(t))
+				.Select(static t => t.Replace(" ", "-").Replace("--", "-"))
 				.Take(10)];
 		}
 
@@ -117,7 +129,7 @@ public class ProjectDetector
 	/// <param name="rootDirectory">The repository root directory.</param>
 	/// <param name="projectInfo">The detected project info.</param>
 	/// <returns>True if this is a library-only project.</returns>
-	public bool IsLibraryOnlyProject(string rootDirectory, ProjectInfo projectInfo)
+	public static bool IsLibraryOnlyProject(string rootDirectory, ProjectInfo projectInfo)
 	{
 		Ensure.NotNull(rootDirectory);
 		Ensure.NotNull(projectInfo);
@@ -173,7 +185,9 @@ public class ProjectDetector
 		return false;
 	}
 
+#pragma warning disable CA1502 // Method complexity is due to comprehensive project detection logic
 	private static void DetectCSharpProject(string rootDirectory, ProjectInfo projectInfo)
+#pragma warning restore CA1502
 	{
 		string[] csprojFiles = Directory.GetFiles(rootDirectory, "*.csproj", SearchOption.AllDirectories);
 		if (csprojFiles.Length == 0)
@@ -188,7 +202,7 @@ public class ProjectDetector
 		// Try to parse as XML
 		try
 		{
-			var doc = XDocument.Parse(content);
+			XDocument doc = XDocument.Parse(content);
 
 			if (string.IsNullOrEmpty(projectInfo.Name))
 			{
@@ -216,7 +230,7 @@ public class ProjectDetector
 				string? authors = doc.Descendants("Authors").FirstOrDefault()?.Value;
 				if (!string.IsNullOrEmpty(authors))
 				{
-					projectInfo.Publisher = authors.Split(',')[0].Trim();
+					projectInfo.Publisher = authors!.Split(',')[0].Trim();
 				}
 			}
 
@@ -224,7 +238,9 @@ public class ProjectDetector
 			string? tags = doc.Descendants("PackageTags").FirstOrDefault()?.Value;
 			if (!string.IsNullOrEmpty(tags) && projectInfo.Tags.Count == 0)
 			{
-				projectInfo.Tags = [.. tags.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)];
+				projectInfo.Tags = [.. tags.Split(';', StringSplitOptions.RemoveEmptyEntries)
+					.Select(static t => t.Trim())
+					.Where(static t => !string.IsNullOrEmpty(t))];
 			}
 
 			// Get executable name
@@ -235,13 +251,14 @@ public class ProjectDetector
 			string? cmdAlias = doc.Descendants("WinGetCommandAlias").FirstOrDefault()?.Value;
 			projectInfo.CommandAlias = cmdAlias;
 		}
-		catch
+		catch (System.Xml.XmlException)
 		{
-			// Fall back to regex parsing
+			// Fall back to simple fallback
 			if (string.IsNullOrEmpty(projectInfo.Name))
 			{
 				projectInfo.Name = Path.GetFileNameWithoutExtension(csproj);
 			}
+
 			projectInfo.ExecutableName = $"{projectInfo.Name}.exe";
 		}
 
@@ -274,13 +291,13 @@ public class ProjectDetector
 		string content = File.ReadAllText(packageJsonPath);
 
 		// Simple JSON parsing with regex
-		var nameMatch = Regex.Match(content, "\"name\"\\s*:\\s*\"([^\"]+)\"");
+		Match nameMatch = NodeNameRegex.Match(content);
 		if (nameMatch.Success && string.IsNullOrEmpty(projectInfo.Name))
 		{
 			projectInfo.Name = nameMatch.Groups[1].Value;
 		}
 
-		var descMatch = Regex.Match(content, "\"description\"\\s*:\\s*\"([^\"]+)\"");
+		Match descMatch = NodeDescriptionRegex.Match(content);
 		if (descMatch.Success && string.IsNullOrEmpty(projectInfo.ShortDescription))
 		{
 			projectInfo.ShortDescription = descMatch.Groups[1].Value;
@@ -314,7 +331,7 @@ public class ProjectDetector
 		projectInfo.Type = "rust";
 		string content = File.ReadAllText(cargoPath);
 
-		var nameMatch = Regex.Match(content, "name\\s*=\\s*\"([^\"]+)\"");
+		Match nameMatch = CargoNameRegex.Match(content);
 		if (nameMatch.Success && string.IsNullOrEmpty(projectInfo.Name))
 		{
 			projectInfo.Name = nameMatch.Groups[1].Value;
@@ -342,21 +359,16 @@ public class ProjectDetector
 			   content.Contains("Sdk=\"Microsoft.NET.Sdk.Test\"", StringComparison.OrdinalIgnoreCase);
 	}
 
-	private static bool IsExecutableProject(string content)
-	{
-		return Regex.IsMatch(content, "<OutputType>\\s*Exe\\s*</OutputType>", RegexOptions.IgnoreCase) ||
-			   Regex.IsMatch(content, "<OutputType>\\s*WinExe\\s*</OutputType>", RegexOptions.IgnoreCase) ||
-			   Regex.IsMatch(content, "Sdk=\"[^\"]*\\.App[/\"]", RegexOptions.IgnoreCase);
-	}
+	private static bool IsExecutableProject(string content) =>
+		OutputTypeExeRegex.IsMatch(content) ||
+		OutputTypeWinExeRegex.IsMatch(content) ||
+		SdkAppRegex.IsMatch(content);
 
-	private static bool IsLibraryProject(string content)
-	{
-		return Regex.IsMatch(content, "<OutputType>\\s*Library\\s*</OutputType>", RegexOptions.IgnoreCase) ||
-			   content.Contains("<PackageId>", StringComparison.OrdinalIgnoreCase) ||
-			   content.Contains("<GeneratePackageOnBuild>true</GeneratePackageOnBuild>", StringComparison.OrdinalIgnoreCase) ||
-			   content.Contains("<IsPackable>true</IsPackable>", StringComparison.OrdinalIgnoreCase) ||
-			   Regex.IsMatch(content, "Sdk=\"[^\"]*\\.Lib[/\"]", RegexOptions.IgnoreCase) ||
-			   content.Contains("<TargetFrameworks>", StringComparison.OrdinalIgnoreCase);
-	}
-
+	private static bool IsLibraryProject(string content) =>
+		OutputTypeLibraryRegex.IsMatch(content) ||
+		content.Contains("<PackageId>", StringComparison.OrdinalIgnoreCase) ||
+		content.Contains("<GeneratePackageOnBuild>true</GeneratePackageOnBuild>", StringComparison.OrdinalIgnoreCase) ||
+		content.Contains("<IsPackable>true</IsPackable>", StringComparison.OrdinalIgnoreCase) ||
+		SdkLibRegex.IsMatch(content) ||
+		content.Contains("<TargetFrameworks>", StringComparison.OrdinalIgnoreCase);
 }

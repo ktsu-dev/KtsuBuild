@@ -7,6 +7,7 @@ namespace KtsuBuild.Utilities;
 using System.Diagnostics;
 using System.Text;
 using KtsuBuild.Abstractions;
+using static Polyfill;
 
 /// <summary>
 /// Implementation of process runner for executing external commands.
@@ -20,7 +21,10 @@ public class ProcessRunner : IProcessRunner
 		string? workingDirectory = null,
 		CancellationToken cancellationToken = default)
 	{
-		using var process = new Process();
+		Ensure.NotNull(fileName);
+		Ensure.NotNull(arguments);
+
+		using Process process = new();
 		process.StartInfo = new ProcessStartInfo
 		{
 			FileName = fileName,
@@ -32,8 +36,8 @@ public class ProcessRunner : IProcessRunner
 			CreateNoWindow = true,
 		};
 
-		var outputBuilder = new StringBuilder();
-		var errorBuilder = new StringBuilder();
+		StringBuilder outputBuilder = new();
+		StringBuilder errorBuilder = new();
 
 		process.OutputDataReceived += (sender, e) =>
 		{
@@ -74,7 +78,10 @@ public class ProcessRunner : IProcessRunner
 		Action<string>? errorCallback = null,
 		CancellationToken cancellationToken = default)
 	{
-		using var process = new Process();
+		Ensure.NotNull(fileName);
+		Ensure.NotNull(arguments);
+
+		using Process process = new();
 		process.StartInfo = new ProcessStartInfo
 		{
 			FileName = fileName,

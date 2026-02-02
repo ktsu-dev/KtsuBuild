@@ -11,14 +11,12 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 public class ProjectDetectorTests
 {
 	private string _tempDir = null!;
-	private ProjectDetector _detector = null!;
 
 	[TestInitialize]
 	public void Setup()
 	{
 		_tempDir = Path.Combine(Path.GetTempPath(), $"ProjectDetectorTest_{Guid.NewGuid():N}");
 		Directory.CreateDirectory(_tempDir);
-		_detector = new ProjectDetector();
 	}
 
 	[TestCleanup]
@@ -45,7 +43,7 @@ public class ProjectDetectorTests
 		File.WriteAllText(Path.Combine(_tempDir, "MyApp.csproj"), csproj);
 
 		// Act
-		var result = _detector.Detect(_tempDir);
+		var result = ProjectDetector.Detect(_tempDir);
 
 		// Assert
 		Assert.AreEqual("csharp", result.Type);
@@ -70,8 +68,8 @@ public class ProjectDetectorTests
 		File.WriteAllText(Path.Combine(_tempDir, $"{projectName}.csproj"), csproj);
 
 		// Act
-		var result = _detector.Detect(_tempDir);
-		bool isLibraryOnly = _detector.IsLibraryOnlyProject(_tempDir, result);
+		var result = ProjectDetector.Detect(_tempDir);
+		bool isLibraryOnly = ProjectDetector.IsLibraryOnlyProject(_tempDir, result);
 
 		// Assert
 		Assert.IsTrue(isLibraryOnly, "Should detect as library-only project");
@@ -89,8 +87,8 @@ public class ProjectDetectorTests
 		File.WriteAllText(Path.Combine(_tempDir, "MyApp.Tests.csproj"), csproj);
 
 		// Act
-		var result = _detector.Detect(_tempDir);
-		bool isLibraryOnly = _detector.IsLibraryOnlyProject(_tempDir, result);
+		var result = ProjectDetector.Detect(_tempDir);
+		bool isLibraryOnly = ProjectDetector.IsLibraryOnlyProject(_tempDir, result);
 
 		// Assert
 		Assert.IsTrue(isLibraryOnly, "Test projects should be treated as library-only (excluded from Winget)");
@@ -104,7 +102,7 @@ public class ProjectDetectorTests
 		File.WriteAllText(Path.Combine(_tempDir, "MyApp.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"></Project>");
 
 		// Act
-		var result = _detector.Detect(_tempDir);
+		var result = ProjectDetector.Detect(_tempDir);
 
 		// Assert
 		Assert.AreEqual("2.5.1", result.Version);
@@ -118,7 +116,7 @@ public class ProjectDetectorTests
 		File.WriteAllText(Path.Combine(_tempDir, "MyApp.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"></Project>");
 
 		// Act
-		var result = _detector.Detect(_tempDir);
+		var result = ProjectDetector.Detect(_tempDir);
 
 		// Assert
 		Assert.AreEqual("ktsu.dev", result.Publisher);
@@ -132,7 +130,7 @@ public class ProjectDetectorTests
 		File.WriteAllText(Path.Combine(_tempDir, "MyApp.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"></Project>");
 
 		// Act
-		var result = _detector.Detect(_tempDir);
+		var result = ProjectDetector.Detect(_tempDir);
 
 		// Assert
 		Assert.AreEqual("MyAwesomeProject", result.Name);
@@ -146,7 +144,7 @@ public class ProjectDetectorTests
 		File.WriteAllText(Path.Combine(_tempDir, "MyApp.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"></Project>");
 
 		// Act
-		var result = _detector.Detect(_tempDir);
+		var result = ProjectDetector.Detect(_tempDir);
 
 		// Assert
 		Assert.AreEqual("A short description of the project.", result.ShortDescription);
@@ -160,7 +158,7 @@ public class ProjectDetectorTests
 		File.WriteAllText(Path.Combine(_tempDir, "MyApp.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"></Project>");
 
 		// Act
-		var result = _detector.Detect(_tempDir);
+		var result = ProjectDetector.Detect(_tempDir);
 
 		// Assert
 		Assert.AreEqual("A quoted description", result.ShortDescription);
@@ -174,7 +172,7 @@ public class ProjectDetectorTests
 		File.WriteAllText(Path.Combine(_tempDir, "MyApp.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"></Project>");
 
 		// Act
-		var result = _detector.Detect(_tempDir);
+		var result = ProjectDetector.Detect(_tempDir);
 
 		// Assert
 		Assert.AreEqual("A full detailed description of the project.", result.Description);
@@ -188,7 +186,7 @@ public class ProjectDetectorTests
 		File.WriteAllText(Path.Combine(_tempDir, "MyApp.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"></Project>");
 
 		// Act
-		var result = _detector.Detect(_tempDir);
+		var result = ProjectDetector.Detect(_tempDir);
 
 		// Assert
 		Assert.IsTrue(result.Tags.Contains("utility"));
@@ -211,7 +209,7 @@ public class ProjectDetectorTests
 		File.WriteAllText(Path.Combine(_tempDir, "package.json"), packageJson);
 
 		// Act
-		var result = _detector.Detect(_tempDir);
+		var result = ProjectDetector.Detect(_tempDir);
 
 		// Assert
 		Assert.AreEqual("node", result.Type);
@@ -232,8 +230,8 @@ public class ProjectDetectorTests
 		File.WriteAllText(Path.Combine(_tempDir, "package.json"), packageJson);
 
 		// Act
-		var result = _detector.Detect(_tempDir);
-		bool isLibraryOnly = _detector.IsLibraryOnlyProject(_tempDir, result);
+		var result = ProjectDetector.Detect(_tempDir);
+		bool isLibraryOnly = ProjectDetector.IsLibraryOnlyProject(_tempDir, result);
 
 		// Assert
 		Assert.IsTrue(isLibraryOnly, "Node library without bin should be library-only");
@@ -251,7 +249,7 @@ edition = ""2021""
 		File.WriteAllText(Path.Combine(_tempDir, "Cargo.toml"), cargoToml);
 
 		// Act
-		var result = _detector.Detect(_tempDir);
+		var result = ProjectDetector.Detect(_tempDir);
 
 		// Assert
 		Assert.AreEqual("rust", result.Type);
@@ -265,7 +263,7 @@ edition = ""2021""
 		// Arrange - empty directory
 
 		// Act
-		var result = _detector.Detect(_tempDir);
+		var result = ProjectDetector.Detect(_tempDir);
 
 		// Assert
 		Assert.AreEqual("unknown", result.Type);
@@ -287,7 +285,7 @@ edition = ""2021""
 		File.WriteAllText(Path.Combine(_tempDir, "MyApp.csproj"), csproj);
 
 		// Act
-		var result = _detector.Detect(_tempDir);
+		var result = ProjectDetector.Detect(_tempDir);
 
 		// Assert
 		Assert.AreEqual("myapp.exe", result.ExecutableName);
@@ -308,8 +306,8 @@ edition = ""2021""
 		File.WriteAllText(Path.Combine(_tempDir, $"{projectName}.csproj"), csproj);
 
 		// Act
-		var result = _detector.Detect(_tempDir);
-		bool isLibraryOnly = _detector.IsLibraryOnlyProject(_tempDir, result);
+		var result = ProjectDetector.Detect(_tempDir);
+		bool isLibraryOnly = ProjectDetector.IsLibraryOnlyProject(_tempDir, result);
 
 		// Assert
 		Assert.IsFalse(isLibraryOnly, "Executable project should not be library-only");
@@ -328,7 +326,7 @@ edition = ""2021""
 		File.WriteAllText(Path.Combine(_tempDir, "MyLib.csproj"), csproj);
 
 		// Act
-		var result = _detector.Detect(_tempDir);
+		var result = ProjectDetector.Detect(_tempDir);
 
 		// Assert
 		Assert.IsTrue(result.Tags.Contains("serialization"));
@@ -357,8 +355,8 @@ edition = ""2021""
 		File.WriteAllText(Path.Combine(_tempDir, $"{projectName}.Demo.csproj"), demoCsproj);
 
 		// Act
-		var result = _detector.Detect(_tempDir);
-		bool isLibraryOnly = _detector.IsLibraryOnlyProject(_tempDir, result);
+		var result = ProjectDetector.Detect(_tempDir);
+		bool isLibraryOnly = ProjectDetector.IsLibraryOnlyProject(_tempDir, result);
 
 		// Assert
 		Assert.IsTrue(isLibraryOnly, "Demo projects should be excluded, leaving library-only");

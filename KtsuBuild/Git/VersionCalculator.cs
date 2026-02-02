@@ -17,8 +17,10 @@ public class VersionCalculator(IGitService gitService, IBuildLogger logger)
 {
 	private readonly CommitAnalyzer _commitAnalyzer = new(gitService);
 
+#pragma warning disable SYSLIB1045 // GeneratedRegex not available in netstandard2.0/2.1
 	private static readonly Regex PrereleaseRegex = new(@"-(?:alpha|beta|rc|pre).*$", RegexOptions.Compiled);
 	private static readonly Regex PrereleaseNumberRegex = new(@"-(?:(alpha|beta|rc|pre))\.(\d+)", RegexOptions.Compiled);
+#pragma warning restore SYSLIB1045
 
 	/// <summary>
 	/// Gets comprehensive version information from Git history.
@@ -41,7 +43,7 @@ public class VersionCalculator(IGitService gitService, IBuildLogger logger)
 		logger.WriteInfo($"Analyzing repository for version information...");
 		logger.WriteInfo($"Commit hash: {commitHash}");
 
-		var tags = await gitService.GetTagsAsync(workingDirectory, cancellationToken).ConfigureAwait(false);
+		IReadOnlyList<string> tags = await gitService.GetTagsAsync(workingDirectory, cancellationToken).ConfigureAwait(false);
 		logger.WriteInfo($"Found {tags.Count} tag(s)");
 
 		bool usingFallbackTag = tags.Count == 0;
@@ -58,7 +60,7 @@ public class VersionCalculator(IGitService gitService, IBuildLogger logger)
 
 		// Parse version from tag
 		string lastVersion = lastTag.TrimStart('v');
-		var (major, minor, patch, isPrerelease, prereleaseNum, prereleaseLabel) = ParseVersion(lastVersion);
+		(int major, int minor, int patch, bool isPrerelease, int prereleaseNum, string prereleaseLabel) = ParseVersion(lastVersion);
 
 		// Get first commit and tag commit
 		string firstCommit = await gitService.GetFirstCommitAsync(workingDirectory, cancellationToken).ConfigureAwait(false);
@@ -73,13 +75,13 @@ public class VersionCalculator(IGitService gitService, IBuildLogger logger)
 		logger.WriteInfo($"Analyzing commit range: {commitRange}");
 
 		// Analyze commits to determine increment type
-		var (incrementType, incrementReason) = await _commitAnalyzer.AnalyzeAsync(workingDirectory, commitRange, cancellationToken).ConfigureAwait(false);
+		(VersionType incrementType, string incrementReason) = await _commitAnalyzer.AnalyzeAsync(workingDirectory, commitRange, cancellationToken).ConfigureAwait(false);
 
 		logger.WriteInfo($"Version increment type: {incrementType}");
 		logger.WriteInfo($"Reason: {incrementReason}");
 
 		// Calculate new version
-		var versionInfo = new VersionInfo
+		VersionInfo versionInfo = new()
 		{
 			LastTag = lastTag,
 			LastVersion = lastVersion,
@@ -132,7 +134,7 @@ public class VersionCalculator(IGitService gitService, IBuildLogger logger)
 
 		if (isPrerelease)
 		{
-			var match = PrereleaseNumberRegex.Match(version);
+			Match match = PrereleaseNumberRegex.Match(version);
 			if (match.Success)
 			{
 				prereleaseNum = int.Parse(match.Groups[2].Value);
@@ -208,5 +210,4 @@ public class VersionCalculator(IGitService gitService, IBuildLogger logger)
 			? $"{newMajor}.{newMinor}.{newPatch}-{prereleaseLabel}.{newPrereleaseNum}"
 			: $"{newMajor}.{newMinor}.{newPatch}";
 	}
-
 }

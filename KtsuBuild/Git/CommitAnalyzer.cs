@@ -24,7 +24,9 @@ public class CommitAnalyzer(IGitService gitService)
 	/// </summary>
 	private static readonly string[] PrPatterns = ["Merge pull request", "Merge branch 'main'", "Updated packages in", "Update.*package version"];
 
+#pragma warning disable SYSLIB1045 // GeneratedRegex not available in netstandard2.0/2.1
 	private static readonly Regex SkipCiRegex = new(@"\[skip ci\]|\[ci skip\]", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+#pragma warning restore SYSLIB1045
 
 	/// <summary>
 	/// Analyzes the commit range and determines the version type.
@@ -38,7 +40,7 @@ public class CommitAnalyzer(IGitService gitService)
 		Ensure.NotNull(workingDirectory);
 		Ensure.NotNull(range);
 
-		var messages = await gitService.GetCommitMessagesAsync(workingDirectory, range, cancellationToken).ConfigureAwait(false);
+		IReadOnlyList<string> messages = await gitService.GetCommitMessagesAsync(workingDirectory, range, cancellationToken).ConfigureAwait(false);
 
 		if (messages.Count == 0)
 		{
@@ -46,7 +48,7 @@ public class CommitAnalyzer(IGitService gitService)
 		}
 
 		// Check if all commits are skip-ci commits
-		if (messages.All(m => SkipCiRegex.IsMatch(m)))
+		if (messages.All(SkipCiRegex.IsMatch))
 		{
 			return (VersionType.Skip, "All commits contain [skip ci] tag, skipping release");
 		}
@@ -60,9 +62,9 @@ public class CommitAnalyzer(IGitService gitService)
 			}
 		}
 
-		var minorReason = string.Empty;
-		var patchReason = string.Empty;
-		var preReason = string.Empty;
+		string minorReason = string.Empty;
+		string patchReason = string.Empty;
+		string preReason = string.Empty;
 
 		foreach (string message in messages)
 		{
@@ -96,7 +98,7 @@ public class CommitAnalyzer(IGitService gitService)
 		}
 
 		// Check for meaningful commits (not bot/PR merges)
-		bool hasMeaningfulCommits = messages.Any(m =>
+		bool hasMeaningfulCommits = messages.Any(static m =>
 			!BotPatterns.Any(p => m.Contains(p, StringComparison.OrdinalIgnoreCase)) &&
 			!PrPatterns.Any(p => Regex.IsMatch(m, p, RegexOptions.IgnoreCase)));
 
@@ -146,5 +148,4 @@ public class CommitAnalyzer(IGitService gitService)
 
 		return false;
 	}
-
 }

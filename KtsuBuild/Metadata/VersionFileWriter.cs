@@ -5,6 +5,7 @@
 namespace KtsuBuild.Metadata;
 
 using KtsuBuild.Utilities;
+using static Polyfill;
 
 /// <summary>
 /// Writes VERSION.md file.
@@ -20,6 +21,10 @@ public static class VersionFileWriter
 	/// <param name="cancellationToken">A cancellation token.</param>
 	public static async Task WriteAsync(string version, string outputPath, string lineEnding, CancellationToken cancellationToken = default)
 	{
+		Ensure.NotNull(version);
+		Ensure.NotNull(outputPath);
+		Ensure.NotNull(lineEnding);
+
 		string filePath = Path.Combine(outputPath, "VERSION.md");
 		string content = version.Trim() + lineEnding;
 		await LineEndingHelper.WriteFileAsync(filePath, content, lineEnding, cancellationToken).ConfigureAwait(false);
