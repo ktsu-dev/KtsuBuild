@@ -14,7 +14,9 @@ using KtsuBuild.Publishing;
 /// <summary>
 /// Release command that runs pack, publish, and release.
 /// </summary>
+#pragma warning disable CA1010 // System.CommandLine.Command implements IEnumerable for collection initializer support
 public class ReleaseCommand : Command
+#pragma warning restore CA1010
 {
 	/// <summary>
 	/// Initializes a new instance of the <see cref="ReleaseCommand"/> class.
@@ -48,15 +50,16 @@ public class ReleaseCommand : Command
 
 			logger.WriteStepHeader("Starting Release Workflow");
 
-			var gitService = new GitService(processRunner, logger);
-			var gitHubService = new GitHubService(processRunner, gitService, logger);
-			var configProvider = new BuildConfigurationProvider(gitService, gitHubService, logger);
-			var dotNetService = new DotNetService(processRunner, logger);
-			var nugetPublisher = new NuGetPublisher(processRunner, logger);
+			GitService gitService = new(processRunner, logger);
+			GitHubService gitHubService = new(processRunner, gitService, logger);
+			BuildConfigurationProvider configProvider = new(gitService, gitHubService);
+			DotNetService dotNetService = new(processRunner, logger);
+			NuGetPublisher nugetPublisher = new(processRunner, logger);
 
+#pragma warning disable CA1031 // Top-level command handler must catch all exceptions
 			try
 			{
-				var buildConfig = await configProvider.CreateFromEnvironmentAsync(workspace, cancellationToken).ConfigureAwait(false);
+				BuildConfiguration buildConfig = await configProvider.CreateFromEnvironmentAsync(workspace, cancellationToken).ConfigureAwait(false);
 				buildConfig.Configuration = configuration;
 
 				if (!buildConfig.ShouldRelease)
@@ -93,7 +96,7 @@ public class ReleaseCommand : Command
 				}
 
 				// Create release
-				var releaseOptions = new ReleaseOptions
+				ReleaseOptions releaseOptions = new()
 				{
 					Version = buildConfig.Version,
 					CommitHash = buildConfig.ReleaseHash,
@@ -113,6 +116,7 @@ public class ReleaseCommand : Command
 				logger.WriteError($"Release workflow failed: {ex.Message}");
 				return 1;
 			}
+#pragma warning restore CA1031
 		};
 	}
 }

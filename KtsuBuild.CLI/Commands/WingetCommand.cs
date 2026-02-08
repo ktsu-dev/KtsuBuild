@@ -11,7 +11,9 @@ using KtsuBuild.Winget;
 /// <summary>
 /// Winget command for manifest operations.
 /// </summary>
+#pragma warning disable CA1010 // System.CommandLine.Command implements IEnumerable for collection initializer support
 public class WingetCommand : Command
+#pragma warning restore CA1010
 {
 	/// <summary>
 	/// Initializes a new instance of the <see cref="WingetCommand"/> class.
@@ -22,24 +24,34 @@ public class WingetCommand : Command
 		Subcommands.Add(new UploadCommand());
 	}
 
+#pragma warning disable CA1010
 	private sealed class GenerateCommand : Command
+#pragma warning restore CA1010
 	{
 		private static readonly Option<string> VersionOption = new(
-			["--version", "-V"],
-			"The version to generate manifests for")
-		{ IsRequired = true };
+			"--version", "-V")
+		{
+			Description = "The version to generate manifests for",
+			Required = true,
+		};
 
 		private static readonly Option<string?> GitHubRepoOption = new(
-			["--repo", "-r"],
-			"The GitHub repository (owner/repo)");
+			"--repo", "-r")
+		{
+			Description = "The GitHub repository (owner/repo)",
+		};
 
 		private static readonly Option<string?> PackageIdOption = new(
-			["--package-id", "-p"],
-			"The package identifier");
+			"--package-id", "-p")
+		{
+			Description = "The package identifier",
+		};
 
 		private static readonly Option<string?> StagingOption = new(
-			["--staging", "-s"],
-			"The staging directory with hashes.txt");
+			"--staging", "-s")
+		{
+			Description = "The staging directory with hashes.txt",
+		};
 
 		public GenerateCommand() : base("generate", "Generate manifests for a version")
 		{
@@ -60,11 +72,12 @@ public class WingetCommand : Command
 				logger.VerboseEnabled = verbose;
 				logger.WriteStepHeader("Generating Winget Manifests");
 
-				var wingetService = new WingetService(processRunner, logger);
+				WingetService wingetService = new(processRunner, logger);
 
+#pragma warning disable CA1031 // Top-level command handler must catch all exceptions
 				try
 				{
-					var options = new WingetOptions
+					WingetOptions options = new()
 					{
 						Version = version,
 						GitHubRepo = gitHubRepo,
@@ -74,7 +87,7 @@ public class WingetCommand : Command
 						StagingDirectory = staging ?? Path.Combine(workspace, "staging"),
 					};
 
-					var result = await wingetService.GenerateManifestsAsync(options, cancellationToken).ConfigureAwait(false);
+					WingetManifestResult result = await wingetService.GenerateManifestsAsync(options, cancellationToken).ConfigureAwait(false);
 
 					if (result.IsLibraryOnly)
 					{
@@ -98,16 +111,21 @@ public class WingetCommand : Command
 					logger.WriteError($"Failed to generate manifests: {ex.Message}");
 					return 1;
 				}
+#pragma warning restore CA1031
 			};
 		}
 	}
 
+#pragma warning disable CA1010
 	private sealed class UploadCommand : Command
+#pragma warning restore CA1010
 	{
 		private static readonly Option<string> VersionOption = new(
-			["--version", "-V"],
-			"The version to upload manifests for")
-		{ IsRequired = true };
+			"--version", "-V")
+		{
+			Description = "The version to upload manifests for",
+			Required = true,
+		};
 
 		public UploadCommand() : base("upload", "Upload manifests to GitHub release")
 		{
@@ -124,8 +142,9 @@ public class WingetCommand : Command
 			{
 				logger.VerboseEnabled = verbose;
 
-				var wingetService = new WingetService(processRunner, logger);
+				WingetService wingetService = new(processRunner, logger);
 
+#pragma warning disable CA1031 // Top-level command handler must catch all exceptions
 				try
 				{
 					string manifestDir = Path.Combine(workspace, "winget");
@@ -139,6 +158,7 @@ public class WingetCommand : Command
 					logger.WriteError($"Failed to upload manifests: {ex.Message}");
 					return 1;
 				}
+#pragma warning restore CA1031
 			};
 		}
 	}

@@ -14,7 +14,9 @@ using KtsuBuild.Publishing;
 /// <summary>
 /// Metadata command for metadata file management.
 /// </summary>
+#pragma warning disable CA1010 // System.CommandLine.Command implements IEnumerable for collection initializer support
 public class MetadataCommand : Command
+#pragma warning restore CA1010
 {
 	/// <summary>
 	/// Initializes a new instance of the <see cref="MetadataCommand"/> class.
@@ -26,7 +28,9 @@ public class MetadataCommand : Command
 		Subcommands.Add(new ChangelogCommand());
 	}
 
+#pragma warning disable CA1010
 	private sealed class UpdateCommand : Command
+#pragma warning restore CA1010
 	{
 		public UpdateCommand() : base("update", "Update all metadata files")
 		{
@@ -44,16 +48,17 @@ public class MetadataCommand : Command
 				logger.VerboseEnabled = verbose;
 				logger.WriteStepHeader("Updating Metadata Files");
 
-				var gitService = new GitService(processRunner, logger);
-				var gitHubService = new GitHubService(processRunner, gitService, logger);
-				var configProvider = new BuildConfigurationProvider(gitService, gitHubService, logger);
-				var metadataService = new MetadataService(gitService, logger);
+				GitService gitService = new(processRunner, logger);
+				GitHubService gitHubService = new(processRunner, gitService, logger);
+				BuildConfigurationProvider configProvider = new(gitService, gitHubService);
+				MetadataService metadataService = new(gitService, logger);
 
+#pragma warning disable CA1031 // Top-level command handler must catch all exceptions
 				try
 				{
-					var buildConfig = await configProvider.CreateFromEnvironmentAsync(workspace, cancellationToken).ConfigureAwait(false);
+					BuildConfiguration buildConfig = await configProvider.CreateFromEnvironmentAsync(workspace, cancellationToken).ConfigureAwait(false);
 
-					var result = await metadataService.UpdateAllAsync(new MetadataUpdateOptions
+					MetadataUpdateResult result = await metadataService.UpdateAllAsync(new MetadataUpdateOptions
 					{
 						BuildConfiguration = buildConfig,
 						CommitChanges = !noCommit,
@@ -75,11 +80,14 @@ public class MetadataCommand : Command
 					logger.WriteError($"Failed to update metadata: {ex.Message}");
 					return 1;
 				}
+#pragma warning restore CA1031
 			};
 		}
 	}
 
+#pragma warning disable CA1010
 	private sealed class LicenseCommand : Command
+#pragma warning restore CA1010
 	{
 		public LicenseCommand() : base("license", "Generate LICENSE.md and COPYRIGHT.md")
 		{
@@ -95,13 +103,14 @@ public class MetadataCommand : Command
 			{
 				logger.VerboseEnabled = verbose;
 
-				var gitService = new GitService(processRunner, logger);
-				var gitHubService = new GitHubService(processRunner, gitService, logger);
-				var configProvider = new BuildConfigurationProvider(gitService, gitHubService, logger);
+				GitService gitService = new(processRunner, logger);
+				GitHubService gitHubService = new(processRunner, gitService, logger);
+				BuildConfigurationProvider configProvider = new(gitService, gitHubService);
 
+#pragma warning disable CA1031 // Top-level command handler must catch all exceptions
 				try
 				{
-					var buildConfig = await configProvider.CreateFromEnvironmentAsync(workspace, cancellationToken).ConfigureAwait(false);
+					BuildConfiguration buildConfig = await configProvider.CreateFromEnvironmentAsync(workspace, cancellationToken).ConfigureAwait(false);
 					string lineEnding = await gitService.GetLineEndingAsync(workspace, cancellationToken).ConfigureAwait(false);
 
 					await LicenseGenerator.GenerateAsync(
@@ -120,11 +129,14 @@ public class MetadataCommand : Command
 					logger.WriteError($"Failed to generate license: {ex.Message}");
 					return 1;
 				}
+#pragma warning restore CA1031
 			};
 		}
 	}
 
+#pragma warning disable CA1010
 	private sealed class ChangelogCommand : Command
+#pragma warning restore CA1010
 	{
 		public ChangelogCommand() : base("changelog", "Generate CHANGELOG.md")
 		{
@@ -140,14 +152,15 @@ public class MetadataCommand : Command
 			{
 				logger.VerboseEnabled = verbose;
 
-				var gitService = new GitService(processRunner, logger);
-				var changelogGenerator = new ChangelogGenerator(gitService, logger);
-				var versionCalculator = new VersionCalculator(gitService, logger);
+				GitService gitService = new(processRunner, logger);
+				ChangelogGenerator changelogGenerator = new(gitService, logger);
+				VersionCalculator versionCalculator = new(gitService, logger);
 
+#pragma warning disable CA1031 // Top-level command handler must catch all exceptions
 				try
 				{
 					string commitHash = await gitService.GetCurrentCommitHashAsync(workspace, cancellationToken).ConfigureAwait(false);
-					var versionInfo = await versionCalculator.GetVersionInfoAsync(workspace, commitHash, cancellationToken: cancellationToken).ConfigureAwait(false);
+					VersionInfo versionInfo = await versionCalculator.GetVersionInfoAsync(workspace, commitHash, cancellationToken: cancellationToken).ConfigureAwait(false);
 					string lineEnding = await gitService.GetLineEndingAsync(workspace, cancellationToken).ConfigureAwait(false);
 
 					await changelogGenerator.GenerateAsync(
@@ -166,6 +179,7 @@ public class MetadataCommand : Command
 					logger.WriteError($"Failed to generate changelog: {ex.Message}");
 					return 1;
 				}
+#pragma warning restore CA1031
 			};
 		}
 	}

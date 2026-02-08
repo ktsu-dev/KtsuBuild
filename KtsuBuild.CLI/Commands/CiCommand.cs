@@ -16,7 +16,9 @@ using KtsuBuild.Utilities;
 /// <summary>
 /// CI command that runs the full CI/CD pipeline.
 /// </summary>
+#pragma warning disable CA1010 // System.CommandLine.Command implements IEnumerable for collection initializer support
 public class CiCommand : Command
+#pragma warning restore CA1010
 {
 	/// <summary>
 	/// Initializes a new instance of the <see cref="CiCommand"/> class.
@@ -51,17 +53,18 @@ public class CiCommand : Command
 
 			logger.WriteStepHeader("Starting CI/CD Pipeline");
 
-			var gitService = new GitService(processRunner, logger);
-			var gitHubService = new GitHubService(processRunner, gitService, logger);
-			var configProvider = new BuildConfigurationProvider(gitService, gitHubService, logger);
-			var dotNetService = new DotNetService(processRunner, logger);
-			var metadataService = new MetadataService(gitService, logger);
-			var nugetPublisher = new NuGetPublisher(processRunner, logger);
+			GitService gitService = new(processRunner, logger);
+			GitHubService gitHubService = new(processRunner, gitService, logger);
+			BuildConfigurationProvider configProvider = new(gitService, gitHubService);
+			DotNetService dotNetService = new(processRunner, logger);
+			MetadataService metadataService = new(gitService, logger);
+			NuGetPublisher nugetPublisher = new(processRunner, logger);
 
+#pragma warning disable CA1031 // Top-level command handler must catch all exceptions
 			try
 			{
 				// Create build configuration
-				var buildConfig = await configProvider.CreateFromEnvironmentAsync(workspace, cancellationToken).ConfigureAwait(false);
+				BuildConfiguration buildConfig = await configProvider.CreateFromEnvironmentAsync(workspace, cancellationToken).ConfigureAwait(false);
 				buildConfig.Configuration = configuration;
 
 				logger.WriteInfo($"Is Official: {buildConfig.IsOfficial}");
@@ -76,7 +79,7 @@ public class CiCommand : Command
 
 				// Update metadata
 				logger.WriteInfo("Updating metadata...");
-				var metadataResult = await metadataService.UpdateAllAsync(new MetadataUpdateOptions
+				MetadataUpdateResult metadataResult = await metadataService.UpdateAllAsync(new MetadataUpdateOptions
 				{
 					BuildConfiguration = buildConfig,
 				}, cancellationToken).ConfigureAwait(false);
@@ -91,8 +94,8 @@ public class CiCommand : Command
 				buildConfig.ReleaseHash = metadataResult.ReleaseHash;
 
 				// Check for skip condition
-				var versionCalculator = new VersionCalculator(gitService, logger);
-				var versionInfo = await versionCalculator.GetVersionInfoAsync(workspace, buildConfig.ReleaseHash, cancellationToken: cancellationToken).ConfigureAwait(false);
+				VersionCalculator versionCalculator = new(gitService, logger);
+				VersionInfo versionInfo = await versionCalculator.GetVersionInfoAsync(workspace, buildConfig.ReleaseHash, cancellationToken: cancellationToken).ConfigureAwait(false);
 
 				if (versionInfo.VersionIncrement == VersionType.Skip)
 				{
@@ -125,7 +128,7 @@ public class CiCommand : Command
 					await dotNetService.PackAsync(workspace, buildConfig.StagingPath, configuration, buildConfig.LatestChangelogFile, cancellationToken).ConfigureAwait(false);
 
 					// Publish applications
-					var projectFiles = dotNetService.GetProjectFiles(workspace);
+					IReadOnlyList<string> projectFiles = dotNetService.GetProjectFiles(workspace);
 					foreach (string project in projectFiles.Where(p => dotNetService.IsExecutableProject(p)))
 					{
 						string projectName = Path.GetFileNameWithoutExtension(project);
@@ -140,7 +143,7 @@ public class CiCommand : Command
 							string zipPath = Path.Combine(buildConfig.StagingPath, $"{projectName}-{buildConfig.Version}-{runtime}.zip");
 							if (Directory.Exists(outputDir))
 							{
-								System.IO.Compression.ZipFile.CreateFromDirectory(outputDir, zipPath);
+								await System.IO.Compression.ZipFile.CreateFromDirectoryAsync(outputDir, zipPath, cancellationToken).ConfigureAwait(false);
 								logger.WriteInfo($"Created: {zipPath}");
 							}
 						}
@@ -184,7 +187,7 @@ public class CiCommand : Command
 					}
 
 					// Create GitHub release
-					var releaseOptions = new ReleaseOptions
+					ReleaseOptions releaseOptions = new()
 					{
 						Version = buildConfig.Version,
 						CommitHash = buildConfig.ReleaseHash,
@@ -207,6 +210,7 @@ public class CiCommand : Command
 				logger.WriteError($"CI/CD pipeline failed: {ex.Message}");
 				return 1;
 			}
+#pragma warning restore CA1031
 		};
 	}
 }

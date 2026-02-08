@@ -12,7 +12,9 @@ using KtsuBuild.Utilities;
 /// <summary>
 /// Build command that runs restore, build, and test.
 /// </summary>
+#pragma warning disable CA1010 // System.CommandLine.Command implements IEnumerable for collection initializer support
 public class BuildCommand : Command
+#pragma warning restore CA1010
 {
 	/// <summary>
 	/// Initializes a new instance of the <see cref="BuildCommand"/> class.
@@ -40,8 +42,9 @@ public class BuildCommand : Command
 			BuildEnvironment.Initialize();
 			logger.WriteStepHeader("Starting Build Workflow");
 
-			var dotNetService = new DotNetService(processRunner, logger);
+			DotNetService dotNetService = new(processRunner, logger);
 
+#pragma warning disable CA1031 // Top-level command handler must catch all exceptions
 			try
 			{
 				// Install dotnet-script if .csx files are present
@@ -69,6 +72,7 @@ public class BuildCommand : Command
 				logger.WriteError($"Build workflow failed: {ex.Message}");
 				return 1;
 			}
+#pragma warning restore CA1031
 		};
 	}
 }
