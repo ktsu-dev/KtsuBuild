@@ -143,6 +143,7 @@ public static class ProjectDetector
 
 			bool hasApplications = false;
 			bool isMainProjectLibrary = false;
+			bool hasNonTestProjects = false;
 
 			foreach (string csproj in csprojFiles)
 			{
@@ -154,6 +155,8 @@ public static class ProjectDetector
 				{
 					continue;
 				}
+
+				hasNonTestProjects = true;
 
 				bool isMainProject = projectName == repoName || projectName.StartsWith($"{repoName}.");
 				bool isExecutable = IsExecutableProject(content);
@@ -168,6 +171,12 @@ public static class ProjectDetector
 				{
 					hasApplications = true;
 				}
+			}
+
+			// If all projects are test/demo, there's nothing to package
+			if (!hasNonTestProjects)
+			{
+				return true;
 			}
 
 			return isMainProjectLibrary && !hasApplications;

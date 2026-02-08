@@ -15,7 +15,7 @@ public class ProjectDetectorTests
 	[TestInitialize]
 	public void Setup()
 	{
-		_tempDir = Path.Combine(Path.GetTempPath(), $"ProjectDetectorTest_{Guid.NewGuid():N}");
+		_tempDir = Path.Combine(Path.GetTempPath(), $"ProjDetect_{Guid.NewGuid():N}");
 		Directory.CreateDirectory(_tempDir);
 	}
 
