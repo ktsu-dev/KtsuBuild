@@ -8,7 +8,9 @@ using System.Net.Http;
 using System.Security.Cryptography;
 using KtsuBuild.Abstractions;
 using KtsuBuild.Utilities;
+#if !NET10_0_OR_GREATER
 using static Polyfill;
+#endif
 
 /// <summary>
 /// Service for Winget manifest operations.

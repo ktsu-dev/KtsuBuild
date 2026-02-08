@@ -5,7 +5,9 @@
 namespace KtsuBuild.Utilities;
 
 using KtsuBuild.Abstractions;
+#if !NET10_0_OR_GREATER
 using static Polyfill;
+#endif
 
 /// <summary>
 /// Helper for handling line endings based on Git configuration.

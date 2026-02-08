@@ -6,7 +6,9 @@ namespace KtsuBuild.DotNet;
 
 using System.Text.RegularExpressions;
 using KtsuBuild.Abstractions;
+#if !NET10_0_OR_GREATER
 using static Polyfill;
+#endif
 
 /// <summary>
 /// Implementation of .NET SDK operations.
@@ -86,6 +88,14 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger) : 
 
 			if (exitCode != 0)
 			{
+				// Log all project files for diagnostic purposes
+				string[] projects = Directory.GetFiles(workingDirectory, "*.csproj", SearchOption.AllDirectories);
+				logger.WriteWarning($"Build failed twice. Found {projects.Length} project file(s):");
+				foreach (string proj in projects)
+				{
+					logger.WriteWarning($"  - {proj}");
+				}
+
 				throw new InvalidOperationException($"Build failed with exit code {exitCode}");
 			}
 		}
@@ -141,33 +151,44 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger) : 
 
 		Directory.CreateDirectory(outputPath);
 
-		IReadOnlyList<string> projectFiles = GetProjectFiles(workingDirectory);
-		if (projectFiles.Count == 0)
+		// Get non-test project files to pack individually
+		List<string> packableProjects = [.. GetProjectFiles(workingDirectory)
+			.Where(p => !IsTestProject(p))];
+
+		if (packableProjects.Count == 0)
 		{
 			logger.WriteInfo("No .NET library projects found to package");
 			return;
 		}
 
-		string args = $"pack --configuration {configuration} {QuietLogger} --no-build --output \"{outputPath}\"";
-
+		string releaseNotesArg = string.Empty;
 		if (!string.IsNullOrEmpty(releaseNotesFile) && File.Exists(releaseNotesFile))
 		{
 			string absolutePath = Path.GetFullPath(releaseNotesFile);
 			logger.WriteInfo($"Using release notes from file: {absolutePath}");
-			args += $" -p:PackageReleaseNotesFile=\"{absolutePath}\"";
+			releaseNotesArg = $" -p:PackageReleaseNotesFile=\"{absolutePath}\"";
 		}
 
-		int exitCode = await processRunner.RunWithCallbackAsync(
-			"dotnet",
-			args,
-			workingDirectory,
-			logger.WriteInfo,
-			logger.WriteError,
-			cancellationToken).ConfigureAwait(false);
-
-		if (exitCode != 0)
+		// Pack each non-test project individually
+		foreach (string project in packableProjects)
 		{
-			throw new InvalidOperationException($"Pack failed with exit code {exitCode}");
+			string projectName = Path.GetFileNameWithoutExtension(project);
+			logger.WriteInfo($"Packing {projectName}...");
+
+			string args = $"pack \"{project}\" --configuration {configuration} {QuietLogger} --no-build --output \"{outputPath}\"{releaseNotesArg}";
+
+			int exitCode = await processRunner.RunWithCallbackAsync(
+				"dotnet",
+				args,
+				workingDirectory,
+				logger.WriteInfo,
+				logger.WriteError,
+				cancellationToken).ConfigureAwait(false);
+
+			if (exitCode != 0)
+			{
+				logger.WriteWarning($"Pack failed for {projectName} with exit code {exitCode}");
+			}
 		}
 
 		// Report on created packages
@@ -194,7 +215,7 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger) : 
 		string runtime,
 		string configuration = "Release",
 		bool selfContained = true,
-		bool singleFile = true,
+		bool singleFile = false,
 		CancellationToken cancellationToken = default)
 	{
 		Ensure.NotNull(workingDirectory);
@@ -206,8 +227,7 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger) : 
 		string args = $"publish \"{projectPath}\" --configuration {configuration} --runtime {runtime} " +
 			$"--self-contained {selfContained.ToString().ToLowerInvariant()} --output \"{outputPath}\" " +
 			$"-p:PublishSingleFile={singleFile.ToString().ToLowerInvariant()} " +
-			$"-p:PublishTrimmed=false -p:EnableCompressionInSingleFile=true " +
-			$"-p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=none -p:DebugSymbols=false {QuietLogger}";
+			$"-p:PublishTrimmed=false -p:DebugType=none -p:DebugSymbols=false {QuietLogger}";
 
 		int exitCode = await processRunner.RunWithCallbackAsync(
 			"dotnet",

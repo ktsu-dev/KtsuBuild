@@ -7,7 +7,9 @@ namespace KtsuBuild.Metadata;
 using KtsuBuild.Abstractions;
 using KtsuBuild.Git;
 using KtsuBuild.Utilities;
+#if !NET10_0_OR_GREATER
 using static Polyfill;
+#endif
 
 /// <summary>
 /// Service for managing project metadata files.

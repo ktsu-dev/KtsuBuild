@@ -11,6 +11,7 @@ using KtsuBuild.DotNet;
 using KtsuBuild.Git;
 using KtsuBuild.Metadata;
 using KtsuBuild.Publishing;
+using KtsuBuild.Utilities;
 
 /// <summary>
 /// CI command that runs the full CI/CD pipeline.
@@ -22,10 +23,10 @@ public class CiCommand : Command
 	/// </summary>
 	public CiCommand() : base("ci", "Run full CI/CD pipeline")
 	{
-		AddOption(GlobalOptions.Workspace);
-		AddOption(GlobalOptions.Configuration);
-		AddOption(GlobalOptions.Verbose);
-		AddOption(GlobalOptions.DryRun);
+		Options.Add(GlobalOptions.Workspace);
+		Options.Add(GlobalOptions.Configuration);
+		Options.Add(GlobalOptions.Verbose);
+		Options.Add(GlobalOptions.DryRun);
 	}
 
 	/// <summary>
@@ -41,6 +42,7 @@ public class CiCommand : Command
 		return async (workspace, configuration, verbose, dryRun, cancellationToken) =>
 		{
 			logger.VerboseEnabled = verbose;
+			BuildEnvironment.Initialize();
 
 			if (dryRun)
 			{
@@ -98,6 +100,19 @@ public class CiCommand : Command
 					return 0;
 				}
 
+				// Install dotnet-script if .csx files are present
+				if (buildConfig.UseDotnetScript)
+				{
+					logger.WriteInfo("Installing dotnet-script tool...");
+					await processRunner.RunWithCallbackAsync(
+						"dotnet",
+						"tool install -g dotnet-script",
+						workspace,
+						logger.WriteInfo,
+						logger.WriteInfo, // Ignore errors (tool may already be installed)
+						cancellationToken).ConfigureAwait(false);
+				}
+
 				// Build workflow
 				await dotNetService.RestoreAsync(workspace, cancellationToken: cancellationToken).ConfigureAwait(false);
 				await dotNetService.BuildAsync(workspace, configuration, buildConfig.BuildArgs, cancellationToken).ConfigureAwait(false);
@@ -129,6 +144,26 @@ public class CiCommand : Command
 								logger.WriteInfo($"Created: {zipPath}");
 							}
 						}
+					}
+
+					// Generate SHA256 hashes for all zip archives
+					string[] zipFiles = Directory.GetFiles(buildConfig.StagingPath, "*.zip");
+					if (zipFiles.Length > 0)
+					{
+						string hashesPath = Path.Combine(buildConfig.StagingPath, "hashes.txt");
+						List<string> hashEntries = [];
+						foreach (string zipFile in zipFiles)
+						{
+							byte[] fileBytes = await File.ReadAllBytesAsync(zipFile, cancellationToken).ConfigureAwait(false);
+							byte[] hashBytes = System.Security.Cryptography.SHA256.HashData(fileBytes);
+							string hash = Convert.ToHexString(hashBytes);
+							string fileName = Path.GetFileName(zipFile);
+							hashEntries.Add($"{fileName}={hash}");
+							logger.WriteInfo($"SHA256: {fileName} = {hash}");
+						}
+
+						await File.WriteAllLinesAsync(hashesPath, hashEntries, cancellationToken).ConfigureAwait(false);
+						logger.WriteInfo($"Hashes written to: {hashesPath}");
 					}
 
 					// Publish NuGet packages

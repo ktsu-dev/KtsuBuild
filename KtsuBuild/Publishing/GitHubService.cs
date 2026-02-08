@@ -7,7 +7,9 @@ namespace KtsuBuild.Publishing;
 using System.Text.Json;
 using KtsuBuild.Abstractions;
 using KtsuBuild.Utilities;
+#if !NET10_0_OR_GREATER
 using static Polyfill;
+#endif
 
 /// <summary>
 /// Implementation of GitHub operations using the gh CLI.

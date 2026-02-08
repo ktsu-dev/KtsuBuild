@@ -14,32 +14,36 @@ public static class GlobalOptions
 	/// <summary>
 	/// Gets the workspace option.
 	/// </summary>
-	public static Option<string> Workspace { get; } = new(
-		["--workspace", "-w"],
-		() => Directory.GetCurrentDirectory(),
-		"The workspace/repository path");
+	public static Option<string> Workspace { get; } = new("--workspace", "-w")
+	{
+		Description = "The workspace/repository path",
+		DefaultValueFactory = _ => Directory.GetCurrentDirectory(),
+	};
 
 	/// <summary>
 	/// Gets the configuration option.
 	/// </summary>
-	public static Option<string> Configuration { get; } = new(
-		["--configuration", "-c"],
-		() => "Release",
-		"The build configuration (Debug/Release)");
+	public static Option<string> Configuration { get; } = new("--configuration", "-c")
+	{
+		Description = "The build configuration (Debug/Release)",
+		DefaultValueFactory = _ => "Release",
+	};
 
 	/// <summary>
 	/// Gets the verbose option.
 	/// </summary>
-	public static Option<bool> Verbose { get; } = new(
-		["--verbose", "-v"],
-		() => false,
-		"Enable verbose output");
+	public static Option<bool> Verbose { get; } = new("--verbose", "-v")
+	{
+		Description = "Enable verbose output",
+		DefaultValueFactory = _ => false,
+	};
 
 	/// <summary>
 	/// Gets the dry-run option.
 	/// </summary>
-	public static Option<bool> DryRun { get; } = new(
-		["--dry-run"],
-		() => false,
-		"Preview actions without executing them");
+	public static Option<bool> DryRun { get; } = new("--dry-run")
+	{
+		Description = "Preview actions without executing them",
+		DefaultValueFactory = _ => false,
+	};
 }

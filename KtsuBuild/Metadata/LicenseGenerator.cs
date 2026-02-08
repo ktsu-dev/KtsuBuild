@@ -7,7 +7,9 @@ namespace KtsuBuild.Metadata;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using KtsuBuild.Utilities;
+#if !NET10_0_OR_GREATER
 using static Polyfill;
+#endif
 
 /// <summary>
 /// Generates license and copyright files.
@@ -45,7 +47,7 @@ public static class LicenseGenerator
 		string projectUrl = $"{serverUrl}/{repository}";
 
 		// Build copyright string
-		string copyright = $"Copyright (c) 2023-{year} {owner}";
+		string copyright = $"Copyright (c) 2023-{year} {owner} contributors";
 
 		// Replace placeholders
 		string licenseContent = template

@@ -63,7 +63,7 @@ public interface IDotNetService
 		string runtime,
 		string configuration = "Release",
 		bool selfContained = true,
-		bool singleFile = true,
+		bool singleFile = false,
 		CancellationToken cancellationToken = default);
 
 	/// <summary>

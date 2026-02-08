@@ -6,7 +6,9 @@ namespace KtsuBuild.Winget;
 
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
+#if !NET10_0_OR_GREATER
 using static Polyfill;
+#endif
 
 /// <summary>
 /// Detects project type and extracts metadata for Winget manifest generation.

@@ -21,10 +21,10 @@ public class ReleaseCommand : Command
 	/// </summary>
 	public ReleaseCommand() : base("release", "Release workflow: pack, publish, release")
 	{
-		AddOption(GlobalOptions.Workspace);
-		AddOption(GlobalOptions.Configuration);
-		AddOption(GlobalOptions.Verbose);
-		AddOption(GlobalOptions.DryRun);
+		Options.Add(GlobalOptions.Workspace);
+		Options.Add(GlobalOptions.Configuration);
+		Options.Add(GlobalOptions.Verbose);
+		Options.Add(GlobalOptions.DryRun);
 	}
 
 	/// <summary>
@@ -84,6 +84,11 @@ public class ReleaseCommand : Command
 					if (!string.IsNullOrEmpty(buildConfig.NuGetApiKey))
 					{
 						await nugetPublisher.PublishToNuGetOrgAsync(buildConfig.PackagePattern, buildConfig.NuGetApiKey, cancellationToken).ConfigureAwait(false);
+					}
+
+					if (!string.IsNullOrEmpty(buildConfig.KtsuPackageKey))
+					{
+						await nugetPublisher.PublishToSourceAsync(buildConfig.PackagePattern, "https://packages.ktsu.dev/v3/index.json", buildConfig.KtsuPackageKey, cancellationToken).ConfigureAwait(false);
 					}
 				}
 

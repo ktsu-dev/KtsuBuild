@@ -5,7 +5,9 @@
 namespace KtsuBuild.Configuration;
 
 using KtsuBuild.Abstractions;
+#if !NET10_0_OR_GREATER
 using static Polyfill;
+#endif
 
 /// <summary>
 /// Provides build configuration from options or environment.

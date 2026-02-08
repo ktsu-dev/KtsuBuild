@@ -21,18 +21,18 @@ public class MetadataCommand : Command
 	/// </summary>
 	public MetadataCommand() : base("metadata", "Metadata file management")
 	{
-		AddCommand(new UpdateCommand());
-		AddCommand(new LicenseCommand());
-		AddCommand(new ChangelogCommand());
+		Subcommands.Add(new UpdateCommand());
+		Subcommands.Add(new LicenseCommand());
+		Subcommands.Add(new ChangelogCommand());
 	}
 
 	private sealed class UpdateCommand : Command
 	{
 		public UpdateCommand() : base("update", "Update all metadata files")
 		{
-			AddOption(GlobalOptions.Workspace);
-			AddOption(GlobalOptions.Verbose);
-			AddOption(new Option<bool>("--no-commit", "Don't commit changes"));
+			Options.Add(GlobalOptions.Workspace);
+			Options.Add(GlobalOptions.Verbose);
+			Options.Add(new Option<bool>("--no-commit", "Don't commit changes"));
 		}
 
 		public static Func<string, bool, bool, CancellationToken, Task<int>> CreateHandler(
@@ -83,8 +83,8 @@ public class MetadataCommand : Command
 	{
 		public LicenseCommand() : base("license", "Generate LICENSE.md and COPYRIGHT.md")
 		{
-			AddOption(GlobalOptions.Workspace);
-			AddOption(GlobalOptions.Verbose);
+			Options.Add(GlobalOptions.Workspace);
+			Options.Add(GlobalOptions.Verbose);
 		}
 
 		public static Func<string, bool, CancellationToken, Task<int>> CreateHandler(
@@ -128,8 +128,8 @@ public class MetadataCommand : Command
 	{
 		public ChangelogCommand() : base("changelog", "Generate CHANGELOG.md")
 		{
-			AddOption(GlobalOptions.Workspace);
-			AddOption(GlobalOptions.Verbose);
+			Options.Add(GlobalOptions.Workspace);
+			Options.Add(GlobalOptions.Verbose);
 		}
 
 		public static Func<string, bool, CancellationToken, Task<int>> CreateHandler(

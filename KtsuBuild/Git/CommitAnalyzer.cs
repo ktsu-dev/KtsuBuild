@@ -6,7 +6,9 @@ namespace KtsuBuild.Git;
 
 using System.Text.RegularExpressions;
 using KtsuBuild.Abstractions;
+#if !NET10_0_OR_GREATER
 using static Polyfill;
+#endif
 
 /// <summary>
 /// Analyzes commits to determine version bump type.

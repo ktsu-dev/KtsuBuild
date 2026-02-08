@@ -18,8 +18,8 @@ public class WingetCommand : Command
 	/// </summary>
 	public WingetCommand() : base("winget", "Winget manifest commands")
 	{
-		AddCommand(new GenerateCommand());
-		AddCommand(new UploadCommand());
+		Subcommands.Add(new GenerateCommand());
+		Subcommands.Add(new UploadCommand());
 	}
 
 	private sealed class GenerateCommand : Command
@@ -43,12 +43,12 @@ public class WingetCommand : Command
 
 		public GenerateCommand() : base("generate", "Generate manifests for a version")
 		{
-			AddOption(GlobalOptions.Workspace);
-			AddOption(GlobalOptions.Verbose);
-			AddOption(VersionOption);
-			AddOption(GitHubRepoOption);
-			AddOption(PackageIdOption);
-			AddOption(StagingOption);
+			Options.Add(GlobalOptions.Workspace);
+			Options.Add(GlobalOptions.Verbose);
+			Options.Add(VersionOption);
+			Options.Add(GitHubRepoOption);
+			Options.Add(PackageIdOption);
+			Options.Add(StagingOption);
 		}
 
 		public static Func<string, bool, string, string?, string?, string?, CancellationToken, Task<int>> CreateHandler(
@@ -111,9 +111,9 @@ public class WingetCommand : Command
 
 		public UploadCommand() : base("upload", "Upload manifests to GitHub release")
 		{
-			AddOption(GlobalOptions.Workspace);
-			AddOption(GlobalOptions.Verbose);
-			AddOption(VersionOption);
+			Options.Add(GlobalOptions.Workspace);
+			Options.Add(GlobalOptions.Verbose);
+			Options.Add(VersionOption);
 		}
 
 		public static Func<string, bool, string, CancellationToken, Task<int>> CreateHandler(

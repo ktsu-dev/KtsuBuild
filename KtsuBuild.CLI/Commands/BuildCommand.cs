@@ -7,6 +7,7 @@ namespace KtsuBuild.CLI.Commands;
 using System.CommandLine;
 using KtsuBuild.Abstractions;
 using KtsuBuild.DotNet;
+using KtsuBuild.Utilities;
 
 /// <summary>
 /// Build command that runs restore, build, and test.
@@ -18,9 +19,9 @@ public class BuildCommand : Command
 	/// </summary>
 	public BuildCommand() : base("build", "Build workflow: restore, build, test")
 	{
-		AddOption(GlobalOptions.Workspace);
-		AddOption(GlobalOptions.Configuration);
-		AddOption(GlobalOptions.Verbose);
+		Options.Add(GlobalOptions.Workspace);
+		Options.Add(GlobalOptions.Configuration);
+		Options.Add(GlobalOptions.Verbose);
 	}
 
 	/// <summary>
@@ -36,12 +37,26 @@ public class BuildCommand : Command
 		return async (workspace, configuration, verbose, cancellationToken) =>
 		{
 			logger.VerboseEnabled = verbose;
+			BuildEnvironment.Initialize();
 			logger.WriteStepHeader("Starting Build Workflow");
 
 			var dotNetService = new DotNetService(processRunner, logger);
 
 			try
 			{
+				// Install dotnet-script if .csx files are present
+				if (Directory.GetFiles(workspace, "*.csx", SearchOption.AllDirectories).Length > 0)
+				{
+					logger.WriteInfo("Installing dotnet-script tool...");
+					await processRunner.RunWithCallbackAsync(
+						"dotnet",
+						"tool install -g dotnet-script",
+						workspace,
+						logger.WriteInfo,
+						logger.WriteInfo, // Ignore errors (tool may already be installed)
+						cancellationToken).ConfigureAwait(false);
+				}
+
 				await dotNetService.RestoreAsync(workspace, cancellationToken: cancellationToken).ConfigureAwait(false);
 				await dotNetService.BuildAsync(workspace, configuration, cancellationToken: cancellationToken).ConfigureAwait(false);
 				await dotNetService.TestAsync(workspace, configuration, "coverage", cancellationToken).ConfigureAwait(false);

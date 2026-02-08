@@ -5,7 +5,9 @@
 namespace KtsuBuild.Winget;
 
 using System.Text;
+#if !NET10_0_OR_GREATER
 using static Polyfill;
+#endif
 
 /// <summary>
 /// Generates Winget manifest files.

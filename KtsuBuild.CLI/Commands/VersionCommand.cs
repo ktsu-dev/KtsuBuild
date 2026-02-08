@@ -19,17 +19,17 @@ public class VersionCommand : Command
 	/// </summary>
 	public VersionCommand() : base("version", "Version management")
 	{
-		AddCommand(new ShowCommand());
-		AddCommand(new BumpCommand());
-		AddCommand(new CreateCommand());
+		Subcommands.Add(new ShowCommand());
+		Subcommands.Add(new BumpCommand());
+		Subcommands.Add(new CreateCommand());
 	}
 
 	private sealed class ShowCommand : Command
 	{
 		public ShowCommand() : base("show", "Show current version info")
 		{
-			AddOption(GlobalOptions.Workspace);
-			AddOption(GlobalOptions.Verbose);
+			Options.Add(GlobalOptions.Workspace);
+			Options.Add(GlobalOptions.Verbose);
 		}
 
 		public static Func<string, bool, CancellationToken, Task<int>> CreateHandler(
@@ -70,8 +70,8 @@ public class VersionCommand : Command
 	{
 		public BumpCommand() : base("bump", "Calculate next version")
 		{
-			AddOption(GlobalOptions.Workspace);
-			AddOption(GlobalOptions.Verbose);
+			Options.Add(GlobalOptions.Workspace);
+			Options.Add(GlobalOptions.Verbose);
 		}
 
 		public static Func<string, bool, CancellationToken, Task<int>> CreateHandler(
@@ -106,8 +106,8 @@ public class VersionCommand : Command
 	{
 		public CreateCommand() : base("create", "Create VERSION.md")
 		{
-			AddOption(GlobalOptions.Workspace);
-			AddOption(GlobalOptions.Verbose);
+			Options.Add(GlobalOptions.Workspace);
+			Options.Add(GlobalOptions.Verbose);
 		}
 
 		public static Func<string, bool, CancellationToken, Task<int>> CreateHandler(

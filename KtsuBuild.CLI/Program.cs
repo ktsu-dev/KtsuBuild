@@ -5,8 +5,6 @@
 namespace KtsuBuild.CLI;
 
 using System.CommandLine;
-using System.CommandLine.Builder;
-using System.CommandLine.Parsing;
 using KtsuBuild.Abstractions;
 using KtsuBuild.CLI.Commands;
 using KtsuBuild.Utilities;
@@ -32,11 +30,6 @@ internal sealed class Program
 			Name = "ktsub",
 		};
 
-		// Add global options
-		rootCommand.AddGlobalOption(GlobalOptions.Workspace);
-		rootCommand.AddGlobalOption(GlobalOptions.Configuration);
-		rootCommand.AddGlobalOption(GlobalOptions.Verbose);
-
 		// Add commands
 		AddCiCommand(rootCommand, processRunner, logger);
 		AddBuildCommand(rootCommand, processRunner, logger);
@@ -45,12 +38,8 @@ internal sealed class Program
 		AddMetadataCommand(rootCommand, processRunner, logger);
 		AddWingetCommand(rootCommand, processRunner, logger);
 
-		// Build and invoke
-		var parser = new CommandLineBuilder(rootCommand)
-			.UseDefaults()
-			.Build();
-
-		return await parser.InvokeAsync(args).ConfigureAwait(false);
+		// Parse and invoke
+		return await rootCommand.InvokeAsync(args).ConfigureAwait(false);
 	}
 
 	private static void ConfigureServices(IServiceCollection services)
@@ -70,36 +59,45 @@ internal sealed class Program
 	private static void AddCiCommand(RootCommand rootCommand, IProcessRunner processRunner, IBuildLogger logger)
 	{
 		var command = new CiCommand();
-		command.SetHandler(
-			CiCommand.CreateHandler(processRunner, logger),
-			GlobalOptions.Workspace,
-			GlobalOptions.Configuration,
-			GlobalOptions.Verbose,
-			GlobalOptions.DryRun);
-		rootCommand.AddCommand(command);
+		var handler = CiCommand.CreateHandler(processRunner, logger);
+		command.SetAction(async (parseResult, ct) =>
+		{
+			string workspace = parseResult.GetValue(GlobalOptions.Workspace)!;
+			string configuration = parseResult.GetValue(GlobalOptions.Configuration)!;
+			bool verbose = parseResult.GetValue(GlobalOptions.Verbose);
+			bool dryRun = parseResult.GetValue(GlobalOptions.DryRun);
+			return await handler(workspace, configuration, verbose, dryRun, ct).ConfigureAwait(false);
+		});
+		rootCommand.Subcommands.Add(command);
 	}
 
 	private static void AddBuildCommand(RootCommand rootCommand, IProcessRunner processRunner, IBuildLogger logger)
 	{
 		var command = new BuildCommand();
-		command.SetHandler(
-			BuildCommand.CreateHandler(processRunner, logger),
-			GlobalOptions.Workspace,
-			GlobalOptions.Configuration,
-			GlobalOptions.Verbose);
-		rootCommand.AddCommand(command);
+		var handler = BuildCommand.CreateHandler(processRunner, logger);
+		command.SetAction(async (parseResult, ct) =>
+		{
+			string workspace = parseResult.GetValue(GlobalOptions.Workspace)!;
+			string configuration = parseResult.GetValue(GlobalOptions.Configuration)!;
+			bool verbose = parseResult.GetValue(GlobalOptions.Verbose);
+			return await handler(workspace, configuration, verbose, ct).ConfigureAwait(false);
+		});
+		rootCommand.Subcommands.Add(command);
 	}
 
 	private static void AddReleaseCommand(RootCommand rootCommand, IProcessRunner processRunner, IBuildLogger logger)
 	{
 		var command = new ReleaseCommand();
-		command.SetHandler(
-			ReleaseCommand.CreateHandler(processRunner, logger),
-			GlobalOptions.Workspace,
-			GlobalOptions.Configuration,
-			GlobalOptions.Verbose,
-			GlobalOptions.DryRun);
-		rootCommand.AddCommand(command);
+		var handler = ReleaseCommand.CreateHandler(processRunner, logger);
+		command.SetAction(async (parseResult, ct) =>
+		{
+			string workspace = parseResult.GetValue(GlobalOptions.Workspace)!;
+			string configuration = parseResult.GetValue(GlobalOptions.Configuration)!;
+			bool verbose = parseResult.GetValue(GlobalOptions.Verbose);
+			bool dryRun = parseResult.GetValue(GlobalOptions.DryRun);
+			return await handler(workspace, configuration, verbose, dryRun, ct).ConfigureAwait(false);
+		});
+		rootCommand.Subcommands.Add(command);
 	}
 
 	private static void AddVersionCommand(RootCommand rootCommand, IProcessRunner processRunner, IBuildLogger logger)
@@ -107,27 +105,96 @@ internal sealed class Program
 		var versionCommand = new VersionCommand();
 
 		// Show subcommand
-		var showCommand = (Command)versionCommand.Children.First(c => c.Name == "show");
-		showCommand.SetHandler(
-			Commands.VersionCommand.CreateHandler(processRunner, logger),
-			GlobalOptions.Workspace,
-			GlobalOptions.Verbose);
+		var showCommand = versionCommand.Subcommands.First(c => c.Name == "show");
+		showCommand.SetAction(async (parseResult, ct) =>
+		{
+			string workspace = parseResult.GetValue(GlobalOptions.Workspace)!;
+			bool verbose = parseResult.GetValue(GlobalOptions.Verbose);
+
+			logger.VerboseEnabled = verbose;
+
+			var gitService = new KtsuBuild.Git.GitService(processRunner, logger);
+			var versionCalculator = new KtsuBuild.Git.VersionCalculator(gitService, logger);
+
+			try
+			{
+				string commitHash = await gitService.GetCurrentCommitHashAsync(workspace, ct).ConfigureAwait(false);
+				var versionInfo = await versionCalculator.GetVersionInfoAsync(workspace, commitHash, cancellationToken: ct).ConfigureAwait(false);
+
+				Console.WriteLine($"Current Version: {versionInfo.Version}");
+				Console.WriteLine($"Last Tag: {versionInfo.LastTag}");
+				Console.WriteLine($"Last Version: {versionInfo.LastVersion}");
+				Console.WriteLine($"Version Increment: {versionInfo.VersionIncrement}");
+				Console.WriteLine($"Reason: {versionInfo.IncrementReason}");
+				Console.WriteLine($"Is Prerelease: {versionInfo.IsPrerelease}");
+
+				return 0;
+			}
+			catch (Exception ex)
+			{
+				logger.WriteError($"Failed to get version info: {ex.Message}");
+				return 1;
+			}
+		});
 
 		// Bump subcommand
-		var bumpCommand = (Command)versionCommand.Children.First(c => c.Name == "bump");
-		bumpCommand.SetHandler(
-			Commands.VersionCommand.CreateHandler(processRunner, logger),
-			GlobalOptions.Workspace,
-			GlobalOptions.Verbose);
+		var bumpCommand = versionCommand.Subcommands.First(c => c.Name == "bump");
+		bumpCommand.SetAction(async (parseResult, ct) =>
+		{
+			string workspace = parseResult.GetValue(GlobalOptions.Workspace)!;
+			bool verbose = parseResult.GetValue(GlobalOptions.Verbose);
+
+			logger.VerboseEnabled = verbose;
+
+			var gitService = new KtsuBuild.Git.GitService(processRunner, logger);
+			var versionCalculator = new KtsuBuild.Git.VersionCalculator(gitService, logger);
+
+			try
+			{
+				string commitHash = await gitService.GetCurrentCommitHashAsync(workspace, ct).ConfigureAwait(false);
+				var versionInfo = await versionCalculator.GetVersionInfoAsync(workspace, commitHash, cancellationToken: ct).ConfigureAwait(false);
+
+				Console.WriteLine(versionInfo.Version);
+				return 0;
+			}
+			catch (Exception ex)
+			{
+				logger.WriteError($"Failed to calculate version: {ex.Message}");
+				return 1;
+			}
+		});
 
 		// Create subcommand
-		var createCommand = (Command)versionCommand.Children.First(c => c.Name == "create");
-		createCommand.SetHandler(
-			Commands.VersionCommand.CreateHandler(processRunner, logger),
-			GlobalOptions.Workspace,
-			GlobalOptions.Verbose);
+		var createCommand = versionCommand.Subcommands.First(c => c.Name == "create");
+		createCommand.SetAction(async (parseResult, ct) =>
+		{
+			string workspace = parseResult.GetValue(GlobalOptions.Workspace)!;
+			bool verbose = parseResult.GetValue(GlobalOptions.Verbose);
 
-		rootCommand.AddCommand(versionCommand);
+			logger.VerboseEnabled = verbose;
+
+			var gitService = new KtsuBuild.Git.GitService(processRunner, logger);
+			var versionCalculator = new KtsuBuild.Git.VersionCalculator(gitService, logger);
+
+			try
+			{
+				string commitHash = await gitService.GetCurrentCommitHashAsync(workspace, ct).ConfigureAwait(false);
+				var versionInfo = await versionCalculator.GetVersionInfoAsync(workspace, commitHash, cancellationToken: ct).ConfigureAwait(false);
+				string lineEnding = await gitService.GetLineEndingAsync(workspace, ct).ConfigureAwait(false);
+
+				await KtsuBuild.Metadata.VersionFileWriter.WriteAsync(versionInfo.Version, workspace, lineEnding, ct).ConfigureAwait(false);
+
+				logger.WriteSuccess($"Created VERSION.md with version {versionInfo.Version}");
+				return 0;
+			}
+			catch (Exception ex)
+			{
+				logger.WriteError($"Failed to create VERSION.md: {ex.Message}");
+				return 1;
+			}
+		});
+
+		rootCommand.Subcommands.Add(versionCommand);
 	}
 
 	private static void AddMetadataCommand(RootCommand rootCommand, IProcessRunner processRunner, IBuildLogger logger)
@@ -135,124 +202,124 @@ internal sealed class Program
 		var metadataCommand = new MetadataCommand();
 
 		// Update subcommand
-		var updateCommand = (Command)metadataCommand.Children.First(c => c.Name == "update");
-		var noCommitOption = updateCommand.Options.First(o => o.Name == "no-commit");
-		updateCommand.SetHandler(
-			async (string workspace, bool verbose, bool noCommit, CancellationToken ct) =>
+		var updateCommand = metadataCommand.Subcommands.First(c => c.Name == "update");
+		var noCommitOption = (Option<bool>)updateCommand.Options.First(o => o.Name == "no-commit");
+		updateCommand.SetAction(async (parseResult, ct) =>
+		{
+			string workspace = parseResult.GetValue(GlobalOptions.Workspace)!;
+			bool verbose = parseResult.GetValue(GlobalOptions.Verbose);
+			bool noCommit = parseResult.GetValue(noCommitOption);
+
+			logger.VerboseEnabled = verbose;
+			logger.WriteStepHeader("Updating Metadata Files");
+
+			var gitService = new KtsuBuild.Git.GitService(processRunner, logger);
+			var gitHubService = new KtsuBuild.Publishing.GitHubService(processRunner, gitService, logger);
+			var configProvider = new KtsuBuild.Configuration.BuildConfigurationProvider(gitService, gitHubService, logger);
+			var metadataService = new KtsuBuild.Metadata.MetadataService(gitService, logger);
+
+			try
 			{
-				logger.VerboseEnabled = verbose;
-				logger.WriteStepHeader("Updating Metadata Files");
+				var buildConfig = await configProvider.CreateFromEnvironmentAsync(workspace, ct).ConfigureAwait(false);
 
-				var gitService = new KtsuBuild.Git.GitService(processRunner, logger);
-				var gitHubService = new KtsuBuild.Publishing.GitHubService(processRunner, gitService, logger);
-				var configProvider = new KtsuBuild.Configuration.BuildConfigurationProvider(gitService, gitHubService, logger);
-				var metadataService = new KtsuBuild.Metadata.MetadataService(gitService, logger);
-
-				try
+				var result = await metadataService.UpdateAllAsync(new KtsuBuild.Metadata.MetadataUpdateOptions
 				{
-					var buildConfig = await configProvider.CreateFromEnvironmentAsync(workspace, ct).ConfigureAwait(false);
+					BuildConfiguration = buildConfig,
+					CommitChanges = !noCommit,
+				}, ct).ConfigureAwait(false);
 
-					var result = await metadataService.UpdateAllAsync(new KtsuBuild.Metadata.MetadataUpdateOptions
-					{
-						BuildConfiguration = buildConfig,
-						CommitChanges = !noCommit,
-					}, ct).ConfigureAwait(false);
-
-					if (result.Success)
-					{
-						logger.WriteSuccess($"Metadata updated successfully! Version: {result.Version}");
-						Environment.ExitCode = 0;
-					}
-					else
-					{
-						logger.WriteError($"Metadata update failed: {result.Error}");
-						Environment.ExitCode = 1;
-					}
-				}
-				catch (Exception ex)
+				if (result.Success)
 				{
-					logger.WriteError($"Failed to update metadata: {ex.Message}");
-					Environment.ExitCode = 1;
+					logger.WriteSuccess($"Metadata updated successfully! Version: {result.Version}");
+					return 0;
 				}
-			},
-			GlobalOptions.Workspace,
-			GlobalOptions.Verbose,
-			(Option<bool>)noCommitOption);
+				else
+				{
+					logger.WriteError($"Metadata update failed: {result.Error}");
+					return 1;
+				}
+			}
+			catch (Exception ex)
+			{
+				logger.WriteError($"Failed to update metadata: {ex.Message}");
+				return 1;
+			}
+		});
 
 		// License subcommand
-		var licenseCommand = (Command)metadataCommand.Children.First(c => c.Name == "license");
-		licenseCommand.SetHandler(
-			async (string workspace, bool verbose, CancellationToken ct) =>
+		var licenseCommand = metadataCommand.Subcommands.First(c => c.Name == "license");
+		licenseCommand.SetAction(async (parseResult, ct) =>
+		{
+			string workspace = parseResult.GetValue(GlobalOptions.Workspace)!;
+			bool verbose = parseResult.GetValue(GlobalOptions.Verbose);
+
+			logger.VerboseEnabled = verbose;
+
+			var gitService = new KtsuBuild.Git.GitService(processRunner, logger);
+			var gitHubService = new KtsuBuild.Publishing.GitHubService(processRunner, gitService, logger);
+			var configProvider = new KtsuBuild.Configuration.BuildConfigurationProvider(gitService, gitHubService, logger);
+
+			try
 			{
-				logger.VerboseEnabled = verbose;
+				var buildConfig = await configProvider.CreateFromEnvironmentAsync(workspace, ct).ConfigureAwait(false);
+				string lineEnding = await gitService.GetLineEndingAsync(workspace, ct).ConfigureAwait(false);
 
-				var gitService = new KtsuBuild.Git.GitService(processRunner, logger);
-				var gitHubService = new KtsuBuild.Publishing.GitHubService(processRunner, gitService, logger);
-				var configProvider = new KtsuBuild.Configuration.BuildConfigurationProvider(gitService, gitHubService, logger);
+				await KtsuBuild.Metadata.LicenseGenerator.GenerateAsync(
+					buildConfig.ServerUrl,
+					buildConfig.GitHubOwner,
+					buildConfig.GitHubRepo,
+					workspace,
+					lineEnding,
+					ct).ConfigureAwait(false);
 
-				try
-				{
-					var buildConfig = await configProvider.CreateFromEnvironmentAsync(workspace, ct).ConfigureAwait(false);
-					string lineEnding = await gitService.GetLineEndingAsync(workspace, ct).ConfigureAwait(false);
-
-					await KtsuBuild.Metadata.LicenseGenerator.GenerateAsync(
-						buildConfig.ServerUrl,
-						buildConfig.GitHubOwner,
-						buildConfig.GitHubRepo,
-						workspace,
-						lineEnding,
-						ct).ConfigureAwait(false);
-
-					logger.WriteSuccess("License files generated!");
-					Environment.ExitCode = 0;
-				}
-				catch (Exception ex)
-				{
-					logger.WriteError($"Failed to generate license: {ex.Message}");
-					Environment.ExitCode = 1;
-				}
-			},
-			GlobalOptions.Workspace,
-			GlobalOptions.Verbose);
+				logger.WriteSuccess("License files generated!");
+				return 0;
+			}
+			catch (Exception ex)
+			{
+				logger.WriteError($"Failed to generate license: {ex.Message}");
+				return 1;
+			}
+		});
 
 		// Changelog subcommand
-		var changelogCommand = (Command)metadataCommand.Children.First(c => c.Name == "changelog");
-		changelogCommand.SetHandler(
-			async (string workspace, bool verbose, CancellationToken ct) =>
+		var changelogCommand = metadataCommand.Subcommands.First(c => c.Name == "changelog");
+		changelogCommand.SetAction(async (parseResult, ct) =>
+		{
+			string workspace = parseResult.GetValue(GlobalOptions.Workspace)!;
+			bool verbose = parseResult.GetValue(GlobalOptions.Verbose);
+
+			logger.VerboseEnabled = verbose;
+
+			var gitService = new KtsuBuild.Git.GitService(processRunner, logger);
+			var changelogGenerator = new KtsuBuild.Metadata.ChangelogGenerator(gitService, logger);
+			var versionCalculator = new KtsuBuild.Git.VersionCalculator(gitService, logger);
+
+			try
 			{
-				logger.VerboseEnabled = verbose;
+				string commitHash = await gitService.GetCurrentCommitHashAsync(workspace, ct).ConfigureAwait(false);
+				var versionInfo = await versionCalculator.GetVersionInfoAsync(workspace, commitHash, cancellationToken: ct).ConfigureAwait(false);
+				string lineEnding = await gitService.GetLineEndingAsync(workspace, ct).ConfigureAwait(false);
 
-				var gitService = new KtsuBuild.Git.GitService(processRunner, logger);
-				var changelogGenerator = new KtsuBuild.Metadata.ChangelogGenerator(gitService, logger);
-				var versionCalculator = new KtsuBuild.Git.VersionCalculator(gitService, logger);
+				await changelogGenerator.GenerateAsync(
+					versionInfo.Version,
+					commitHash,
+					workspace,
+					workspace,
+					lineEnding,
+					cancellationToken: ct).ConfigureAwait(false);
 
-				try
-				{
-					string commitHash = await gitService.GetCurrentCommitHashAsync(workspace, ct).ConfigureAwait(false);
-					var versionInfo = await versionCalculator.GetVersionInfoAsync(workspace, commitHash, cancellationToken: ct).ConfigureAwait(false);
-					string lineEnding = await gitService.GetLineEndingAsync(workspace, ct).ConfigureAwait(false);
+				logger.WriteSuccess("Changelog generated!");
+				return 0;
+			}
+			catch (Exception ex)
+			{
+				logger.WriteError($"Failed to generate changelog: {ex.Message}");
+				return 1;
+			}
+		});
 
-					await changelogGenerator.GenerateAsync(
-						versionInfo.Version,
-						commitHash,
-						workspace,
-						workspace,
-						lineEnding,
-						cancellationToken: ct).ConfigureAwait(false);
-
-					logger.WriteSuccess("Changelog generated!");
-					Environment.ExitCode = 0;
-				}
-				catch (Exception ex)
-				{
-					logger.WriteError($"Failed to generate changelog: {ex.Message}");
-					Environment.ExitCode = 1;
-				}
-			},
-			GlobalOptions.Workspace,
-			GlobalOptions.Verbose);
-
-		rootCommand.AddCommand(metadataCommand);
+		rootCommand.Subcommands.Add(metadataCommand);
 	}
 
 	private static void AddWingetCommand(RootCommand rootCommand, IProcessRunner processRunner, IBuildLogger logger)
@@ -260,92 +327,92 @@ internal sealed class Program
 		var wingetCommand = new WingetCommand();
 
 		// Generate subcommand
-		var generateCommand = (Command)wingetCommand.Children.First(c => c.Name == "generate");
-		var versionOption = generateCommand.Options.First(o => o.Aliases.Contains("-V"));
-		var repoOption = generateCommand.Options.First(o => o.Aliases.Contains("-r"));
-		var packageIdOption = generateCommand.Options.First(o => o.Aliases.Contains("-p"));
-		var stagingOption = generateCommand.Options.First(o => o.Aliases.Contains("-s"));
+		var generateCommand = wingetCommand.Subcommands.First(c => c.Name == "generate");
+		var versionOption = (Option<string>)generateCommand.Options.First(o => o.Aliases.Contains("-V"));
+		var repoOption = (Option<string?>)generateCommand.Options.First(o => o.Aliases.Contains("-r"));
+		var packageIdOption = (Option<string?>)generateCommand.Options.First(o => o.Aliases.Contains("-p"));
+		var stagingOption = (Option<string?>)generateCommand.Options.First(o => o.Aliases.Contains("-s"));
 
-		generateCommand.SetHandler(
-			async (string workspace, bool verbose, string version, string? repo, string? packageId, string? staging, CancellationToken ct) =>
+		generateCommand.SetAction(async (parseResult, ct) =>
+		{
+			string workspace = parseResult.GetValue(GlobalOptions.Workspace)!;
+			bool verbose = parseResult.GetValue(GlobalOptions.Verbose);
+			string version = parseResult.GetValue(versionOption)!;
+			string? repo = parseResult.GetValue(repoOption);
+			string? packageId = parseResult.GetValue(packageIdOption);
+			string? staging = parseResult.GetValue(stagingOption);
+
+			logger.VerboseEnabled = verbose;
+			logger.WriteStepHeader("Generating Winget Manifests");
+
+			var wingetService = new KtsuBuild.Winget.WingetService(processRunner, logger);
+
+			try
 			{
-				logger.VerboseEnabled = verbose;
-				logger.WriteStepHeader("Generating Winget Manifests");
-
-				var wingetService = new KtsuBuild.Winget.WingetService(processRunner, logger);
-
-				try
+				var options = new KtsuBuild.Winget.WingetOptions
 				{
-					var options = new KtsuBuild.Winget.WingetOptions
-					{
-						Version = version,
-						GitHubRepo = repo,
-						PackageId = packageId,
-						RootDirectory = workspace,
-						OutputDirectory = Path.Combine(workspace, "winget"),
-						StagingDirectory = staging ?? Path.Combine(workspace, "staging"),
-					};
+					Version = version,
+					GitHubRepo = repo,
+					PackageId = packageId,
+					RootDirectory = workspace,
+					OutputDirectory = Path.Combine(workspace, "winget"),
+					StagingDirectory = staging ?? Path.Combine(workspace, "staging"),
+				};
 
-					var result = await wingetService.GenerateManifestsAsync(options, ct).ConfigureAwait(false);
+				var result = await wingetService.GenerateManifestsAsync(options, ct).ConfigureAwait(false);
 
-					if (result.IsLibraryOnly)
-					{
-						logger.WriteInfo("Library-only project - no manifests generated");
-						Environment.ExitCode = 0;
-					}
-					else if (result.Success)
-					{
-						logger.WriteSuccess($"Generated manifests for {result.PackageId}");
-						Environment.ExitCode = 0;
-					}
-					else
-					{
-						logger.WriteError($"Failed to generate manifests: {result.Error}");
-						Environment.ExitCode = 1;
-					}
-				}
-				catch (Exception ex)
+				if (result.IsLibraryOnly)
 				{
-					logger.WriteError($"Failed to generate manifests: {ex.Message}");
-					Environment.ExitCode = 1;
+					logger.WriteInfo("Library-only project - no manifests generated");
+					return 0;
 				}
-			},
-			GlobalOptions.Workspace,
-			GlobalOptions.Verbose,
-			(Option<string>)versionOption,
-			(Option<string?>)repoOption,
-			(Option<string?>)packageIdOption,
-			(Option<string?>)stagingOption);
+				else if (result.Success)
+				{
+					logger.WriteSuccess($"Generated manifests for {result.PackageId}");
+					return 0;
+				}
+				else
+				{
+					logger.WriteError($"Failed to generate manifests: {result.Error}");
+					return 1;
+				}
+			}
+			catch (Exception ex)
+			{
+				logger.WriteError($"Failed to generate manifests: {ex.Message}");
+				return 1;
+			}
+		});
 
 		// Upload subcommand
-		var uploadCommand = (Command)wingetCommand.Children.First(c => c.Name == "upload");
-		var uploadVersionOption = uploadCommand.Options.First(o => o.Aliases.Contains("-V"));
+		var uploadCommand = wingetCommand.Subcommands.First(c => c.Name == "upload");
+		var uploadVersionOption = (Option<string>)uploadCommand.Options.First(o => o.Aliases.Contains("-V"));
 
-		uploadCommand.SetHandler(
-			async (string workspace, bool verbose, string version, CancellationToken ct) =>
+		uploadCommand.SetAction(async (parseResult, ct) =>
+		{
+			string workspace = parseResult.GetValue(GlobalOptions.Workspace)!;
+			bool verbose = parseResult.GetValue(GlobalOptions.Verbose);
+			string version = parseResult.GetValue(uploadVersionOption)!;
+
+			logger.VerboseEnabled = verbose;
+
+			var wingetService = new KtsuBuild.Winget.WingetService(processRunner, logger);
+
+			try
 			{
-				logger.VerboseEnabled = verbose;
+				string manifestDir = Path.Combine(workspace, "winget");
+				await wingetService.UploadManifestsAsync(version, manifestDir, ct).ConfigureAwait(false);
 
-				var wingetService = new KtsuBuild.Winget.WingetService(processRunner, logger);
+				logger.WriteSuccess("Manifests uploaded!");
+				return 0;
+			}
+			catch (Exception ex)
+			{
+				logger.WriteError($"Failed to upload manifests: {ex.Message}");
+				return 1;
+			}
+		});
 
-				try
-				{
-					string manifestDir = Path.Combine(workspace, "winget");
-					await wingetService.UploadManifestsAsync(version, manifestDir, ct).ConfigureAwait(false);
-
-					logger.WriteSuccess("Manifests uploaded!");
-					Environment.ExitCode = 0;
-				}
-				catch (Exception ex)
-				{
-					logger.WriteError($"Failed to upload manifests: {ex.Message}");
-					Environment.ExitCode = 1;
-				}
-			},
-			GlobalOptions.Workspace,
-			GlobalOptions.Verbose,
-			(Option<string>)uploadVersionOption);
-
-		rootCommand.AddCommand(wingetCommand);
+		rootCommand.Subcommands.Add(wingetCommand);
 	}
 }

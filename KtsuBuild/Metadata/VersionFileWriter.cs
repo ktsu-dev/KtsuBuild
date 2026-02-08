@@ -5,7 +5,9 @@
 namespace KtsuBuild.Metadata;
 
 using KtsuBuild.Utilities;
+#if !NET10_0_OR_GREATER
 using static Polyfill;
+#endif
 
 /// <summary>
 /// Writes VERSION.md file.
