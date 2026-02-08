@@ -44,6 +44,13 @@ public class MetadataService(IGitService gitService, IBuildLogger logger) : IMet
 			logger.WriteInfo("Generating license...");
 			await WriteLicenseFilesAsync(config.ServerUrl, config.GitHubOwner, config.GitHubRepo, config.WorkspacePath, lineEnding, cancellationToken).ConfigureAwait(false);
 
+			// Write authors file
+			if (options.Authors.Count > 0)
+			{
+				logger.WriteInfo("Generating authors file...");
+				await WriteAuthorsFileAsync(options.Authors, config.WorkspacePath, lineEnding, cancellationToken).ConfigureAwait(false);
+			}
+
 			// Write changelog files
 			logger.WriteInfo("Generating changelog...");
 			await WriteChangelogFilesAsync(version, config.ReleaseHash, config.WorkspacePath, config.WorkspacePath, lineEnding, config.LatestChangelogFile, cancellationToken).ConfigureAwait(false);
@@ -151,6 +158,23 @@ public class MetadataService(IGitService gitService, IBuildLogger logger) : IMet
 		Ensure.NotNull(outputPath);
 		Ensure.NotNull(lineEnding);
 		await _changelogGenerator.GenerateAsync(version, commitHash, workingDirectory, outputPath, lineEnding, latestChangelogFileName, cancellationToken).ConfigureAwait(false);
+	}
+
+	/// <inheritdoc/>
+	public async Task WriteAuthorsFileAsync(IReadOnlyList<string> authors, string outputPath, string lineEnding, CancellationToken cancellationToken = default)
+	{
+		Ensure.NotNull(authors);
+		Ensure.NotNull(outputPath);
+		Ensure.NotNull(lineEnding);
+
+		string content = $"# Project Authors{lineEnding}{lineEnding}";
+		foreach (string author in authors)
+		{
+			content += $"* {author}{lineEnding}";
+		}
+
+		string filePath = Path.Combine(outputPath, "AUTHORS.md");
+		await LineEndingHelper.WriteFileAsync(filePath, content, lineEnding, cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc/>

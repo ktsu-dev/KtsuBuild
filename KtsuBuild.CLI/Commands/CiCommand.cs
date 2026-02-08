@@ -59,6 +59,7 @@ public class CiCommand : Command
 			DotNetService dotNetService = new(processRunner, logger);
 			MetadataService metadataService = new(gitService, logger);
 			NuGetPublisher nugetPublisher = new(processRunner, logger);
+			ReleaseService releaseService = new(dotNetService, nugetPublisher, gitHubService, logger);
 
 #pragma warning disable CA1031 // Top-level command handler must catch all exceptions
 			try
@@ -124,82 +125,7 @@ public class CiCommand : Command
 				// Release workflow
 				if (buildConfig.ShouldRelease)
 				{
-					// Pack
-					await dotNetService.PackAsync(workspace, buildConfig.StagingPath, configuration, buildConfig.LatestChangelogFile, cancellationToken).ConfigureAwait(false);
-
-					// Publish applications
-					IReadOnlyList<string> projectFiles = dotNetService.GetProjectFiles(workspace);
-					foreach (string project in projectFiles.Where(p => dotNetService.IsExecutableProject(p)))
-					{
-						string projectName = Path.GetFileNameWithoutExtension(project);
-						string[] runtimes = ["win-x64", "win-x86", "win-arm64", "linux-x64", "linux-arm64", "osx-x64", "osx-arm64"];
-
-						foreach (string runtime in runtimes)
-						{
-							string outputDir = Path.Combine(buildConfig.OutputPath, $"{projectName}-{runtime}");
-							await dotNetService.PublishAsync(workspace, project, outputDir, runtime, configuration, cancellationToken: cancellationToken).ConfigureAwait(false);
-
-							// Create zip archive
-							string zipPath = Path.Combine(buildConfig.StagingPath, $"{projectName}-{buildConfig.Version}-{runtime}.zip");
-							if (Directory.Exists(outputDir))
-							{
-								await System.IO.Compression.ZipFile.CreateFromDirectoryAsync(outputDir, zipPath, cancellationToken).ConfigureAwait(false);
-								logger.WriteInfo($"Created: {zipPath}");
-							}
-						}
-					}
-
-					// Generate SHA256 hashes for all zip archives
-					string[] zipFiles = Directory.GetFiles(buildConfig.StagingPath, "*.zip");
-					if (zipFiles.Length > 0)
-					{
-						string hashesPath = Path.Combine(buildConfig.StagingPath, "hashes.txt");
-						List<string> hashEntries = [];
-						foreach (string zipFile in zipFiles)
-						{
-							byte[] fileBytes = await File.ReadAllBytesAsync(zipFile, cancellationToken).ConfigureAwait(false);
-							byte[] hashBytes = System.Security.Cryptography.SHA256.HashData(fileBytes);
-							string hash = Convert.ToHexString(hashBytes);
-							string fileName = Path.GetFileName(zipFile);
-							hashEntries.Add($"{fileName}={hash}");
-							logger.WriteInfo($"SHA256: {fileName} = {hash}");
-						}
-
-						await File.WriteAllLinesAsync(hashesPath, hashEntries, cancellationToken).ConfigureAwait(false);
-						logger.WriteInfo($"Hashes written to: {hashesPath}");
-					}
-
-					// Publish NuGet packages
-					string[] packages = Directory.GetFiles(buildConfig.StagingPath, "*.nupkg");
-					if (packages.Length > 0 && !string.IsNullOrEmpty(buildConfig.GithubToken))
-					{
-						await nugetPublisher.PublishToGitHubAsync(buildConfig.PackagePattern, buildConfig.GitHubOwner, buildConfig.GithubToken, cancellationToken).ConfigureAwait(false);
-
-						if (!string.IsNullOrEmpty(buildConfig.NuGetApiKey))
-						{
-							await nugetPublisher.PublishToNuGetOrgAsync(buildConfig.PackagePattern, buildConfig.NuGetApiKey, cancellationToken).ConfigureAwait(false);
-						}
-
-						if (!string.IsNullOrEmpty(buildConfig.KtsuPackageKey))
-						{
-							await nugetPublisher.PublishToSourceAsync(buildConfig.PackagePattern, "https://packages.ktsu.dev/v3/index.json", buildConfig.KtsuPackageKey, cancellationToken).ConfigureAwait(false);
-						}
-					}
-
-					// Create GitHub release
-					ReleaseOptions releaseOptions = new()
-					{
-						Version = buildConfig.Version,
-						CommitHash = buildConfig.ReleaseHash,
-						GithubToken = buildConfig.GithubToken,
-						ChangelogFile = buildConfig.ChangelogFile,
-						LatestChangelogFile = buildConfig.LatestChangelogFile,
-						AssetPaths = buildConfig.AssetPatterns,
-						IsPrerelease = buildConfig.Version.Contains("-pre") || buildConfig.Version.Contains("-alpha") || buildConfig.Version.Contains("-beta"),
-						WorkingDirectory = workspace,
-					};
-
-					await gitHubService.CreateReleaseAsync(releaseOptions, cancellationToken).ConfigureAwait(false);
+					await releaseService.ExecuteReleaseAsync(buildConfig, workspace, configuration, cancellationToken).ConfigureAwait(false);
 				}
 
 				logger.WriteSuccess("CI/CD pipeline completed successfully!");

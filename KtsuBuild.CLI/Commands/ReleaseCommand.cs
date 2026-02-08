@@ -55,6 +55,7 @@ public class ReleaseCommand : Command
 			BuildConfigurationProvider configProvider = new(gitService, gitHubService);
 			DotNetService dotNetService = new(processRunner, logger);
 			NuGetPublisher nugetPublisher = new(processRunner, logger);
+			ReleaseService releaseService = new(dotNetService, nugetPublisher, gitHubService, logger);
 
 #pragma warning disable CA1031 // Top-level command handler must catch all exceptions
 			try
@@ -75,38 +76,7 @@ public class ReleaseCommand : Command
 					return 0;
 				}
 
-				// Pack
-				await dotNetService.PackAsync(workspace, buildConfig.StagingPath, configuration, buildConfig.LatestChangelogFile, cancellationToken).ConfigureAwait(false);
-
-				// Publish NuGet packages
-				string[] packages = Directory.GetFiles(buildConfig.StagingPath, "*.nupkg");
-				if (packages.Length > 0 && !string.IsNullOrEmpty(buildConfig.GithubToken))
-				{
-					await nugetPublisher.PublishToGitHubAsync(buildConfig.PackagePattern, buildConfig.GitHubOwner, buildConfig.GithubToken, cancellationToken).ConfigureAwait(false);
-
-					if (!string.IsNullOrEmpty(buildConfig.NuGetApiKey))
-					{
-						await nugetPublisher.PublishToNuGetOrgAsync(buildConfig.PackagePattern, buildConfig.NuGetApiKey, cancellationToken).ConfigureAwait(false);
-					}
-
-					if (!string.IsNullOrEmpty(buildConfig.KtsuPackageKey))
-					{
-						await nugetPublisher.PublishToSourceAsync(buildConfig.PackagePattern, "https://packages.ktsu.dev/v3/index.json", buildConfig.KtsuPackageKey, cancellationToken).ConfigureAwait(false);
-					}
-				}
-
-				// Create release
-				ReleaseOptions releaseOptions = new()
-				{
-					Version = buildConfig.Version,
-					CommitHash = buildConfig.ReleaseHash,
-					GithubToken = buildConfig.GithubToken,
-					LatestChangelogFile = buildConfig.LatestChangelogFile,
-					AssetPaths = buildConfig.AssetPatterns,
-					WorkingDirectory = workspace,
-				};
-
-				await gitHubService.CreateReleaseAsync(releaseOptions, cancellationToken).ConfigureAwait(false);
+				await releaseService.ExecuteReleaseAsync(buildConfig, workspace, configuration, cancellationToken).ConfigureAwait(false);
 
 				logger.WriteSuccess("Release workflow completed successfully!");
 				return 0;

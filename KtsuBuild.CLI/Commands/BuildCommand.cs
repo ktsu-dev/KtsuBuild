@@ -48,6 +48,7 @@ public class BuildCommand : Command
 			try
 			{
 				// Install dotnet-script if .csx files are present
+				string? buildArgs = null;
 				if (Directory.GetFiles(workspace, "*.csx", SearchOption.AllDirectories).Length > 0)
 				{
 					logger.WriteInfo("Installing dotnet-script tool...");
@@ -58,10 +59,11 @@ public class BuildCommand : Command
 						logger.WriteInfo,
 						logger.WriteInfo, // Ignore errors (tool may already be installed)
 						cancellationToken).ConfigureAwait(false);
+					buildArgs = "-maxCpuCount:1";
 				}
 
 				await dotNetService.RestoreAsync(workspace, cancellationToken: cancellationToken).ConfigureAwait(false);
-				await dotNetService.BuildAsync(workspace, configuration, cancellationToken: cancellationToken).ConfigureAwait(false);
+				await dotNetService.BuildAsync(workspace, configuration, buildArgs, cancellationToken).ConfigureAwait(false);
 				await dotNetService.TestAsync(workspace, configuration, "coverage", cancellationToken).ConfigureAwait(false);
 
 				logger.WriteSuccess("Build workflow completed successfully!");

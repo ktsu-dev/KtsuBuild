@@ -61,6 +61,15 @@ public interface IMetadataService
 		CancellationToken cancellationToken = default);
 
 	/// <summary>
+	/// Generates the AUTHORS.md file from a list of authors.
+	/// </summary>
+	/// <param name="authors">The list of author names.</param>
+	/// <param name="outputPath">The output directory.</param>
+	/// <param name="lineEnding">The line ending to use.</param>
+	/// <param name="cancellationToken">A cancellation token.</param>
+	public Task WriteAuthorsFileAsync(IReadOnlyList<string> authors, string outputPath, string lineEnding, CancellationToken cancellationToken = default);
+
+	/// <summary>
 	/// Generates the AUTHORS.url and PROJECT_URL.url files.
 	/// </summary>
 	/// <param name="serverUrl">The GitHub server URL.</param>
