@@ -43,7 +43,7 @@ public class VersionCalculatorTests
 		_gitService.GetFirstCommitAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
 			.Returns(Task.FromResult("000000"));
 		_gitService.GetCommitMessagesAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-			.Returns(Task.FromResult(commitMessages ?? (IReadOnlyList<string>)["Some commit message"]));
+			.Returns(Task.FromResult<IReadOnlyList<string>>(commitMessages ?? ["Some commit message"]));
 		_gitService.GetDiffAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
 			.Returns(Task.FromResult(string.Empty));
 	}
@@ -55,7 +55,7 @@ public class VersionCalculatorTests
 		SetupGitServiceForVersion(null, ["Initial commit [patch]"]);
 
 		// Act
-		var result = await _calculator.GetVersionInfoAsync("/repo", "abc123");
+		VersionInfo result = await _calculator.GetVersionInfoAsync("/repo", "abc123").ConfigureAwait(false);
 
 		// Assert
 		Assert.IsTrue(result.UsingFallbackTag);
@@ -69,7 +69,7 @@ public class VersionCalculatorTests
 		SetupGitServiceForVersion("v1.2.3", ["Breaking change [major]"]);
 
 		// Act
-		var result = await _calculator.GetVersionInfoAsync("/repo", "abc123");
+		VersionInfo result = await _calculator.GetVersionInfoAsync("/repo", "abc123").ConfigureAwait(false);
 
 		// Assert
 		Assert.AreEqual("2.0.0", result.Version);
@@ -86,7 +86,7 @@ public class VersionCalculatorTests
 		SetupGitServiceForVersion("v1.2.3", ["New feature [minor]"]);
 
 		// Act
-		var result = await _calculator.GetVersionInfoAsync("/repo", "abc123");
+		VersionInfo result = await _calculator.GetVersionInfoAsync("/repo", "abc123").ConfigureAwait(false);
 
 		// Assert
 		Assert.AreEqual("1.3.0", result.Version);
@@ -103,7 +103,7 @@ public class VersionCalculatorTests
 		SetupGitServiceForVersion("v1.2.3", ["Bug fix [patch]"]);
 
 		// Act
-		var result = await _calculator.GetVersionInfoAsync("/repo", "abc123");
+		VersionInfo result = await _calculator.GetVersionInfoAsync("/repo", "abc123").ConfigureAwait(false);
 
 		// Assert
 		Assert.AreEqual("1.2.4", result.Version);
@@ -120,7 +120,7 @@ public class VersionCalculatorTests
 		SetupGitServiceForVersion("v1.2.3", ["Experimental feature [pre]"]);
 
 		// Act
-		var result = await _calculator.GetVersionInfoAsync("/repo", "abc123");
+		VersionInfo result = await _calculator.GetVersionInfoAsync("/repo", "abc123").ConfigureAwait(false);
 
 		// Assert
 		Assert.AreEqual("1.2.4-pre.1", result.Version);
@@ -138,7 +138,7 @@ public class VersionCalculatorTests
 		SetupGitServiceForVersion("v1.2.3-pre.1", ["More experimental work [pre]"]);
 
 		// Act
-		var result = await _calculator.GetVersionInfoAsync("/repo", "abc123");
+		VersionInfo result = await _calculator.GetVersionInfoAsync("/repo", "abc123").ConfigureAwait(false);
 
 		// Assert
 		Assert.AreEqual("1.2.3-pre.2", result.Version);
@@ -156,7 +156,7 @@ public class VersionCalculatorTests
 		SetupGitServiceForVersion("v1.2.3-pre.1", ["Ready for release [patch]"]);
 
 		// Act
-		var result = await _calculator.GetVersionInfoAsync("/repo", "abc123");
+		VersionInfo result = await _calculator.GetVersionInfoAsync("/repo", "abc123").ConfigureAwait(false);
 
 		// Assert
 		Assert.AreEqual("1.2.3", result.Version);
@@ -173,7 +173,7 @@ public class VersionCalculatorTests
 		SetupGitServiceForVersion("v1.2.3-pre.1", ["Breaking change [major]"]);
 
 		// Act
-		var result = await _calculator.GetVersionInfoAsync("/repo", "abc123");
+		VersionInfo result = await _calculator.GetVersionInfoAsync("/repo", "abc123").ConfigureAwait(false);
 
 		// Assert
 		Assert.AreEqual("2.0.0", result.Version);
@@ -190,7 +190,7 @@ public class VersionCalculatorTests
 		SetupGitServiceForVersion("v1.0.0-alpha.5", ["More alpha work [pre]"]);
 
 		// Act
-		var result = await _calculator.GetVersionInfoAsync("/repo", "abc123");
+		VersionInfo result = await _calculator.GetVersionInfoAsync("/repo", "abc123").ConfigureAwait(false);
 
 		// Assert
 		Assert.AreEqual("1.0.0-alpha.6", result.Version);
@@ -209,7 +209,7 @@ public class VersionCalculatorTests
 		SetupGitServiceForVersion("v1.2.3", []);
 
 		// Act
-		var result = await _calculator.GetVersionInfoAsync("/repo", "abc123");
+		VersionInfo result = await _calculator.GetVersionInfoAsync("/repo", "abc123").ConfigureAwait(false);
 
 		// Assert
 		Assert.AreEqual("1.2.3", result.Version);
@@ -223,7 +223,7 @@ public class VersionCalculatorTests
 		SetupGitServiceForVersion("v2.0.0-beta.3", ["Beta update [pre]"]);
 
 		// Act
-		var result = await _calculator.GetVersionInfoAsync("/repo", "abc123");
+		VersionInfo result = await _calculator.GetVersionInfoAsync("/repo", "abc123").ConfigureAwait(false);
 
 		// Assert
 		Assert.AreEqual("2.0.0-beta.4", result.Version);
@@ -237,7 +237,7 @@ public class VersionCalculatorTests
 		SetupGitServiceForVersion("v3.1.0-rc.2", ["Release candidate fix [pre]"]);
 
 		// Act
-		var result = await _calculator.GetVersionInfoAsync("/repo", "abc123");
+		VersionInfo result = await _calculator.GetVersionInfoAsync("/repo", "abc123").ConfigureAwait(false);
 
 		// Assert
 		Assert.AreEqual("3.1.0-rc.3", result.Version);
@@ -251,7 +251,7 @@ public class VersionCalculatorTests
 		SetupGitServiceForVersion("v1.2.3-pre.5", ["New feature [minor]"]);
 
 		// Act
-		var result = await _calculator.GetVersionInfoAsync("/repo", "abc123");
+		VersionInfo result = await _calculator.GetVersionInfoAsync("/repo", "abc123").ConfigureAwait(false);
 
 		// Assert
 		Assert.AreEqual("1.3.0", result.Version);
@@ -265,7 +265,7 @@ public class VersionCalculatorTests
 		SetupGitServiceForVersion("v1.2.3", ["Bug fix [patch]"]);
 
 		// Act
-		var result = await _calculator.GetVersionInfoAsync("/repo", "abc123");
+		VersionInfo result = await _calculator.GetVersionInfoAsync("/repo", "abc123").ConfigureAwait(false);
 
 		// Assert
 		Assert.AreEqual("v1.2.3", result.LastTag);
@@ -283,7 +283,7 @@ public class VersionCalculatorTests
 		SetupGitServiceForVersion(null, ["First commit [patch]"]);
 
 		// Act
-		var result = await _calculator.GetVersionInfoAsync("/repo", "abc123", initialVersion: "0.1.0");
+		VersionInfo result = await _calculator.GetVersionInfoAsync("/repo", "abc123", initialVersion: "0.1.0").ConfigureAwait(false);
 
 		// Assert
 		Assert.IsTrue(result.UsingFallbackTag);

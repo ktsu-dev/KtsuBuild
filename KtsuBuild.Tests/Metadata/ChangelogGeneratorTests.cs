@@ -58,7 +58,7 @@ public class ChangelogGeneratorTests
 			commitHash: "abc123",
 			workingDirectory: "/repo",
 			outputPath: _tempDir,
-			lineEnding: "\n");
+			lineEnding: "\n").ConfigureAwait(false);
 
 		// Assert
 		string changelogPath = Path.Combine(_tempDir, "CHANGELOG.md");
@@ -67,7 +67,7 @@ public class ChangelogGeneratorTests
 		Assert.IsTrue(File.Exists(changelogPath), "CHANGELOG.md should be created");
 		Assert.IsTrue(File.Exists(latestPath), "LATEST_CHANGELOG.md should be created");
 
-		string changelogContent = await File.ReadAllTextAsync(changelogPath);
+		string changelogContent = await File.ReadAllTextAsync(changelogPath).ConfigureAwait(false);
 		Assert.IsTrue(changelogContent.Contains("v1.1.0"), "Should contain new version");
 		Assert.IsTrue(changelogContent.Contains("Add new feature"), "Should contain commit message");
 	}
@@ -87,13 +87,13 @@ public class ChangelogGeneratorTests
 			commitHash: "abc123",
 			workingDirectory: "/repo",
 			outputPath: _tempDir,
-			lineEnding: "\n");
+			lineEnding: "\n").ConfigureAwait(false);
 
 		// Assert
 		string changelogPath = Path.Combine(_tempDir, "CHANGELOG.md");
 		Assert.IsTrue(File.Exists(changelogPath));
 
-		string content = await File.ReadAllTextAsync(changelogPath);
+		string content = await File.ReadAllTextAsync(changelogPath).ConfigureAwait(false);
 		Assert.IsTrue(content.Contains("v1.0.0"));
 	}
 
@@ -118,10 +118,10 @@ public class ChangelogGeneratorTests
 			commitHash: "abc123",
 			workingDirectory: "/repo",
 			outputPath: _tempDir,
-			lineEnding: "\n");
+			lineEnding: "\n").ConfigureAwait(false);
 
 		// Assert
-		string content = await File.ReadAllTextAsync(Path.Combine(_tempDir, "CHANGELOG.md"));
+		string content = await File.ReadAllTextAsync(Path.Combine(_tempDir, "CHANGELOG.md")).ConfigureAwait(false);
 		Assert.IsTrue(content.Contains("Real commit"), "Should include real commit");
 		Assert.IsFalse(content.Contains("[bot]"), "Should filter bot commit");
 		Assert.IsFalse(content.Contains("Merge pull request"), "Should filter PR merge");
@@ -146,10 +146,10 @@ public class ChangelogGeneratorTests
 			commitHash: "abc123",
 			workingDirectory: "/repo",
 			outputPath: _tempDir,
-			lineEnding: "\n");
+			lineEnding: "\n").ConfigureAwait(false);
 
 		// Assert
-		string content = await File.ReadAllTextAsync(Path.Combine(_tempDir, "CHANGELOG.md"));
+		string content = await File.ReadAllTextAsync(Path.Combine(_tempDir, "CHANGELOG.md")).ConfigureAwait(false);
 		Assert.IsTrue(content.Contains("- Add awesome feature"), "Should format as bullet point");
 		Assert.IsTrue(content.Contains("[@developer]"), "Should include author link");
 	}
@@ -173,10 +173,10 @@ public class ChangelogGeneratorTests
 			commitHash: "abc123",
 			workingDirectory: "/repo",
 			outputPath: _tempDir,
-			lineEnding: "\n");
+			lineEnding: "\n").ConfigureAwait(false);
 
 		// Assert
-		string content = await File.ReadAllTextAsync(Path.Combine(_tempDir, "CHANGELOG.md"));
+		string content = await File.ReadAllTextAsync(Path.Combine(_tempDir, "CHANGELOG.md")).ConfigureAwait(false);
 		Assert.IsTrue(content.Contains("(minor)"), "Should detect minor version bump");
 	}
 
@@ -196,7 +196,7 @@ public class ChangelogGeneratorTests
 			workingDirectory: "/repo",
 			outputPath: _tempDir,
 			lineEnding: "\n",
-			latestChangelogFileName: "RELEASE_NOTES.md");
+			latestChangelogFileName: "RELEASE_NOTES.md").ConfigureAwait(false);
 
 		// Assert
 		string customPath = Path.Combine(_tempDir, "RELEASE_NOTES.md");
@@ -223,10 +223,10 @@ public class ChangelogGeneratorTests
 			commitHash: "abc123",
 			workingDirectory: "/repo",
 			outputPath: _tempDir,
-			lineEnding: "\n");
+			lineEnding: "\n").ConfigureAwait(false);
 
 		// Assert
-		string content = await File.ReadAllTextAsync(Path.Combine(_tempDir, "CHANGELOG.md"));
+		string content = await File.ReadAllTextAsync(Path.Combine(_tempDir, "CHANGELOG.md")).ConfigureAwait(false);
 		Assert.IsTrue(content.Contains("Real fix"), "Should include normal commit");
 		Assert.IsFalse(content.Contains("[skip ci]"), "Should filter skip ci commit");
 	}

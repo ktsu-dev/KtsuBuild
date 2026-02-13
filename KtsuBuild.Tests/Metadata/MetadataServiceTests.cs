@@ -43,7 +43,7 @@ public class MetadataServiceTests
 		List<string> authors = ["Alice", "Bob"];
 
 		// Act
-		await _service.WriteAuthorsFileAsync(authors, _tempDir, "\n");
+		await _service.WriteAuthorsFileAsync(authors, _tempDir, "\n").ConfigureAwait(false);
 
 		// Assert
 		string filePath = Path.Combine(_tempDir, "AUTHORS.md");
@@ -57,10 +57,10 @@ public class MetadataServiceTests
 		List<string> authors = ["Alice"];
 
 		// Act
-		await _service.WriteAuthorsFileAsync(authors, _tempDir, "\n");
+		await _service.WriteAuthorsFileAsync(authors, _tempDir, "\n").ConfigureAwait(false);
 
 		// Assert
-		string content = await File.ReadAllTextAsync(Path.Combine(_tempDir, "AUTHORS.md"));
+		string content = await File.ReadAllTextAsync(Path.Combine(_tempDir, "AUTHORS.md")).ConfigureAwait(false);
 		Assert.IsTrue(content.StartsWith("# Project Authors", StringComparison.Ordinal), "Should start with header");
 	}
 
@@ -71,10 +71,10 @@ public class MetadataServiceTests
 		List<string> authors = ["Alice", "Bob", "Charlie"];
 
 		// Act
-		await _service.WriteAuthorsFileAsync(authors, _tempDir, "\n");
+		await _service.WriteAuthorsFileAsync(authors, _tempDir, "\n").ConfigureAwait(false);
 
 		// Assert
-		string content = await File.ReadAllTextAsync(Path.Combine(_tempDir, "AUTHORS.md"));
+		string content = await File.ReadAllTextAsync(Path.Combine(_tempDir, "AUTHORS.md")).ConfigureAwait(false);
 		Assert.IsTrue(content.Contains("* Alice"), "Should contain first author");
 		Assert.IsTrue(content.Contains("* Bob"), "Should contain second author");
 		Assert.IsTrue(content.Contains("* Charlie"), "Should contain third author");
@@ -87,10 +87,10 @@ public class MetadataServiceTests
 		List<string> authors = ["Alice", "Bob"];
 
 		// Act
-		await _service.WriteAuthorsFileAsync(authors, _tempDir, "\n");
+		await _service.WriteAuthorsFileAsync(authors, _tempDir, "\n").ConfigureAwait(false);
 
 		// Assert
-		string content = await File.ReadAllTextAsync(Path.Combine(_tempDir, "AUTHORS.md"));
+		string content = await File.ReadAllTextAsync(Path.Combine(_tempDir, "AUTHORS.md")).ConfigureAwait(false);
 		string expected = "# Project Authors\n\n* Alice\n* Bob\n";
 		Assert.AreEqual(expected, content, "Should match PSBuild.psm1 format exactly");
 	}
@@ -102,10 +102,10 @@ public class MetadataServiceTests
 		List<string> authors = ["Alice", "Bob"];
 
 		// Act
-		await _service.WriteAuthorsFileAsync(authors, _tempDir, "\r\n");
+		await _service.WriteAuthorsFileAsync(authors, _tempDir, "\r\n").ConfigureAwait(false);
 
 		// Assert
-		string content = await File.ReadAllTextAsync(Path.Combine(_tempDir, "AUTHORS.md"));
+		string content = await File.ReadAllTextAsync(Path.Combine(_tempDir, "AUTHORS.md")).ConfigureAwait(false);
 		Assert.IsTrue(content.Contains("\r\n"), "Should contain CRLF line endings");
 		Assert.IsTrue(content.Contains("* Alice\r\n"), "Author lines should use CRLF");
 	}

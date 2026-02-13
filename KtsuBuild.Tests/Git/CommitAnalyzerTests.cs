@@ -30,7 +30,7 @@ public class CommitAnalyzerTests
 			.Returns(Task.FromResult<IReadOnlyList<string>>([]));
 
 		// Act
-		var (type, reason) = await _analyzer.AnalyzeAsync("/repo", "abc..def");
+		(VersionType type, string reason) = await _analyzer.AnalyzeAsync("/repo", "abc..def").ConfigureAwait(false);
 
 		// Assert
 		Assert.AreEqual(VersionType.Skip, type);
@@ -41,16 +41,16 @@ public class CommitAnalyzerTests
 	public async Task AnalyzeAsync_AllCommitsHaveSkipCi_ReturnsSkip()
 	{
 		// Arrange
-		var messages = new List<string>
-		{
+		List<string> messages =
+		[
 			"Fix typo [skip ci]",
 			"Update docs [ci skip]",
-		};
+		];
 		_gitService.GetCommitMessagesAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
 			.Returns(Task.FromResult<IReadOnlyList<string>>(messages));
 
 		// Act
-		var (type, reason) = await _analyzer.AnalyzeAsync("/repo", "abc..def");
+		(VersionType type, string reason) = await _analyzer.AnalyzeAsync("/repo", "abc..def").ConfigureAwait(false);
 
 		// Assert
 		Assert.AreEqual(VersionType.Skip, type);
@@ -61,16 +61,16 @@ public class CommitAnalyzerTests
 	public async Task AnalyzeAsync_CommitWithMajorTag_ReturnsMajor()
 	{
 		// Arrange
-		var messages = new List<string>
-		{
+		List<string> messages =
+		[
 			"Breaking change [major]",
 			"Fix bug",
-		};
+		];
 		_gitService.GetCommitMessagesAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
 			.Returns(Task.FromResult<IReadOnlyList<string>>(messages));
 
 		// Act
-		var (type, reason) = await _analyzer.AnalyzeAsync("/repo", "abc..def");
+		(VersionType type, string reason) = await _analyzer.AnalyzeAsync("/repo", "abc..def").ConfigureAwait(false);
 
 		// Assert
 		Assert.AreEqual(VersionType.Major, type);
@@ -81,16 +81,16 @@ public class CommitAnalyzerTests
 	public async Task AnalyzeAsync_CommitWithMinorTag_ReturnsMinor()
 	{
 		// Arrange
-		var messages = new List<string>
-		{
+		List<string> messages =
+		[
 			"Add new feature [minor]",
 			"Fix bug",
-		};
+		];
 		_gitService.GetCommitMessagesAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
 			.Returns(Task.FromResult<IReadOnlyList<string>>(messages));
 
 		// Act
-		var (type, reason) = await _analyzer.AnalyzeAsync("/repo", "abc..def");
+		(VersionType type, string reason) = await _analyzer.AnalyzeAsync("/repo", "abc..def").ConfigureAwait(false);
 
 		// Assert
 		Assert.AreEqual(VersionType.Minor, type);
@@ -101,15 +101,15 @@ public class CommitAnalyzerTests
 	public async Task AnalyzeAsync_CommitWithPatchTag_ReturnsPatch()
 	{
 		// Arrange
-		var messages = new List<string>
-		{
+		List<string> messages =
+		[
 			"Fix critical bug [patch]",
-		};
+		];
 		_gitService.GetCommitMessagesAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
 			.Returns(Task.FromResult<IReadOnlyList<string>>(messages));
 
 		// Act
-		var (type, reason) = await _analyzer.AnalyzeAsync("/repo", "abc..def");
+		(VersionType type, string reason) = await _analyzer.AnalyzeAsync("/repo", "abc..def").ConfigureAwait(false);
 
 		// Assert
 		Assert.AreEqual(VersionType.Patch, type);
@@ -120,15 +120,15 @@ public class CommitAnalyzerTests
 	public async Task AnalyzeAsync_CommitWithPreTag_ReturnsPrerelease()
 	{
 		// Arrange
-		var messages = new List<string>
-		{
+		List<string> messages =
+		[
 			"Experimental feature [pre]",
-		};
+		];
 		_gitService.GetCommitMessagesAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
 			.Returns(Task.FromResult<IReadOnlyList<string>>(messages));
 
 		// Act
-		var (type, reason) = await _analyzer.AnalyzeAsync("/repo", "abc..def");
+		(VersionType type, string reason) = await _analyzer.AnalyzeAsync("/repo", "abc..def").ConfigureAwait(false);
 
 		// Assert
 		Assert.AreEqual(VersionType.Prerelease, type);
@@ -139,16 +139,16 @@ public class CommitAnalyzerTests
 	public async Task AnalyzeAsync_MajorTakesPrecedenceOverMinor()
 	{
 		// Arrange
-		var messages = new List<string>
-		{
+		List<string> messages =
+		[
 			"New feature [minor]",
 			"Breaking change [major]",
-		};
+		];
 		_gitService.GetCommitMessagesAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
 			.Returns(Task.FromResult<IReadOnlyList<string>>(messages));
 
 		// Act
-		var (type, reason) = await _analyzer.AnalyzeAsync("/repo", "abc..def");
+		(VersionType type, string reason) = await _analyzer.AnalyzeAsync("/repo", "abc..def").ConfigureAwait(false);
 
 		// Assert
 		Assert.AreEqual(VersionType.Major, type);
@@ -159,19 +159,19 @@ public class CommitAnalyzerTests
 	public async Task AnalyzeAsync_BotCommitsAreFiltered_ReturnsPrerelease()
 	{
 		// Arrange
-		var messages = new List<string>
-		{
+		List<string> messages =
+		[
 			"Update by [bot]",
 			"github automated change",
 			"ProjectDirector update",
-		};
+		];
 		_gitService.GetCommitMessagesAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
 			.Returns(Task.FromResult<IReadOnlyList<string>>(messages));
 		_gitService.GetDiffAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
 			.Returns(Task.FromResult(string.Empty));
 
 		// Act
-		var (type, reason) = await _analyzer.AnalyzeAsync("/repo", "abc..def");
+		(VersionType type, string reason) = await _analyzer.AnalyzeAsync("/repo", "abc..def").ConfigureAwait(false);
 
 		// Assert
 		Assert.AreEqual(VersionType.Prerelease, type);
@@ -182,18 +182,18 @@ public class CommitAnalyzerTests
 	public async Task AnalyzeAsync_PrMergeCommitsFiltered_ReturnsPrerelease()
 	{
 		// Arrange
-		var messages = new List<string>
-		{
+		List<string> messages =
+		[
 			"Merge pull request #123 from feature",
 			"Merge branch 'main' into release",
-		};
+		];
 		_gitService.GetCommitMessagesAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
 			.Returns(Task.FromResult<IReadOnlyList<string>>(messages));
 		_gitService.GetDiffAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
 			.Returns(Task.FromResult(string.Empty));
 
 		// Act
-		var (type, reason) = await _analyzer.AnalyzeAsync("/repo", "abc..def");
+		(VersionType type, string reason) = await _analyzer.AnalyzeAsync("/repo", "abc..def").ConfigureAwait(false);
 
 		// Assert
 		Assert.AreEqual(VersionType.Prerelease, type);
@@ -203,10 +203,10 @@ public class CommitAnalyzerTests
 	public async Task AnalyzeAsync_DiffAddsPublicClass_ReturnsMinor()
 	{
 		// Arrange
-		var messages = new List<string>
-		{
+		List<string> messages =
+		[
 			"Add new service class",
-		};
+		];
 		string diff = @"
 +public class NewService
 +{
@@ -219,7 +219,7 @@ public class CommitAnalyzerTests
 			.Returns(Task.FromResult(diff));
 
 		// Act
-		var (type, reason) = await _analyzer.AnalyzeAsync("/repo", "abc..def");
+		(VersionType type, string reason) = await _analyzer.AnalyzeAsync("/repo", "abc..def").ConfigureAwait(false);
 
 		// Assert
 		Assert.AreEqual(VersionType.Minor, type);
@@ -230,10 +230,10 @@ public class CommitAnalyzerTests
 	public async Task AnalyzeAsync_DiffModifiesInternalCodeOnly_ReturnsPatch()
 	{
 		// Arrange
-		var messages = new List<string>
-		{
+		List<string> messages =
+		[
 			"Optimize internal algorithm",
-		};
+		];
 		string diff = @"
 -internal int Calculate() => x + y;
 +internal int Calculate() => x * 2 + y;
@@ -244,7 +244,7 @@ public class CommitAnalyzerTests
 			.Returns(Task.FromResult(diff));
 
 		// Act
-		var (type, reason) = await _analyzer.AnalyzeAsync("/repo", "abc..def");
+		(VersionType type, string reason) = await _analyzer.AnalyzeAsync("/repo", "abc..def").ConfigureAwait(false);
 
 		// Assert
 		Assert.AreEqual(VersionType.Patch, type);
@@ -255,16 +255,16 @@ public class CommitAnalyzerTests
 	public async Task AnalyzeAsync_MinorTakesPrecedenceOverPatch()
 	{
 		// Arrange
-		var messages = new List<string>
-		{
+		List<string> messages =
+		[
 			"Fix bug [patch]",
 			"Add feature [minor]",
-		};
+		];
 		_gitService.GetCommitMessagesAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
 			.Returns(Task.FromResult<IReadOnlyList<string>>(messages));
 
 		// Act
-		var (type, reason) = await _analyzer.AnalyzeAsync("/repo", "abc..def");
+		(VersionType type, string reason) = await _analyzer.AnalyzeAsync("/repo", "abc..def").ConfigureAwait(false);
 
 		// Assert
 		Assert.AreEqual(VersionType.Minor, type);
@@ -274,16 +274,16 @@ public class CommitAnalyzerTests
 	public async Task AnalyzeAsync_PatchTakesPrecedenceOverPre()
 	{
 		// Arrange
-		var messages = new List<string>
-		{
+		List<string> messages =
+		[
 			"Experimental [pre]",
 			"Important fix [patch]",
-		};
+		];
 		_gitService.GetCommitMessagesAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
 			.Returns(Task.FromResult<IReadOnlyList<string>>(messages));
 
 		// Act
-		var (type, reason) = await _analyzer.AnalyzeAsync("/repo", "abc..def");
+		(VersionType type, string reason) = await _analyzer.AnalyzeAsync("/repo", "abc..def").ConfigureAwait(false);
 
 		// Assert
 		Assert.AreEqual(VersionType.Patch, type);
@@ -293,15 +293,15 @@ public class CommitAnalyzerTests
 	public async Task AnalyzeAsync_CaseInsensitiveTags()
 	{
 		// Arrange
-		var messages = new List<string>
-		{
+		List<string> messages =
+		[
 			"Breaking change [MAJOR]",
-		};
+		];
 		_gitService.GetCommitMessagesAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
 			.Returns(Task.FromResult<IReadOnlyList<string>>(messages));
 
 		// Act
-		var (type, reason) = await _analyzer.AnalyzeAsync("/repo", "abc..def");
+		(VersionType type, string reason) = await _analyzer.AnalyzeAsync("/repo", "abc..def").ConfigureAwait(false);
 
 		// Assert
 		Assert.AreEqual(VersionType.Major, type);

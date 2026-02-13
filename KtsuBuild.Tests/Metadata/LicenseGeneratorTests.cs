@@ -37,13 +37,13 @@ public class LicenseGeneratorTests
 			owner: "testowner",
 			repository: "testrepo",
 			outputPath: _tempDir,
-			lineEnding: "\n");
+			lineEnding: "\n").ConfigureAwait(false);
 
 		// Assert
 		string licensePath = Path.Combine(_tempDir, "LICENSE.md");
 		Assert.IsTrue(File.Exists(licensePath), "LICENSE.md should be created");
 
-		string content = await File.ReadAllTextAsync(licensePath);
+		string content = await File.ReadAllTextAsync(licensePath).ConfigureAwait(false);
 		Assert.IsTrue(content.Contains("MIT License"), "Should contain MIT License header");
 		Assert.IsTrue(content.Contains("testowner"), "Should contain owner name");
 	}
@@ -57,13 +57,13 @@ public class LicenseGeneratorTests
 			owner: "testowner",
 			repository: "testrepo",
 			outputPath: _tempDir,
-			lineEnding: "\n");
+			lineEnding: "\n").ConfigureAwait(false);
 
 		// Assert
 		string copyrightPath = Path.Combine(_tempDir, "COPYRIGHT.md");
 		Assert.IsTrue(File.Exists(copyrightPath), "COPYRIGHT.md should be created");
 
-		string content = await File.ReadAllTextAsync(copyrightPath);
+		string content = await File.ReadAllTextAsync(copyrightPath).ConfigureAwait(false);
 		Assert.IsTrue(content.Contains("Copyright (c)"), "Should contain copyright notice");
 		Assert.IsTrue(content.Contains("testowner"), "Should contain owner name");
 	}
@@ -77,10 +77,10 @@ public class LicenseGeneratorTests
 			owner: "testowner",
 			repository: "testrepo",
 			outputPath: _tempDir,
-			lineEnding: "\n");
+			lineEnding: "\n").ConfigureAwait(false);
 
 		// Assert
-		string content = await File.ReadAllTextAsync(Path.Combine(_tempDir, "LICENSE.md"));
+		string content = await File.ReadAllTextAsync(Path.Combine(_tempDir, "LICENSE.md")).ConfigureAwait(false);
 		int currentYear = DateTime.UtcNow.Year;
 		Assert.IsTrue(content.Contains($"2023-{currentYear}"), "Should contain year range from 2023 to current year");
 	}
@@ -94,10 +94,10 @@ public class LicenseGeneratorTests
 			owner: "testowner",
 			repository: "testrepo",
 			outputPath: _tempDir,
-			lineEnding: "\n");
+			lineEnding: "\n").ConfigureAwait(false);
 
 		// Assert
-		string content = await File.ReadAllTextAsync(Path.Combine(_tempDir, "LICENSE.md"));
+		string content = await File.ReadAllTextAsync(Path.Combine(_tempDir, "LICENSE.md")).ConfigureAwait(false);
 		Assert.IsTrue(content.Contains("https://github.com/testowner/testrepo"), "Should contain project URL");
 	}
 
@@ -110,11 +110,11 @@ public class LicenseGeneratorTests
 			owner: "Acme Corporation",
 			repository: "awesome-project",
 			outputPath: _tempDir,
-			lineEnding: "\n");
+			lineEnding: "\n").ConfigureAwait(false);
 
 		// Assert
-		string licenseContent = await File.ReadAllTextAsync(Path.Combine(_tempDir, "LICENSE.md"));
-		string copyrightContent = await File.ReadAllTextAsync(Path.Combine(_tempDir, "COPYRIGHT.md"));
+		string licenseContent = await File.ReadAllTextAsync(Path.Combine(_tempDir, "LICENSE.md")).ConfigureAwait(false);
+		string copyrightContent = await File.ReadAllTextAsync(Path.Combine(_tempDir, "COPYRIGHT.md")).ConfigureAwait(false);
 
 		Assert.IsTrue(licenseContent.Contains("Acme Corporation"), "License should contain author");
 		Assert.IsTrue(copyrightContent.Contains("Acme Corporation"), "Copyright should contain author");
@@ -129,10 +129,10 @@ public class LicenseGeneratorTests
 			owner: "testowner",
 			repository: "testrepo",
 			outputPath: _tempDir,
-			lineEnding: "\n");
+			lineEnding: "\n").ConfigureAwait(false);
 
 		// Assert
-		string content = await File.ReadAllTextAsync(Path.Combine(_tempDir, "LICENSE.md"));
+		string content = await File.ReadAllTextAsync(Path.Combine(_tempDir, "LICENSE.md")).ConfigureAwait(false);
 		Assert.IsFalse(content.Contains("\r\n"), "Should not contain CRLF when LF specified");
 	}
 
@@ -145,10 +145,10 @@ public class LicenseGeneratorTests
 			owner: "testowner",
 			repository: "testrepo",
 			outputPath: _tempDir,
-			lineEnding: "\r\n");
+			lineEnding: "\r\n").ConfigureAwait(false);
 
 		// Assert
-		string content = await File.ReadAllTextAsync(Path.Combine(_tempDir, "LICENSE.md"));
+		string content = await File.ReadAllTextAsync(Path.Combine(_tempDir, "LICENSE.md")).ConfigureAwait(false);
 		Assert.IsTrue(content.Contains("\r\n"), "Should contain CRLF when specified");
 	}
 
@@ -161,10 +161,10 @@ public class LicenseGeneratorTests
 			owner: "testowner",
 			repository: "testrepo",
 			outputPath: _tempDir,
-			lineEnding: "\n");
+			lineEnding: "\n").ConfigureAwait(false);
 
 		// Assert
-		string content = await File.ReadAllTextAsync(Path.Combine(_tempDir, "LICENSE.md"));
+		string content = await File.ReadAllTextAsync(Path.Combine(_tempDir, "LICENSE.md")).ConfigureAwait(false);
 		Assert.IsTrue(content.Contains("Permission is hereby granted"), "Should contain MIT permission grant");
 		Assert.IsTrue(content.Contains("WITHOUT WARRANTY"), "Should contain warranty disclaimer");
 		Assert.IsTrue(content.Contains("THE SOFTWARE IS PROVIDED"), "Should contain software provision clause");
