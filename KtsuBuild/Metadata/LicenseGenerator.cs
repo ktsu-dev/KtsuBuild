@@ -5,7 +5,6 @@
 namespace KtsuBuild.Metadata;
 
 using System.Diagnostics.CodeAnalysis;
-using System.Reflection;
 using KtsuBuild.Utilities;
 #if !NET10_0_OR_GREATER
 using static Polyfill;
@@ -40,7 +39,7 @@ public static class LicenseGenerator
 		Ensure.NotNull(outputPath);
 		Ensure.NotNull(lineEnding);
 
-		string template = GetTemplate();
+		string template = LicenseTemplate;
 		int year = DateTime.UtcNow.Year;
 
 		// Build project URL
@@ -63,31 +62,7 @@ public static class LicenseGenerator
 		await LineEndingHelper.WriteFileAsync(copyrightPath, copyright + lineEnding, lineEnding, cancellationToken).ConfigureAwait(false);
 	}
 
-	private static string GetTemplate()
-	{
-		Assembly assembly = Assembly.GetExecutingAssembly();
-
-		// Try to find the embedded resource
-		string[] resourceNames = assembly.GetManifestResourceNames();
-		string? resourceName = resourceNames.FirstOrDefault(n => n.EndsWith("LICENSE.template", StringComparison.OrdinalIgnoreCase));
-
-		if (resourceName is null)
-		{
-			// Fallback to default MIT license template
-			return GetDefaultTemplate();
-		}
-
-		using Stream? stream = assembly.GetManifestResourceStream(resourceName);
-		if (stream is null)
-		{
-			return GetDefaultTemplate();
-		}
-
-		using StreamReader reader = new(stream);
-		return reader.ReadToEnd();
-	}
-
-	private static string GetDefaultTemplate() => """
+	private const string LicenseTemplate = """
 		MIT License
 
 		{PROJECT_URL}

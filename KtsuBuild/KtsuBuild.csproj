@@ -11,8 +11,5 @@
     <PackageReference Include="System.Text.Json" />
   </ItemGroup>
 
-  <ItemGroup>
-    <EmbeddedResource Include="..\scripts\LICENSE.template" Link="Templates\LICENSE.template" />
-  </ItemGroup>
 
 </Project>
