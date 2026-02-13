@@ -207,7 +207,7 @@ internal sealed class Program
 
 		// Update subcommand
 		Command updateCommand = metadataCommand.Subcommands.First(c => c.Name == "update");
-		Option<bool> noCommitOption = (Option<bool>)updateCommand.Options.First(o => o.Name == "no-commit");
+		Option<bool> noCommitOption = (Option<bool>)updateCommand.Options.First(o => o.Name == "--no-commit");
 		updateCommand.SetAction(async (parseResult, ct) =>
 		{
 			string workspace = parseResult.GetValue(GlobalOptions.Workspace)!;

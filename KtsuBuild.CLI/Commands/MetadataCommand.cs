@@ -36,7 +36,7 @@ public class MetadataCommand : Command
 		{
 			Options.Add(GlobalOptions.Workspace);
 			Options.Add(GlobalOptions.Verbose);
-			Options.Add(new Option<bool>("--no-commit", "Don't commit changes"));
+			Options.Add(new Option<bool>("--no-commit") { Description = "Don't commit changes" });
 		}
 
 		public static Func<string, bool, bool, CancellationToken, Task<int>> CreateHandler(
