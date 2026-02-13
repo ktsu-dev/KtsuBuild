@@ -1,44 +1,51 @@
 # KtsuBuild
 
-.NET build automation tool with semantic versioning, changelog generation, and multi-platform publishing.
+> .NET build automation tool with semantic versioning, changelog generation, and multi-platform publishing.
 
 ## Features
 
-- **Semantic Versioning**: Automatic version calculation based on commit messages
-- **Changelog Generation**: Auto-generated CHANGELOG.md from git history
-- **License Generation**: Generates LICENSE.md and COPYRIGHT.md from templates
-- **Multi-Platform Publishing**: Build and publish for Windows, Linux, and macOS
+- **Semantic Versioning**: Automatic version calculation based on commit messages and public API diff analysis
+- **Changelog Generation**: Auto-generated CHANGELOG.md from git history with multi-level commit filtering
+- **License Generation**: Generates LICENSE.md and COPYRIGHT.md from embedded templates
+- **Multi-Platform Publishing**: Build and publish for Windows, Linux, and macOS (x64, x86, arm64)
 - **NuGet Publishing**: Publish to NuGet.org, GitHub Packages, and custom feeds
-- **GitHub Releases**: Create releases with assets and release notes
-- **Winget Manifests**: Generate Windows Package Manager manifests
+- **GitHub Releases**: Create releases with assets, SHA256 hashes, and release notes
+- **Winget Manifests**: Generate Windows Package Manager manifests with auto-detection
 
-## Installation
+## Usage
+
+### From Source (Recommended for CI/CD)
+
+Clone and run directly with `dotnet run`:
+
+```bash
+git clone --depth 1 https://github.com/ktsu-dev/KtsuBuild.git /tmp/KtsuBuild
+
+# Run the full CI/CD pipeline
+dotnet run --project /tmp/KtsuBuild/KtsuBuild.CLI -- ci --workspace .
+
+# Build only
+dotnet run --project /tmp/KtsuBuild/KtsuBuild.CLI -- build --workspace .
+
+# Show version info
+dotnet run --project /tmp/KtsuBuild/KtsuBuild.CLI -- version show --workspace .
+```
+
+### As a Global Tool
 
 ```bash
 dotnet tool install -g KtsuBuild.CLI
-```
 
-## Quick Start
-
-```bash
-# Run the full CI/CD pipeline
 ktsub ci
-
-# Build only (restore, build, test)
 ktsub build
-
-# Show current version information
 ktsub version show
-
-# Update all metadata files
-ktsub metadata update
 ```
 
 ## CLI Commands
 
 ### Global Options
 
-All commands support these global options:
+All commands support these options:
 
 | Option | Short | Description | Default |
 |--------|-------|-------------|---------|
@@ -46,7 +53,7 @@ All commands support these global options:
 | `--configuration` | `-c` | Build configuration (Debug/Release) | Release |
 | `--verbose` | `-v` | Enable verbose output | false |
 
-### `ktsub ci`
+### `ci`
 
 Run the full CI/CD pipeline: metadata update, build, test, pack, publish, and release.
 
@@ -57,17 +64,21 @@ ktsub ci [options]
 **Options:**
 - `--dry-run`: Preview actions without executing them
 
-**What it does:**
-1. Updates metadata files (VERSION.md, CHANGELOG.md, LICENSE.md)
-2. Restores NuGet packages
-3. Builds the solution
-4. Runs tests with coverage
-5. Packs NuGet packages
-6. Publishes executables for all platforms
-7. Publishes NuGet packages to configured feeds
-8. Creates a GitHub release with assets
+**Pipeline steps:**
 
-### `ktsub build`
+1. Updates metadata files (VERSION.md, CHANGELOG.md, LICENSE.md, COPYRIGHT.md, AUTHORS.md)
+2. Checks version increment (skips release if `[skip ci]` or no meaningful changes)
+3. Installs dotnet-script if `.csx` files are present
+4. Restores NuGet packages
+5. Builds the solution
+6. Runs tests with coverage
+7. Packs NuGet packages (if ShouldRelease)
+8. Publishes executables for all platforms (if ShouldRelease)
+9. Generates SHA256 hashes for all artifacts
+10. Publishes NuGet packages to configured feeds (if ShouldRelease)
+11. Creates a GitHub release with assets (if ShouldRelease)
+
+### `build`
 
 Build workflow: restore, build, and test.
 
@@ -75,7 +86,7 @@ Build workflow: restore, build, and test.
 ktsub build [options]
 ```
 
-### `ktsub release`
+### `release`
 
 Release workflow: pack, publish NuGet packages, and create GitHub release.
 
@@ -86,11 +97,11 @@ ktsub release [options]
 **Options:**
 - `--dry-run`: Preview actions without executing them
 
-### `ktsub version`
+### `version`
 
 Version management commands.
 
-#### `ktsub version show`
+#### `version show`
 
 Display current version information including last tag, calculated version, and increment reason.
 
@@ -108,7 +119,7 @@ Reason: Found changes warranting at least a patch version
 Is Prerelease: False
 ```
 
-#### `ktsub version bump`
+#### `version bump`
 
 Calculate and display the next version number.
 
@@ -116,7 +127,7 @@ Calculate and display the next version number.
 ktsub version bump [options]
 ```
 
-#### `ktsub version create`
+#### `version create`
 
 Create or update the VERSION.md file with the calculated version.
 
@@ -124,13 +135,13 @@ Create or update the VERSION.md file with the calculated version.
 ktsub version create [options]
 ```
 
-### `ktsub metadata`
+### `metadata`
 
 Metadata file management commands.
 
-#### `ktsub metadata update`
+#### `metadata update`
 
-Update all metadata files (VERSION.md, CHANGELOG.md, LICENSE.md, COPYRIGHT.md).
+Update all metadata files (VERSION.md, CHANGELOG.md, LICENSE.md, COPYRIGHT.md, AUTHORS.md, URL files).
 
 ```bash
 ktsub metadata update [options]
@@ -139,15 +150,15 @@ ktsub metadata update [options]
 **Options:**
 - `--no-commit`: Don't commit changes after updating
 
-#### `ktsub metadata license`
+#### `metadata license`
 
-Generate LICENSE.md and COPYRIGHT.md files from templates.
+Generate LICENSE.md and COPYRIGHT.md files from embedded templates.
 
 ```bash
 ktsub metadata license [options]
 ```
 
-#### `ktsub metadata changelog`
+#### `metadata changelog`
 
 Generate CHANGELOG.md from git history.
 
@@ -155,11 +166,11 @@ Generate CHANGELOG.md from git history.
 ktsub metadata changelog [options]
 ```
 
-### `ktsub winget`
+### `winget`
 
 Windows Package Manager manifest commands.
 
-#### `ktsub winget generate`
+#### `winget generate`
 
 Generate Winget manifests for a version.
 
@@ -173,7 +184,7 @@ ktsub winget generate --version <version> [options]
 - `--package-id`, `-p`: The package identifier
 - `--staging`, `-s`: The staging directory with hashes.txt
 
-#### `ktsub winget upload`
+#### `winget upload`
 
 Upload manifests to a GitHub release.
 
@@ -190,10 +201,10 @@ Control version increments by including tags in your commit messages:
 
 | Tag | Effect | Example |
 |-----|--------|---------|
-| `[major]` | Major version bump (1.0.0 → 2.0.0) | Breaking API changes |
-| `[minor]` | Minor version bump (1.0.0 → 1.1.0) | New features |
-| `[patch]` | Patch version bump (1.0.0 → 1.0.1) | Bug fixes |
-| `[pre]` | Prerelease bump (1.0.0 → 1.0.1-pre.0) | Unstable changes |
+| `[major]` | Major version bump (1.0.0 -> 2.0.0) | Breaking API changes |
+| `[minor]` | Minor version bump (1.0.0 -> 1.1.0) | New features |
+| `[patch]` | Patch version bump (1.0.0 -> 1.0.1) | Bug fixes |
+| `[pre]` | Prerelease bump (1.0.0 -> 1.0.1-pre.0) | Unstable changes |
 | `[skip ci]` | Skip release entirely | Documentation-only changes |
 
 **Examples:**
@@ -204,51 +215,68 @@ git commit -m "[major] Redesign public API"
 git commit -m "[skip ci] Update documentation"
 ```
 
+### Automatic Version Detection
+
 If no tag is specified, KtsuBuild automatically determines the version bump by:
-1. Detecting public API changes in C# files (triggers minor bump)
-2. Filtering out bot commits and PR merges
-3. Defaulting to patch for meaningful changes, prerelease otherwise
+
+1. **Public API analysis**: Diffs C# files for added/removed/modified public types, methods, properties, and constants. Any public API surface change triggers a **minor** bump.
+2. **Commit filtering**: Bot commits (dependabot, renovate, etc.) and PR merge commits are excluded from analysis.
+3. **Fallback**: Meaningful code changes default to **patch**; trivial changes default to **prerelease**.
 
 ## Generated Metadata Files
 
-KtsuBuild generates and maintains these files:
+KtsuBuild generates and maintains these files in the workspace:
 
 | File | Purpose |
 |------|---------|
 | `VERSION.md` | Contains the current version number |
 | `CHANGELOG.md` | Complete changelog with all versions |
-| `LATEST_CHANGELOG.md` | Changelog for the current version only |
-| `LICENSE.md` | License file generated from template |
-| `COPYRIGHT.md` | Copyright notice with contributors |
+| `LATEST_CHANGELOG.md` | Changelog for the current version only (used as release notes) |
+| `LICENSE.md` | MIT license with project URL and copyright |
+| `COPYRIGHT.md` | Copyright notice with year range and contributors |
+| `AUTHORS.md` | List of contributors from git history |
+| `PROJECT_URL.url` | Windows shortcut to the project repository |
+| `AUTHORS.url` | Windows shortcut to the organization/owner |
 
 ## Environment Variables
 
-KtsuBuild uses these environment variables when running in CI/CD:
+KtsuBuild reads these environment variables when running in CI/CD:
 
 | Variable | Description |
 |----------|-------------|
-| `GITHUB_TOKEN` | GitHub API token for releases and packages |
+| `GITHUB_TOKEN` / `GH_TOKEN` | GitHub API token for releases and packages |
 | `NUGET_API_KEY` | NuGet.org API key for publishing |
 | `KTSU_PACKAGE_KEY` | API key for ktsu.dev package feed |
 | `GITHUB_SERVER_URL` | GitHub server URL (default: https://github.com) |
 | `GITHUB_REF` | Git reference (branch/tag) |
 | `GITHUB_SHA` | Git commit SHA |
 | `GITHUB_REPOSITORY` | Repository in owner/repo format |
-| `GITHUB_REPOSITORY_OWNER` | Repository owner |
 | `EXPECTED_OWNER` | Expected owner for official builds |
 
 ## Build Configuration
 
 The build system automatically determines:
 
-- **IsOfficial**: Whether the repository is the official one (not a fork)
+- **IsOfficial**: Whether the repository is the official one (not a fork, matches ExpectedOwner)
 - **IsMain**: Whether the build is on the main branch
 - **IsTagged**: Whether the current commit is already tagged
-- **ShouldRelease**: Whether a release should be created (IsMain && !IsTagged && IsOfficial)
+- **ShouldRelease**: Whether a release should be created (`IsMain && !IsTagged && IsOfficial`)
+
+## Publish Targets
+
+For executable projects, KtsuBuild publishes to these runtime identifiers:
+
+| Platform | Architectures |
+| -------- | ------------- |
+| Windows | x64, x86, arm64 |
+| Linux | x64, arm64 |
+| macOS | x64, arm64 |
+
+Each target produces a self-contained, single-file executable packaged as a ZIP archive with SHA256 hash.
 
 ## Examples
 
-### CI/CD Pipeline (GitHub Actions)
+### CI/CD Pipeline (GitHub Actions) - Clone from Source
 
 ```yaml
 name: CI/CD
@@ -261,7 +289,10 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
+    permissions:
+      contents: write
+      packages: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -269,16 +300,22 @@ jobs:
 
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '9.0.x'
+          dotnet-version: '10.0.x'
 
-      - name: Install KtsuBuild
-        run: dotnet tool install -g KtsuBuild.CLI
+      - name: Clone KtsuBuild
+        run: git clone --depth 1 https://github.com/ktsu-dev/KtsuBuild.git "${{ runner.temp }}/KtsuBuild"
+        shell: bash
 
       - name: Run CI Pipeline
+        id: pipeline
+        shell: pwsh
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
-        run: ktsub ci
+          GH_TOKEN: ${{ github.token }}
+          NUGET_API_KEY: ${{ secrets.NUGET_KEY }}
+          KTSU_PACKAGE_KEY: ${{ secrets.KTSU_PACKAGE_KEY }}
+          EXPECTED_OWNER: ktsu-dev
+        run: |
+          dotnet run --project "${{ runner.temp }}/KtsuBuild/KtsuBuild.CLI" -- ci --workspace "${{ github.workspace }}" --verbose
 ```
 
 ### Local Development
@@ -295,7 +332,20 @@ ktsub build
 
 # Update metadata files only
 ktsub metadata update --no-commit
+
+# Generate winget manifests
+ktsub winget generate --version 1.0.0
 ```
+
+## Architecture
+
+KtsuBuild is organized into three projects:
+
+- **KtsuBuild** - Core library with all business logic, multi-targeted across .NET 5-10 and netstandard2.0/2.1
+- **KtsuBuild.CLI** - Console application using System.CommandLine 2.0.3 with Microsoft.Extensions.DependencyInjection
+- **KtsuBuild.Tests** - Test suite using MSTest.Sdk with NSubstitute for mocking
+
+All services implement interfaces from the `KtsuBuild.Abstractions` namespace, enabling testability and loose coupling.
 
 ## License
 
