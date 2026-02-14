@@ -15,6 +15,7 @@ using static Polyfill;
 /// Implementation of build logger with colored console output.
 /// </summary>
 [SuppressMessage("Performance", "CA1848:Use the LoggerMessage delegates", Justification = "This is a simple utility logger; LoggerMessage delegates add unnecessary complexity")]
+[SuppressMessage("Performance", "CA1873:Use conditional log level evaluation", Justification = "Parameters are already simple strings; IsEnabled guards add unnecessary complexity")]
 public class BuildLogger : IBuildLogger
 {
 	private readonly ILogger<BuildLogger>? _logger;
