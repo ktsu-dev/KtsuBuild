@@ -68,12 +68,21 @@ public class MetadataService(IGitService gitService, IBuildLogger logger) : IMet
 				[
 					"VERSION.md",
 					"LICENSE.md",
-					"AUTHORS.md",
 					"CHANGELOG.md",
 					"COPYRIGHT.md",
 					"PROJECT_URL.url",
-					"AUTHORS.url",
 				];
+
+				// Only add AUTHORS files if they were generated
+				if (File.Exists(Path.Combine(config.WorkspacePath, "AUTHORS.md")))
+				{
+					filesToAdd.Add("AUTHORS.md");
+				}
+
+				if (File.Exists(Path.Combine(config.WorkspacePath, "AUTHORS.url")))
+				{
+					filesToAdd.Add("AUTHORS.url");
+				}
 
 				if (File.Exists(Path.Combine(config.WorkspacePath, config.LatestChangelogFile)))
 				{
