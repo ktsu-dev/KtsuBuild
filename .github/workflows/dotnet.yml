@@ -35,7 +35,6 @@ jobs:
       version: ${{ steps.pipeline.outputs.version }}
       release_hash: ${{ steps.pipeline.outputs.release_hash }}
       should_release: ${{ steps.pipeline.outputs.should_release }}
-      skipped_release: ${{ steps.pipeline.outputs.skipped_release }}
 
     steps:
       - name: Set up JDK 17
@@ -143,14 +142,8 @@ jobs:
           $shouldRelease = $isMain -and (-not $isTagged) -and $isOfficial
           "should_release=$($shouldRelease.ToString().ToLower())" >> $env:GITHUB_OUTPUT
 
-          # Detect if release was skipped (version matches existing tag)
-          $existingTag = git tag -l "v$version" 2>$null
-          if ($existingTag) {
-            "skipped_release=true" >> $env:GITHUB_OUTPUT
-          }
-
       - name: End SonarQube
-        if: env.SONAR_TOKEN != '' && steps.pipeline.outputs.skipped_release != 'true'
+        if: env.SONAR_TOKEN != ''
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         shell: powershell
@@ -159,7 +152,7 @@ jobs:
 
       - name: Upload Coverage Report
         uses: actions/upload-artifact@v4
-        if: always() && steps.pipeline.outputs.skipped_release != 'true'
+        if: always()
         with:
           name: coverage-report
           path: |
@@ -169,7 +162,7 @@ jobs:
   winget:
     name: Update Winget Manifests
     needs: build
-    if: needs.build.outputs.should_release == 'true' && needs.build.outputs.skipped_release != 'true'
+    if: needs.build.outputs.should_release == 'true'
     runs-on: windows-latest
     timeout-minutes: 10
     permissions:
@@ -216,7 +209,7 @@ jobs:
   security:
     name: Security Scanning
     needs: build
-    if: needs.build.outputs.should_release == 'true' && needs.build.outputs.skipped_release != 'true'
+    if: needs.build.outputs.should_release == 'true'
     runs-on: windows-latest
     timeout-minutes: 10
     permissions:
