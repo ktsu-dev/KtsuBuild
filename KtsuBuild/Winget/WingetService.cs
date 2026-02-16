@@ -89,10 +89,13 @@ public class WingetService(IProcessRunner processRunner, IBuildLogger logger) : 
 				};
 			}
 
+			logger.WriteWarning("Could not find any executable artifacts to hash.");
+			logger.WriteWarning("This is common for projects that don't publish Windows executables or zip artifacts.");
+			logger.WriteWarning("Skipping winget manifest generation.");
 			return new WingetManifestResult
 			{
-				Success = false,
-				Error = "Could not obtain any SHA256 hashes. Please check that the artifact name pattern matches your release files.",
+				Success = true,
+				IsLibraryOnly = false,
 			};
 		}
 
