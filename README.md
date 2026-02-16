@@ -362,8 +362,14 @@ jobs:
           EXPECTED_OWNER: ktsu-dev
         run: |
           $versionBump = "${{ github.event.inputs.version-bump }}"
-          if ([string]::IsNullOrEmpty($versionBump)) { $versionBump = "auto" }
-          dotnet run --project "${{ runner.temp }}/KtsuBuild/KtsuBuild.CLI" -- ci --workspace "${{ github.workspace }}" --verbose --version-bump $versionBump
+
+          # Build command - only add --version-bump if explicitly set (backward compatible)
+          $command = "ci --workspace `"${{ github.workspace }}`" --verbose"
+          if (![string]::IsNullOrEmpty($versionBump) -and $versionBump -ne "auto") {
+            $command += " --version-bump $versionBump"
+          }
+
+          dotnet run --project "${{ runner.temp }}/KtsuBuild/KtsuBuild.CLI" -- $command
 ```
 
 ### Local Development

@@ -216,6 +216,7 @@ Consumer projects clone KtsuBuild and invoke:
   run: git clone --depth 1 https://github.com/ktsu-dev/KtsuBuild.git "${{ runner.temp }}/KtsuBuild"
 
 - name: Run KtsuBuild CI Pipeline
+  shell: pwsh
   env:
     GH_TOKEN: ${{ github.token }}
     NUGET_API_KEY: ${{ secrets.NUGET_KEY }}
@@ -223,8 +224,14 @@ Consumer projects clone KtsuBuild and invoke:
     EXPECTED_OWNER: ktsu-dev
   run: |
     $versionBump = "${{ github.event.inputs.version-bump }}"
-    if ([string]::IsNullOrEmpty($versionBump)) { $versionBump = "auto" }
-    dotnet run --project "${{ runner.temp }}/KtsuBuild/KtsuBuild.CLI" -- ci --workspace "${{ github.workspace }}" --verbose --version-bump $versionBump
+
+    # Build command - only add --version-bump if explicitly set (backward compatible)
+    $command = "ci --workspace `"${{ github.workspace }}`" --verbose"
+    if (![string]::IsNullOrEmpty($versionBump) -and $versionBump -ne "auto") {
+      $command += " --version-bump $versionBump"
+    }
+
+    dotnet run --project "${{ runner.temp }}/KtsuBuild/KtsuBuild.CLI" -- $command
 ```
 
 ## Serena MCP Plugin Integration
