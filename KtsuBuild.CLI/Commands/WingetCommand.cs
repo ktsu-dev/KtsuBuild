@@ -5,8 +5,6 @@
 namespace KtsuBuild.CLI.Commands;
 
 using System.CommandLine;
-using KtsuBuild.Abstractions;
-using KtsuBuild.Winget;
 
 /// <summary>
 /// Winget command for manifest operations.
@@ -62,58 +60,6 @@ public class WingetCommand : Command
 			Options.Add(PackageIdOption);
 			Options.Add(StagingOption);
 		}
-
-		public static Func<string, bool, string, string?, string?, string?, CancellationToken, Task<int>> CreateHandler(
-			IProcessRunner processRunner,
-			IBuildLogger logger)
-		{
-			return async (workspace, verbose, version, gitHubRepo, packageId, staging, cancellationToken) =>
-			{
-				logger.VerboseEnabled = verbose;
-				logger.WriteStepHeader("Generating Winget Manifests");
-
-				WingetService wingetService = new(processRunner, logger);
-
-#pragma warning disable CA1031 // Top-level command handler must catch all exceptions
-				try
-				{
-					WingetOptions options = new()
-					{
-						Version = version,
-						GitHubRepo = gitHubRepo,
-						PackageId = packageId,
-						RootDirectory = workspace,
-						OutputDirectory = Path.Combine(workspace, "winget"),
-						StagingDirectory = staging ?? Path.Combine(workspace, "staging"),
-					};
-
-					WingetManifestResult result = await wingetService.GenerateManifestsAsync(options, cancellationToken).ConfigureAwait(false);
-
-					if (result.IsLibraryOnly)
-					{
-						logger.WriteInfo("Library-only project - no manifests generated");
-						return 0;
-					}
-
-					if (result.Success)
-					{
-						logger.WriteSuccess($"Generated manifests for {result.PackageId}");
-						return 0;
-					}
-					else
-					{
-						logger.WriteError($"Failed to generate manifests: {result.Error}");
-						return 1;
-					}
-				}
-				catch (Exception ex)
-				{
-					logger.WriteError($"Failed to generate manifests: {ex.Message}");
-					return 1;
-				}
-#pragma warning restore CA1031
-			};
-		}
 	}
 
 #pragma warning disable CA1010
@@ -132,34 +78,6 @@ public class WingetCommand : Command
 			Options.Add(GlobalOptions.Workspace);
 			Options.Add(GlobalOptions.Verbose);
 			Options.Add(VersionOption);
-		}
-
-		public static Func<string, bool, string, CancellationToken, Task<int>> CreateHandler(
-			IProcessRunner processRunner,
-			IBuildLogger logger)
-		{
-			return async (workspace, verbose, version, cancellationToken) =>
-			{
-				logger.VerboseEnabled = verbose;
-
-				WingetService wingetService = new(processRunner, logger);
-
-#pragma warning disable CA1031 // Top-level command handler must catch all exceptions
-				try
-				{
-					string manifestDir = Path.Combine(workspace, "winget");
-					await wingetService.UploadManifestsAsync(version, manifestDir, cancellationToken).ConfigureAwait(false);
-
-					logger.WriteSuccess("Manifests uploaded!");
-					return 0;
-				}
-				catch (Exception ex)
-				{
-					logger.WriteError($"Failed to upload manifests: {ex.Message}");
-					return 1;
-				}
-#pragma warning restore CA1031
-			};
 		}
 	}
 }

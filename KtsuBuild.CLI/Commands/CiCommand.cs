@@ -96,14 +96,7 @@ public class CiCommand : Command
 				buildConfig.ReleaseHash = metadataResult.ReleaseHash;
 
 				// Parse version bump option
-				VersionType? forcedVersionType = versionBump.ToLowerInvariant() switch
-				{
-					"major" => VersionType.Major,
-					"minor" => VersionType.Minor,
-					"patch" => VersionType.Patch,
-					"auto" => null,
-					_ => null,
-				};
+				VersionType? forcedVersionType = ParseVersionBump(versionBump);
 
 				// Check for skip condition
 				VersionCalculator versionCalculator = new(gitService, logger);
@@ -150,4 +143,12 @@ public class CiCommand : Command
 #pragma warning restore CA1031
 		};
 	}
+
+	private static VersionType? ParseVersionBump(string versionBump) => versionBump.ToLowerInvariant() switch
+	{
+		"major" => VersionType.Major,
+		"minor" => VersionType.Minor,
+		"patch" => VersionType.Patch,
+		_ => null,
+	};
 }

@@ -183,13 +183,9 @@ public class WingetService(IProcessRunner processRunner, IBuildLogger logger) : 
 			// SSH: git@github.com:owner/repo.git
 			// HTTPS: https://github.com/owner/repo.git
 			int startIndex = url.IndexOf("github.com", StringComparison.OrdinalIgnoreCase) + 11;
-			if (url[startIndex] == ':')
+			if (url[startIndex] is ':' or '/')
 			{
-				startIndex++; // SSH format
-			}
-			else if (url[startIndex] == '/')
-			{
-				startIndex++; // HTTPS format
+				startIndex++; // Skip separator (SSH ':' or HTTPS '/')
 			}
 
 			string ownerRepo = url[startIndex..].TrimEnd('/');
@@ -210,49 +206,85 @@ public class WingetService(IProcessRunner processRunner, IBuildLogger logger) : 
 		string artifactPattern,
 		CancellationToken cancellationToken)
 	{
-		Dictionary<string, string> hashes = [];
-
 		// First try to read from local hashes file (from recent build)
-		if (!string.IsNullOrEmpty(options.StagingDirectory))
+		Dictionary<string, string> localHashes = await ReadLocalHashesAsync(options, repoName, artifactPattern, cancellationToken).ConfigureAwait(false);
+		if (localHashes.Count > 0)
 		{
-			string hashesFile = Path.Combine(options.StagingDirectory, "hashes.txt");
-			if (File.Exists(hashesFile))
-			{
-				logger.WriteInfo("Reading hashes from local build output...");
-				foreach (string line in await File.ReadAllLinesAsync(hashesFile, cancellationToken).ConfigureAwait(false))
-				{
-					string[] parts = line.Split('=');
-					if (parts.Length == 2)
-					{
-						string fileName = parts[0];
-						string hash = parts[1];
-
-						// Match to architecture
-						foreach (string arch in WindowsArchitectures)
-						{
-							string expectedName = artifactPattern
-								.Replace("{name}", repoName)
-								.Replace("{version}", options.Version)
-								.Replace("{arch}", arch);
-
-							if (fileName == expectedName)
-							{
-								hashes[arch] = hash.ToUpperInvariant();
-								logger.WriteInfo($"  {arch}: {hash} (from local build)");
-								break;
-							}
-						}
-					}
-				}
-
-				if (hashes.Count > 0)
-				{
-					return hashes;
-				}
-			}
+			return localHashes;
 		}
 
 		// Fall back to downloading from GitHub release
+		return await DownloadAndHashArtifactsAsync(options, gitHubRepo, repoName, artifactPattern, cancellationToken).ConfigureAwait(false);
+	}
+
+	private async Task<Dictionary<string, string>> ReadLocalHashesAsync(
+		WingetOptions options,
+		string repoName,
+		string artifactPattern,
+		CancellationToken cancellationToken)
+	{
+		Dictionary<string, string> hashes = [];
+
+		if (string.IsNullOrEmpty(options.StagingDirectory))
+		{
+			return hashes;
+		}
+
+		string hashesFile = Path.Combine(options.StagingDirectory, "hashes.txt");
+		if (!File.Exists(hashesFile))
+		{
+			return hashes;
+		}
+
+		logger.WriteInfo("Reading hashes from local build output...");
+		foreach (string line in await File.ReadAllLinesAsync(hashesFile, cancellationToken).ConfigureAwait(false))
+		{
+			string[] parts = line.Split('=');
+			if (parts.Length != 2)
+			{
+				continue;
+			}
+
+			string fileName = parts[0];
+			string hash = parts[1];
+
+			string? matchedArch = MatchArchitecture(fileName, repoName, options.Version, artifactPattern);
+			if (matchedArch is not null)
+			{
+				hashes[matchedArch] = hash.ToUpperInvariant();
+				logger.WriteInfo($"  {matchedArch}: {hash} (from local build)");
+			}
+		}
+
+		return hashes;
+	}
+
+	private static string? MatchArchitecture(string fileName, string repoName, string version, string artifactPattern)
+	{
+		foreach (string arch in WindowsArchitectures)
+		{
+			string expectedName = artifactPattern
+				.Replace("{name}", repoName)
+				.Replace("{version}", version)
+				.Replace("{arch}", arch);
+
+			if (fileName == expectedName)
+			{
+				return arch;
+			}
+		}
+
+		return null;
+	}
+
+	private async Task<Dictionary<string, string>> DownloadAndHashArtifactsAsync(
+		WingetOptions options,
+		string gitHubRepo,
+		string repoName,
+		string artifactPattern,
+		CancellationToken cancellationToken)
+	{
+		Dictionary<string, string> hashes = [];
 		string downloadBaseUrl = $"https://github.com/{gitHubRepo}/releases/download/v{options.Version}";
 
 		using HttpClient httpClient = new();
@@ -265,29 +297,40 @@ public class WingetService(IProcessRunner processRunner, IBuildLogger logger) : 
 				.Replace("{version}", options.Version)
 				.Replace("{arch}", arch);
 
-			string downloadUrl = $"{downloadBaseUrl}/{fileName}";
-
-			try
+			string? hash = await TryDownloadAndHashAsync(httpClient, $"{downloadBaseUrl}/{fileName}", fileName, cancellationToken).ConfigureAwait(false);
+			if (hash is not null)
 			{
-				logger.WriteInfo($"Downloading {fileName} to calculate SHA256...");
-				Uri downloadUri = new(downloadUrl);
-#if NETSTANDARD
-				cancellationToken.ThrowIfCancellationRequested();
-				byte[] fileBytes = await httpClient.GetByteArrayAsync(downloadUri).ConfigureAwait(false);
-#else
-				byte[] fileBytes = await httpClient.GetByteArrayAsync(downloadUri, cancellationToken).ConfigureAwait(false);
-#endif
-				byte[] hashBytes = SHA256.HashData(fileBytes);
-				string hash = Convert.ToHexString(hashBytes);
 				hashes[arch] = hash;
 				logger.WriteInfo($"  {arch}: {hash}");
-			}
-			catch (HttpRequestException ex)
-			{
-				logger.WriteWarning($"Failed to download {fileName}: {ex.Message}");
 			}
 		}
 
 		return hashes;
+	}
+
+	private async Task<string?> TryDownloadAndHashAsync(
+		HttpClient httpClient,
+		string downloadUrl,
+		string fileName,
+		CancellationToken cancellationToken)
+	{
+		try
+		{
+			logger.WriteInfo($"Downloading {fileName} to calculate SHA256...");
+			Uri downloadUri = new(downloadUrl);
+#if NETSTANDARD
+			cancellationToken.ThrowIfCancellationRequested();
+			byte[] fileBytes = await httpClient.GetByteArrayAsync(downloadUri).ConfigureAwait(false);
+#else
+			byte[] fileBytes = await httpClient.GetByteArrayAsync(downloadUri, cancellationToken).ConfigureAwait(false);
+#endif
+			byte[] hashBytes = SHA256.HashData(fileBytes);
+			return Convert.ToHexString(hashBytes);
+		}
+		catch (HttpRequestException ex)
+		{
+			logger.WriteWarning($"Failed to download {fileName}: {ex.Message}");
+			return null;
+		}
 	}
 }

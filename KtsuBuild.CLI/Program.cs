@@ -14,6 +14,8 @@ using Microsoft.Extensions.Logging;
 #pragma warning disable IDE0028 // System.CommandLine.Command implements IEnumerable causing false positive collection init suggestions
 internal sealed class Program
 {
+	private Program() { }
+
 	public static async Task<int> Main(string[] args)
 	{
 		// Setup DI container

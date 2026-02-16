@@ -27,8 +27,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-# Default permissions
-permissions: read-all
+# Default permissions (least-privilege)
+permissions:
+  contents: read
 
 env:
   DOTNET_VERSION: "10.0" # Only needed for actions/setup-dotnet

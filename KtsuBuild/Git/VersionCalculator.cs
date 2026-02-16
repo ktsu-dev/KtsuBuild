@@ -64,7 +64,7 @@ public class VersionCalculator(IGitService gitService, IBuildLogger logger)
 
 		// Parse version from tag
 		string lastVersion = lastTag.TrimStart('v');
-		(int major, int minor, int patch, bool isPrerelease, int prereleaseNum, string prereleaseLabel) = ParseVersion(lastVersion);
+		ParsedVersion parsed = ParseVersion(lastVersion);
 
 		// Get first commit and tag commit
 		string firstCommit = await gitService.GetFirstCommitAsync(workingDirectory, cancellationToken).ConfigureAwait(false);
@@ -102,7 +102,7 @@ public class VersionCalculator(IGitService gitService, IBuildLogger logger)
 		{
 			LastTag = lastTag,
 			LastVersion = lastVersion,
-			WasPrerelease = isPrerelease,
+			WasPrerelease = parsed.IsPrerelease,
 			VersionIncrement = incrementType,
 			IncrementReason = incrementReason,
 			FirstCommit = firstCommit,
@@ -116,16 +116,16 @@ public class VersionCalculator(IGitService gitService, IBuildLogger logger)
 		{
 			// Use the same version, don't increment
 			versionInfo.Version = lastVersion;
-			versionInfo.Major = major;
-			versionInfo.Minor = minor;
-			versionInfo.Patch = patch;
-			versionInfo.IsPrerelease = isPrerelease;
-			versionInfo.PrereleaseNumber = prereleaseNum;
-			versionInfo.PrereleaseLabel = prereleaseLabel;
+			versionInfo.Major = parsed.Major;
+			versionInfo.Minor = parsed.Minor;
+			versionInfo.Patch = parsed.Patch;
+			versionInfo.IsPrerelease = parsed.IsPrerelease;
+			versionInfo.PrereleaseNumber = parsed.PrereleaseNum;
+			versionInfo.PrereleaseLabel = parsed.PrereleaseLabel;
 		}
 		else
 		{
-			CalculateNewVersion(versionInfo, major, minor, patch, isPrerelease, prereleaseNum, prereleaseLabel, incrementType);
+			CalculateNewVersion(versionInfo, parsed, incrementType);
 		}
 
 		logger.WriteInfo($"\nVersion decision:");
@@ -136,7 +136,9 @@ public class VersionCalculator(IGitService gitService, IBuildLogger logger)
 		return versionInfo;
 	}
 
-	private static (int Major, int Minor, int Patch, bool IsPrerelease, int PrereleaseNum, string PrereleaseLabel) ParseVersion(string version)
+	private readonly record struct ParsedVersion(int Major, int Minor, int Patch, bool IsPrerelease, int PrereleaseNum, string PrereleaseLabel);
+
+	private static ParsedVersion ParseVersion(string version)
 	{
 		bool isPrerelease = version.Contains('-');
 		string cleanVersion = PrereleaseRegex.Replace(version, string.Empty);
@@ -159,57 +161,52 @@ public class VersionCalculator(IGitService gitService, IBuildLogger logger)
 			}
 		}
 
-		return (major, minor, patch, isPrerelease, prereleaseNum, prereleaseLabel);
+		return new ParsedVersion(major, minor, patch, isPrerelease, prereleaseNum, prereleaseLabel);
 	}
 
 	private static void CalculateNewVersion(
 		VersionInfo info,
-		int lastMajor,
-		int lastMinor,
-		int lastPatch,
-		bool wasPrerelease,
-		int lastPrereleaseNum,
-		string prereleaseLabel,
+		ParsedVersion lastVersion,
 		VersionType incrementType)
 	{
-		int newMajor = lastMajor;
-		int newMinor = lastMinor;
-		int newPatch = lastPatch;
+		int newMajor = lastVersion.Major;
+		int newMinor = lastVersion.Minor;
+		int newPatch = lastVersion.Patch;
 		int newPrereleaseNum = 0;
 		bool isPrerelease = false;
 
 		switch (incrementType)
 		{
 			case VersionType.Major:
-				newMajor = lastMajor + 1;
+				newMajor = lastVersion.Major + 1;
 				newMinor = 0;
 				newPatch = 0;
 				break;
 
 			case VersionType.Minor:
-				newMinor = lastMinor + 1;
+				newMinor = lastVersion.Minor + 1;
 				newPatch = 0;
 				break;
 
 			case VersionType.Patch:
-				if (!wasPrerelease)
+				if (!lastVersion.IsPrerelease)
 				{
-					newPatch = lastPatch + 1;
+					newPatch = lastVersion.Patch + 1;
 				}
 				// If was prerelease, just drop the prerelease suffix
 				break;
 
 			case VersionType.Prerelease:
-				if (wasPrerelease)
+				if (lastVersion.IsPrerelease)
 				{
 					// Bump prerelease number
-					newPrereleaseNum = lastPrereleaseNum + 1;
+					newPrereleaseNum = lastVersion.PrereleaseNum + 1;
 					isPrerelease = true;
 				}
 				else
 				{
 					// Start new prerelease series
-					newPatch = lastPatch + 1;
+					newPatch = lastVersion.Patch + 1;
 					newPrereleaseNum = 1;
 					isPrerelease = true;
 				}
@@ -221,10 +218,10 @@ public class VersionCalculator(IGitService gitService, IBuildLogger logger)
 		info.Patch = newPatch;
 		info.IsPrerelease = isPrerelease;
 		info.PrereleaseNumber = newPrereleaseNum;
-		info.PrereleaseLabel = prereleaseLabel;
+		info.PrereleaseLabel = lastVersion.PrereleaseLabel;
 
 		info.Version = isPrerelease
-			? $"{newMajor}.{newMinor}.{newPatch}-{prereleaseLabel}.{newPrereleaseNum}"
+			? $"{newMajor}.{newMinor}.{newPatch}-{lastVersion.PrereleaseLabel}.{newPrereleaseNum}"
 			: $"{newMajor}.{newMinor}.{newPatch}";
 	}
 }
