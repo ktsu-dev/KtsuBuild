@@ -363,13 +363,13 @@ jobs:
         run: |
           $versionBump = "${{ github.event.inputs.version-bump }}"
 
-          # Build command - only add --version-bump if explicitly set (backward compatible)
-          $command = "ci --workspace `"${{ github.workspace }}`" --verbose"
+          # Build arguments array - only add --version-bump if explicitly set (backward compatible)
+          $args = @("ci", "--workspace", "${{ github.workspace }}", "--verbose")
           if (![string]::IsNullOrEmpty($versionBump) -and $versionBump -ne "auto") {
-            $command += " --version-bump $versionBump"
+            $args += @("--version-bump", $versionBump)
           }
 
-          dotnet run --project "${{ runner.temp }}/KtsuBuild/KtsuBuild.CLI" -- $command
+          & dotnet run --project "${{ runner.temp }}/KtsuBuild/KtsuBuild.CLI" -- @args
 ```
 
 ### Local Development
