@@ -30,12 +30,14 @@ public class VersionCalculator(IGitService gitService, IBuildLogger logger)
 	/// <param name="workingDirectory">The repository directory.</param>
 	/// <param name="commitHash">The current commit hash.</param>
 	/// <param name="initialVersion">The initial version to use if no tags exist.</param>
+	/// <param name="forcedVersionType">Optional forced version type (overrides auto-detection).</param>
 	/// <param name="cancellationToken">A cancellation token.</param>
 	/// <returns>The version info.</returns>
 	public async Task<VersionInfo> GetVersionInfoAsync(
 		string workingDirectory,
 		string commitHash,
 		string initialVersion = "1.0.0",
+		VersionType? forcedVersionType = null,
 		CancellationToken cancellationToken = default)
 	{
 		Ensure.NotNull(workingDirectory);
@@ -76,8 +78,21 @@ public class VersionCalculator(IGitService gitService, IBuildLogger logger)
 		string commitRange = $"{lastTagCommit}..{commitHash}";
 		logger.WriteInfo($"Analyzing commit range: {commitRange}");
 
-		// Analyze commits to determine increment type
-		(VersionType incrementType, string incrementReason) = await _commitAnalyzer.AnalyzeAsync(workingDirectory, commitRange, cancellationToken).ConfigureAwait(false);
+		// Determine increment type
+		VersionType incrementType;
+		string incrementReason;
+
+		if (forcedVersionType.HasValue)
+		{
+			incrementType = forcedVersionType.Value;
+			incrementReason = $"Forced version bump: {incrementType}";
+			logger.WriteInfo($"Using forced version type: {incrementType}");
+		}
+		else
+		{
+			// Analyze commits to determine increment type
+			(incrementType, incrementReason) = await _commitAnalyzer.AnalyzeAsync(workingDirectory, commitRange, cancellationToken).ConfigureAwait(false);
+		}
 
 		logger.WriteInfo($"Version increment type: {incrementType}");
 		logger.WriteInfo($"Reason: {incrementReason}");

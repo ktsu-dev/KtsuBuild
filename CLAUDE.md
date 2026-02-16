@@ -10,6 +10,9 @@ KtsuBuild is a **.NET build automation CLI tool** that replaces the legacy PSBui
 
 ```
 KtsuBuild.sln
+├── .serena/             # Serena MCP plugin configuration
+│   ├── project.yml      # C# language server and project settings
+│   └── .gitignore       # Ignores cache directory
 ├── KtsuBuild/           # Core library (multi-targeted)
 ├── KtsuBuild.CLI/       # Console application (net10.0)
 └── KtsuBuild.Tests/     # Test project (net9.0, MSTest.Sdk)
@@ -59,7 +62,7 @@ dotnet run --project KtsuBuild.CLI -- ci --workspace /path/to/project --dry-run
 ```
 ktsubuild
 ├── ci            # Full CI/CD pipeline (metadata + build + test + release)
-│   Options: --workspace, --configuration, --verbose, --dry-run
+│   Options: --workspace, --configuration, --verbose, --dry-run, --version-bump
 ├── build         # Build workflow (restore + build + test)
 │   Options: --workspace, --configuration, --verbose
 ├── release       # Release workflow (pack + publish + GitHub release)
@@ -122,7 +125,9 @@ This project uses System.CommandLine 2.0.3 (GA release), which has important dif
 
 ### Shared GlobalOptions
 
-`GlobalOptions` defines static `Option<T>` instances (`Workspace`, `Configuration`, `Verbose`, `DryRun`) shared across multiple commands. These are added to commands via `Options.Add()`.
+`GlobalOptions` defines static `Option<T>` instances (`Workspace`, `Configuration`, `Verbose`, `DryRun`, `VersionBump`) shared across multiple commands. These are added to commands via `Options.Add()`.
+
+The `VersionBump` option accepts: `auto` (default), `patch`, `minor`, or `major`. When specified, it overrides automatic version detection.
 
 ## Environment Variables
 
@@ -141,14 +146,27 @@ The `BuildConfigurationProvider.CreateFromEnvironmentAsync()` reads:
 
 ## Version Calculation
 
-Commit messages control version bumps via tags: `[major]`, `[minor]`, `[patch]`, `[pre]`, `[skip ci]`.
+Version bumps can be controlled three ways (in order of precedence):
 
-Auto-detection when no tag present:
-1. Public API diff analysis (added/removed public types, methods, properties) → minor
-2. Meaningful code changes → patch
-3. Bot/merge commits only → prerelease
+1. **CLI/GitHub Actions `--version-bump` option**: Explicitly force `major`, `minor`, or `patch`
+2. **Commit message tags**: `[major]`, `[minor]`, `[patch]`, `[pre]`, `[skip ci]`
+3. **Auto-detection** (when no tag and no forced bump):
+   - Public API diff analysis (added/removed public types, methods, properties) → minor
+   - Meaningful code changes → patch
+   - Bot/merge commits only → prerelease
 
 Key classes: `VersionCalculator`, `CommitAnalyzer`, `VersionInfo`, `VersionType` enum.
+
+**Method signature:**
+
+```csharp
+Task<VersionInfo> GetVersionInfoAsync(
+    string workingDirectory,
+    string commitHash,
+    string initialVersion = "1.0.0",
+    VersionType? forcedVersionType = null, // NEW: overrides auto-detection
+    CancellationToken cancellationToken = default)
+```
 
 ## Testing Conventions
 
@@ -164,7 +182,34 @@ Key classes: `VersionCalculator`, `CommitAnalyzer`, `VersionInfo`, `VersionType`
 
 ## CI/CD Workflow
 
-The `.github/workflows/dotnet.yml` currently uses PSBuild but is being migrated to self-host (clone + `dotnet run`). Consumer projects clone KtsuBuild and invoke:
+The `.github/workflows/dotnet.yml` self-hosts by cloning and running KtsuBuild directly. The workflow supports manual triggering with version bump control.
+
+### Workflow Features
+
+- **Automatic triggers**: push to main, pull requests, daily schedule (11 PM UTC)
+- **Manual trigger** (`workflow_dispatch`): Allows selecting version bump type (auto, patch, minor, major)
+- **Concurrency control**: Only one workflow per branch runs at a time
+
+### Manual Workflow Dispatch
+
+```yaml
+workflow_dispatch:
+  inputs:
+    version-bump:
+      description: 'Version bump type'
+      required: false
+      default: 'auto'
+      type: choice
+      options:
+        - auto
+        - patch
+        - minor
+        - major
+```
+
+### Consumer Project Integration
+
+Consumer projects clone KtsuBuild and invoke:
 
 ```yaml
 - name: Clone KtsuBuild
@@ -176,8 +221,27 @@ The `.github/workflows/dotnet.yml` currently uses PSBuild but is being migrated 
     NUGET_API_KEY: ${{ secrets.NUGET_KEY }}
     KTSU_PACKAGE_KEY: ${{ secrets.KTSU_PACKAGE_KEY }}
     EXPECTED_OWNER: ktsu-dev
-  run: dotnet run --project "${{ runner.temp }}/KtsuBuild/KtsuBuild.CLI" -- ci --workspace "${{ github.workspace }}" --verbose
+  run: |
+    $versionBump = "${{ github.event.inputs.version-bump }}"
+    if ([string]::IsNullOrEmpty($versionBump)) { $versionBump = "auto" }
+    dotnet run --project "${{ runner.temp }}/KtsuBuild/KtsuBuild.CLI" -- ci --workspace "${{ github.workspace }}" --verbose --version-bump $versionBump
 ```
+
+## Serena MCP Plugin Integration
+
+This project is configured for use with the [Serena MCP plugin](https://github.com/oraios/serena), enabling symbol-based code navigation and editing.
+
+### Configuration
+
+`.serena/project.yml`:
+- **Language server**: C# (roslyn OmniSharp)
+- **Encoding**: UTF-8
+- **Gitignore integration**: Enabled
+- **Read-only mode**: Disabled (editing allowed)
+
+### Serena Cache
+
+The `.serena/cache/` directory contains language server caches and is excluded from version control via `.serena/.gitignore`.
 
 ## Common Pitfalls
 
@@ -186,3 +250,4 @@ The `.github/workflows/dotnet.yml` currently uses PSBuild but is being migrated 
 - **Test temp directory names**: Avoid names containing "Test" to prevent false positives in `IsTestOrDemoProject`
 - **Multi-targeting warnings**: Lower TFMs (net5.0, net6.0, net7.0) produce warnings from newer packages — these are expected
 - **Shared static options**: `GlobalOptions` instances can only have one parent command in System.CommandLine
+- **Version bump override**: When `--version-bump` is specified, it completely overrides commit tag detection and auto-detection

@@ -29,6 +29,7 @@ public class CiCommand : Command
 		Options.Add(GlobalOptions.Configuration);
 		Options.Add(GlobalOptions.Verbose);
 		Options.Add(GlobalOptions.DryRun);
+		Options.Add(GlobalOptions.VersionBump);
 	}
 
 	/// <summary>
@@ -37,11 +38,11 @@ public class CiCommand : Command
 	/// <param name="processRunner">The process runner.</param>
 	/// <param name="logger">The build logger.</param>
 	/// <returns>The command handler action.</returns>
-	public static Func<string, string, bool, bool, CancellationToken, Task<int>> CreateHandler(
+	public static Func<string, string, bool, bool, string, CancellationToken, Task<int>> CreateHandler(
 		IProcessRunner processRunner,
 		IBuildLogger logger)
 	{
-		return async (workspace, configuration, verbose, dryRun, cancellationToken) =>
+		return async (workspace, configuration, verbose, dryRun, versionBump, cancellationToken) =>
 		{
 			logger.VerboseEnabled = verbose;
 			BuildEnvironment.Initialize();
@@ -94,9 +95,19 @@ public class CiCommand : Command
 				buildConfig.Version = metadataResult.Version;
 				buildConfig.ReleaseHash = metadataResult.ReleaseHash;
 
+				// Parse version bump option
+				VersionType? forcedVersionType = versionBump.ToLowerInvariant() switch
+				{
+					"major" => VersionType.Major,
+					"minor" => VersionType.Minor,
+					"patch" => VersionType.Patch,
+					"auto" => null,
+					_ => null,
+				};
+
 				// Check for skip condition
 				VersionCalculator versionCalculator = new(gitService, logger);
-				VersionInfo versionInfo = await versionCalculator.GetVersionInfoAsync(workspace, buildConfig.ReleaseHash, cancellationToken: cancellationToken).ConfigureAwait(false);
+				VersionInfo versionInfo = await versionCalculator.GetVersionInfoAsync(workspace, buildConfig.ReleaseHash, forcedVersionType: forcedVersionType, cancellationToken: cancellationToken).ConfigureAwait(false);
 
 				if (versionInfo.VersionIncrement == VersionType.Skip)
 				{

@@ -57,14 +57,15 @@ internal sealed class Program
 	private static void AddCiCommand(RootCommand rootCommand, IProcessRunner processRunner, IBuildLogger logger)
 	{
 		CiCommand command = new();
-		Func<string, string, bool, bool, CancellationToken, Task<int>> handler = CiCommand.CreateHandler(processRunner, logger);
+		Func<string, string, bool, bool, string, CancellationToken, Task<int>> handler = CiCommand.CreateHandler(processRunner, logger);
 		command.SetAction(async (parseResult, ct) =>
 		{
 			string workspace = parseResult.GetValue(GlobalOptions.Workspace)!;
 			string configuration = parseResult.GetValue(GlobalOptions.Configuration)!;
 			bool verbose = parseResult.GetValue(GlobalOptions.Verbose);
 			bool dryRun = parseResult.GetValue(GlobalOptions.DryRun);
-			return await handler(workspace, configuration, verbose, dryRun, ct).ConfigureAwait(false);
+			string versionBump = parseResult.GetValue(GlobalOptions.VersionBump)!;
+			return await handler(workspace, configuration, verbose, dryRun, versionBump, ct).ConfigureAwait(false);
 		});
 		rootCommand.Subcommands.Add(command);
 	}

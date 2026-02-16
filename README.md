@@ -63,6 +63,7 @@ ktsub ci [options]
 
 **Options:**
 - `--dry-run`: Preview actions without executing them
+- `--version-bump`: Force a specific version bump type (auto, patch, minor, major)
 
 **Pipeline steps:**
 
@@ -195,7 +196,39 @@ ktsub winget upload --version <version> [options]
 **Options:**
 - `--version`, `-V`: The version to upload manifests for (required)
 
-## Version Increment Tags
+## Version Bump Control
+
+KtsuBuild determines version bumps through three methods (in order of precedence):
+
+### 1. CLI Option (Highest Priority)
+
+Use `--version-bump` to explicitly control the version increment:
+
+```bash
+# Force a major version bump
+ktsub ci --version-bump major
+
+# Force a minor version bump
+ktsub ci --version-bump minor
+
+# Force a patch version bump
+ktsub ci --version-bump patch
+
+# Use automatic detection (default)
+ktsub ci --version-bump auto
+```
+
+This option is also available in GitHub Actions workflow_dispatch:
+
+```yaml
+workflow_dispatch:
+  inputs:
+    version-bump:
+      type: choice
+      options: [auto, patch, minor, major]
+```
+
+### 2. Commit Message Tags
 
 Control version increments by including tags in your commit messages:
 
@@ -208,6 +241,7 @@ Control version increments by including tags in your commit messages:
 | `[skip ci]` | Skip release entirely | Documentation-only changes |
 
 **Examples:**
+
 ```bash
 git commit -m "[minor] Add new authentication feature"
 git commit -m "[patch] Fix null reference in user service"
@@ -215,9 +249,9 @@ git commit -m "[major] Redesign public API"
 git commit -m "[skip ci] Update documentation"
 ```
 
-### Automatic Version Detection
+### 3. Automatic Version Detection (Lowest Priority)
 
-If no tag is specified, KtsuBuild automatically determines the version bump by:
+If no CLI option or commit tag is specified, KtsuBuild automatically determines the version bump by:
 
 1. **Public API analysis**: Diffs C# files for added/removed/modified public types, methods, properties, and constants. Any public API surface change triggers a **minor** bump.
 2. **Commit filtering**: Bot commits (dependabot, renovate, etc.) and PR merge commits are excluded from analysis.
@@ -286,6 +320,18 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      version-bump:
+        description: 'Version bump type'
+        required: false
+        default: 'auto'
+        type: choice
+        options:
+          - auto
+          - patch
+          - minor
+          - major
 
 jobs:
   build:
@@ -315,7 +361,9 @@ jobs:
           KTSU_PACKAGE_KEY: ${{ secrets.KTSU_PACKAGE_KEY }}
           EXPECTED_OWNER: ktsu-dev
         run: |
-          dotnet run --project "${{ runner.temp }}/KtsuBuild/KtsuBuild.CLI" -- ci --workspace "${{ github.workspace }}" --verbose
+          $versionBump = "${{ github.event.inputs.version-bump }}"
+          if ([string]::IsNullOrEmpty($versionBump)) { $versionBump = "auto" }
+          dotnet run --project "${{ runner.temp }}/KtsuBuild/KtsuBuild.CLI" -- ci --workspace "${{ github.workspace }}" --verbose --version-bump $versionBump
 ```
 
 ### Local Development
@@ -326,6 +374,9 @@ ktsub version show
 
 # Preview CI actions without making changes
 ktsub ci --dry-run
+
+# Force a specific version bump
+ktsub ci --version-bump minor
 
 # Build and test locally
 ktsub build

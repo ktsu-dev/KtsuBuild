@@ -46,4 +46,13 @@ public static class GlobalOptions
 		Description = "Preview actions without executing them",
 		DefaultValueFactory = _ => false,
 	};
+
+	/// <summary>
+	/// Gets the version-bump option.
+	/// </summary>
+	public static Option<string> VersionBump { get; } = new("--version-bump")
+	{
+		Description = "Force a specific version bump type (auto, patch, minor, major)",
+		DefaultValueFactory = _ => "auto",
+	};
 }
