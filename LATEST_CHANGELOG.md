@@ -1,6 +1,7 @@
-## v1.1.5 (patch)
+## v1.1.6 (patch)
 
-Changes since v1.1.4:
+Changes since v1.1.5:
 
-- Refactor CI permissions for least-privilege access, add SonarLint configuration, and streamline version bump parsing ([@matt-edmondson](https://github.com/matt-edmondson))
+- Merge remote-tracking branch 'refs/remotes/origin/main' ([@ktsu[bot]](https://github.com/ktsu[bot]))
+- Sync .github\workflows\dotnet.yml ([@ktsu[bot]](https://github.com/ktsu[bot]))
 
