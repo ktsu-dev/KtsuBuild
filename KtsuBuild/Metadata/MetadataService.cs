@@ -4,6 +4,7 @@
 
 namespace KtsuBuild.Metadata;
 
+using System.Text;
 using KtsuBuild.Abstractions;
 using KtsuBuild.Git;
 using KtsuBuild.Utilities;
@@ -176,11 +177,14 @@ public class MetadataService(IGitService gitService, IBuildLogger logger) : IMet
 		Ensure.NotNull(outputPath);
 		Ensure.NotNull(lineEnding);
 
-		string content = $"# Project Authors{lineEnding}{lineEnding}";
+		StringBuilder sb = new();
+		sb.Append($"# Project Authors{lineEnding}{lineEnding}");
 		foreach (string author in authors)
 		{
-			content += $"* {author}{lineEnding}";
+			sb.Append($"* {author}{lineEnding}");
 		}
+
+		string content = sb.ToString();
 
 		string filePath = Path.Combine(outputPath, "AUTHORS.md");
 		await LineEndingHelper.WriteFileAsync(filePath, content, lineEnding, cancellationToken).ConfigureAwait(false);
