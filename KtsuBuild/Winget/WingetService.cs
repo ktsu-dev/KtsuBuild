@@ -34,13 +34,7 @@ public class WingetService(IProcessRunner processRunner, IBuildLogger logger) : 
 		// Check if library-only project
 		if (ProjectDetector.IsLibraryOnlyProject(options.RootDirectory, projectInfo))
 		{
-			logger.WriteWarning("Detected library project - no executable artifacts expected.");
-			logger.WriteWarning("Skipping winget manifest generation as this appears to be a library/NuGet package.");
-			return new WingetManifestResult
-			{
-				Success = true,
-				IsLibraryOnly = true,
-			};
+			return SkipLibraryProject("Detected library project - no executable artifacts expected.");
 		}
 
 		// Resolve GitHub repo
@@ -67,39 +61,71 @@ public class WingetService(IProcessRunner processRunner, IBuildLogger logger) : 
 			? projectInfo.Name[(owner.Length + 1)..]
 			: projectInfo.Name;
 
-		logger.WriteInfo($"Configuration:");
-		logger.WriteInfo($"  Package ID: {packageId}");
-		logger.WriteInfo($"  GitHub Repo: {gitHubRepo}");
-		logger.WriteInfo($"  Artifact Pattern: {artifactPattern}");
-		logger.WriteInfo($"  Executable: {executableName}");
-		logger.WriteInfo($"  Command Alias: {commandAlias}");
+		LogManifestConfiguration(packageId, gitHubRepo, artifactPattern, executableName, commandAlias);
 
 		// Get SHA256 hashes
 		Dictionary<string, string> sha256Hashes = await GetHashesAsync(options, gitHubRepo, repoName, artifactPattern, cancellationToken).ConfigureAwait(false);
 
 		if (sha256Hashes.Count == 0)
 		{
-			if (ProjectDetector.IsLibraryOnlyProject(options.RootDirectory, projectInfo))
-			{
-				logger.WriteWarning("No hashes found, but this appears to be a library-only project.");
-				return new WingetManifestResult
-				{
-					Success = true,
-					IsLibraryOnly = true,
-				};
-			}
-
-			logger.WriteWarning("Could not find any executable artifacts to hash.");
-			logger.WriteWarning("This is common for projects that don't publish Windows executables or zip artifacts.");
-			logger.WriteWarning("Skipping winget manifest generation.");
-			return new WingetManifestResult
-			{
-				Success = true,
-				IsLibraryOnly = false,
-			};
+			return HandleNoHashes(options.RootDirectory, projectInfo);
 		}
 
-		// Generate manifests
+		return await GenerateManifestFilesAsync(options, projectInfo, sha256Hashes, packageId, gitHubRepo, owner, repoName, packageName, artifactPattern, executableName, commandAlias, cancellationToken).ConfigureAwait(false);
+	}
+
+	private WingetManifestResult SkipLibraryProject(string reason)
+	{
+		logger.WriteWarning(reason);
+		logger.WriteWarning("Skipping winget manifest generation as this appears to be a library/NuGet package.");
+		return new WingetManifestResult
+		{
+			Success = true,
+			IsLibraryOnly = true,
+		};
+	}
+
+	private void LogManifestConfiguration(string packageId, string gitHubRepo, string artifactPattern, string executableName, string commandAlias)
+	{
+		logger.WriteInfo($"Configuration:");
+		logger.WriteInfo($"  Package ID: {packageId}");
+		logger.WriteInfo($"  GitHub Repo: {gitHubRepo}");
+		logger.WriteInfo($"  Artifact Pattern: {artifactPattern}");
+		logger.WriteInfo($"  Executable: {executableName}");
+		logger.WriteInfo($"  Command Alias: {commandAlias}");
+	}
+
+	private WingetManifestResult HandleNoHashes(string rootDirectory, ProjectInfo projectInfo)
+	{
+		if (ProjectDetector.IsLibraryOnlyProject(rootDirectory, projectInfo))
+		{
+			return SkipLibraryProject("No hashes found, but this appears to be a library-only project.");
+		}
+
+		logger.WriteWarning("Could not find any executable artifacts to hash.");
+		logger.WriteWarning("This is common for projects that don't publish Windows executables or zip artifacts.");
+		logger.WriteWarning("Skipping winget manifest generation.");
+		return new WingetManifestResult
+		{
+			Success = true,
+			IsLibraryOnly = false,
+		};
+	}
+
+	private async Task<WingetManifestResult> GenerateManifestFilesAsync(
+		WingetOptions options,
+		ProjectInfo projectInfo,
+		Dictionary<string, string> sha256Hashes,
+		string packageId,
+		string gitHubRepo,
+		string owner,
+		string repoName,
+		string packageName,
+		string artifactPattern,
+		string executableName,
+		string commandAlias,
+		CancellationToken cancellationToken)
+	{
 		ManifestConfig config = new()
 		{
 			PackageId = packageId,
