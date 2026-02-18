@@ -100,10 +100,17 @@ public class CiCommand : Command
 		}
 
 		// Update metadata
+		bool shouldCommitMetadata = buildConfig.IsOfficial && buildConfig.IsMain;
+		if (!shouldCommitMetadata)
+		{
+			logger.WriteInfo("Skipping metadata commit (not official or not main branch)");
+		}
+
 		logger.WriteInfo("Updating metadata...");
 		MetadataUpdateResult metadataResult = await metadataService.UpdateAllAsync(new MetadataUpdateOptions
 		{
 			BuildConfiguration = buildConfig,
+			CommitChanges = shouldCommitMetadata,
 		}, cancellationToken).ConfigureAwait(false);
 
 		if (!metadataResult.Success)
