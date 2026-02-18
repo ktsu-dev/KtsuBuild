@@ -110,6 +110,75 @@ public class MetadataServiceTests
 		Assert.IsTrue(content.Contains("* Alice\r\n"), "Author lines should use CRLF");
 	}
 
+	// WriteVersionFileAsync
+
+	[TestMethod]
+	public async Task WriteVersionFileAsync_CreatesVersionMd()
+	{
+		await _service.WriteVersionFileAsync("2.0.0", _tempDir, "\n").ConfigureAwait(false);
+
+		string filePath = Path.Combine(_tempDir, "VERSION.md");
+		Assert.IsTrue(File.Exists(filePath), "VERSION.md should be created");
+	}
+
+	[TestMethod]
+	public async Task WriteVersionFileAsync_ContainsVersionString()
+	{
+		await _service.WriteVersionFileAsync("2.0.0", _tempDir, "\n").ConfigureAwait(false);
+
+		string content = await File.ReadAllTextAsync(Path.Combine(_tempDir, "VERSION.md")).ConfigureAwait(false);
+		Assert.IsTrue(content.Contains("2.0.0"), "Should contain version string");
+	}
+
+	// WriteLicenseFilesAsync
+
+	[TestMethod]
+	public async Task WriteLicenseFilesAsync_CreatesLicenseAndCopyright()
+	{
+		await _service.WriteLicenseFilesAsync("https://github.com", "testowner", "testowner/testrepo", _tempDir, "\n").ConfigureAwait(false);
+
+		Assert.IsTrue(File.Exists(Path.Combine(_tempDir, "LICENSE.md")), "LICENSE.md should be created");
+		Assert.IsTrue(File.Exists(Path.Combine(_tempDir, "COPYRIGHT.md")), "COPYRIGHT.md should be created");
+	}
+
+	// WriteUrlFilesAsync
+
+	[TestMethod]
+	public async Task WriteUrlFilesAsync_CreatesAuthorsUrl()
+	{
+		await _service.WriteUrlFilesAsync("https://github.com", "testowner", "testowner/testrepo", _tempDir, "\n").ConfigureAwait(false);
+
+		string filePath = Path.Combine(_tempDir, "AUTHORS.url");
+		Assert.IsTrue(File.Exists(filePath), "AUTHORS.url should be created");
+	}
+
+	[TestMethod]
+	public async Task WriteUrlFilesAsync_CreatesProjectUrl()
+	{
+		await _service.WriteUrlFilesAsync("https://github.com", "testowner", "testowner/testrepo", _tempDir, "\n").ConfigureAwait(false);
+
+		string filePath = Path.Combine(_tempDir, "PROJECT_URL.url");
+		Assert.IsTrue(File.Exists(filePath), "PROJECT_URL.url should be created");
+	}
+
+	[TestMethod]
+	public async Task WriteUrlFilesAsync_AuthorsUrlContainsOwnerUrl()
+	{
+		await _service.WriteUrlFilesAsync("https://github.com", "testowner", "testowner/testrepo", _tempDir, "\n").ConfigureAwait(false);
+
+		string content = await File.ReadAllTextAsync(Path.Combine(_tempDir, "AUTHORS.url")).ConfigureAwait(false);
+		Assert.IsTrue(content.Contains("https://github.com/testowner"), "AUTHORS.url should contain owner URL");
+	}
+
+	[TestMethod]
+	public async Task WriteUrlFilesAsync_ProjectUrlContainsRepoUrl()
+	{
+		await _service.WriteUrlFilesAsync("https://github.com", "testowner", "testowner/testrepo", _tempDir, "\n").ConfigureAwait(false);
+
+		string content = await File.ReadAllTextAsync(Path.Combine(_tempDir, "PROJECT_URL.url")).ConfigureAwait(false);
+		Assert.IsTrue(content.Contains("https://github.com/testowner/testrepo"), "PROJECT_URL.url should contain repo URL");
+	}
+
 	/// <summary>
 	/// Minimal mock of IGitService for MetadataService construction.
 	/// </summary>
