@@ -1,3 +1,9 @@
+## v1.1.8 (patch)
+
+Changes since v1.1.7:
+
+- Add conditional metadata commit logic in CiCommand for official builds ([@matt-edmondson](https://github.com/matt-edmondson))
+
 ## v1.1.7 (patch)
 
 Changes since v1.1.6:
@@ -8,9 +14,7 @@ Changes since v1.1.6:
 
 ## v1.1.7-pre.1 (prerelease)
 
-Changes since v1.1.6:
-
-- Sync .github\workflows\dotnet.yml ([@KtsuTools](https://github.com/KtsuTools))
+No significant changes detected since v1.1.7.
 
 ## v1.1.6 (patch)
 
