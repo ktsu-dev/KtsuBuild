@@ -1,4 +1,6 @@
-## v1.2.0
+## v1.3.0 (minor)
 
-No significant changes detected since v1.2.0.
+Changes since v1.2.0:
+
+- Implement repository topics management and add related tests ([@matt-edmondson](https://github.com/matt-edmondson))
 
