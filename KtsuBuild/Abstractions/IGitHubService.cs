@@ -35,6 +35,14 @@ public interface IGitHubService
 	public Task<RepositoryInfo?> GetRepositoryInfoAsync(string workingDirectory, CancellationToken cancellationToken = default);
 
 	/// <summary>
+	/// Sets the repository topics on GitHub.
+	/// </summary>
+	/// <param name="workingDirectory">The repository directory.</param>
+	/// <param name="topics">The topics to set.</param>
+	/// <param name="cancellationToken">A cancellation token.</param>
+	public Task SetRepositoryTopicsAsync(string workingDirectory, IReadOnlyList<string> topics, CancellationToken cancellationToken = default);
+
+	/// <summary>
 	/// Checks if the repository is official (not a fork and owned by expected owner).
 	/// </summary>
 	/// <param name="workingDirectory">The repository directory.</param>

@@ -160,6 +160,55 @@ public class GitHubService(IProcessRunner processRunner, IGitService gitService,
 	}
 
 	/// <inheritdoc/>
+	public async Task SetRepositoryTopicsAsync(string workingDirectory, IReadOnlyList<string> topics, CancellationToken cancellationToken = default)
+	{
+		Ensure.NotNull(workingDirectory);
+		Ensure.NotNull(topics);
+
+		if (topics.Count == 0)
+		{
+			logger.WriteInfo("No topics to set, skipping.");
+			return;
+		}
+
+		RepositoryInfo? repoInfo = await GetRepositoryInfoAsync(workingDirectory, cancellationToken).ConfigureAwait(false);
+		if (repoInfo is null)
+		{
+			logger.WriteWarning("Could not retrieve repository information. Skipping topic update.");
+			return;
+		}
+
+		logger.WriteInfo($"Setting {topics.Count} repository topics on {repoInfo.Owner}/{repoInfo.Name}...");
+
+		// Build gh api command to replace all topics atomically
+		List<string> args = ["api", "-X", "PUT", $"repos/{repoInfo.Owner}/{repoInfo.Name}/topics"];
+		foreach (string topic in topics)
+		{
+			args.Add("-f");
+			args.Add($"names[]={topic}");
+		}
+
+		string argsString = string.Join(' ', args.Select(static a => a.Contains(' ') ? $"\"{a}\"" : a));
+
+		int exitCode = await processRunner.RunWithCallbackAsync(
+			"gh",
+			argsString,
+			workingDirectory,
+			logger.WriteVerbose,
+			logger.WriteError,
+			cancellationToken).ConfigureAwait(false);
+
+		if (exitCode != 0)
+		{
+			logger.WriteWarning($"Failed to set repository topics (exit code {exitCode}). This is non-fatal.");
+		}
+		else
+		{
+			logger.WriteInfo("Repository topics updated successfully.");
+		}
+	}
+
+	/// <inheritdoc/>
 	public async Task<RepositoryInfo?> GetRepositoryInfoAsync(string workingDirectory, CancellationToken cancellationToken = default)
 	{
 		Ensure.NotNull(workingDirectory);

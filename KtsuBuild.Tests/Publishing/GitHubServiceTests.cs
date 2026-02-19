@@ -312,6 +312,61 @@ public class GitHubServiceTests
 		Assert.IsTrue(result);
 	}
 
+	// SetRepositoryTopicsAsync
+
+	[TestMethod]
+	public async Task SetRepositoryTopicsAsync_Success_CallsGhApi()
+	{
+		string json = """{"owner":{"login":"ktsu-dev"},"nameWithOwner":"ktsu-dev/KtsuBuild","isFork":false}""";
+		_processRunner.RunAsync("gh", Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+			.Returns(TestHelpers.SuccessResult(json));
+		_processRunner.RunWithCallbackAsync("gh", Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
+			.Returns(0);
+
+		await _service.SetRepositoryTopicsAsync("/repo", ["dotnet", "csharp"]).ConfigureAwait(false);
+
+		await _processRunner.Received(1).RunWithCallbackAsync("gh",
+			Arg.Is<string>(a => a.Contains("repos/ktsu-dev/KtsuBuild/topics") && a.Contains("names[]=dotnet") && a.Contains("names[]=csharp")),
+			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+	}
+
+	[TestMethod]
+	public async Task SetRepositoryTopicsAsync_EmptyTopics_SkipsApiCall()
+	{
+		await _service.SetRepositoryTopicsAsync("/repo", []).ConfigureAwait(false);
+
+		await _processRunner.DidNotReceive().RunWithCallbackAsync("gh",
+			Arg.Any<string>(),
+			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+	}
+
+	[TestMethod]
+	public async Task SetRepositoryTopicsAsync_FailedRepoInfo_LogsWarning()
+	{
+		_processRunner.RunAsync("gh", Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+			.Returns(TestHelpers.FailureResult());
+
+		// Should not throw
+		await _service.SetRepositoryTopicsAsync("/repo", ["dotnet"]).ConfigureAwait(false);
+
+		await _processRunner.DidNotReceive().RunWithCallbackAsync("gh",
+			Arg.Any<string>(),
+			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+	}
+
+	[TestMethod]
+	public async Task SetRepositoryTopicsAsync_ApiFailure_DoesNotThrow()
+	{
+		string json = """{"owner":{"login":"ktsu-dev"},"nameWithOwner":"ktsu-dev/KtsuBuild","isFork":false}""";
+		_processRunner.RunAsync("gh", Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+			.Returns(TestHelpers.SuccessResult(json));
+		_processRunner.RunWithCallbackAsync("gh", Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
+			.Returns(1);
+
+		// Should not throw even on API failure
+		await _service.SetRepositoryTopicsAsync("/repo", ["dotnet"]).ConfigureAwait(false);
+	}
+
 	private ReleaseOptions CreateReleaseOptions() => new()
 	{
 		Version = "1.0.0",

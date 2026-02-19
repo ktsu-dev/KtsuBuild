@@ -122,6 +122,12 @@ public class CiCommand : Command
 		buildConfig.Version = metadataResult.Version;
 		buildConfig.ReleaseHash = metadataResult.ReleaseHash;
 
+		// Update GitHub repository topics from TAGS.md
+		if (shouldCommitMetadata)
+		{
+			await UpdateRepositoryTopicsAsync(gitHubService, logger, workspace, cancellationToken).ConfigureAwait(false);
+		}
+
 		// Parse version bump option
 		VersionType? forcedVersionType = ParseVersionBump(versionBump);
 
@@ -161,6 +167,35 @@ public class CiCommand : Command
 
 		logger.WriteSuccess("CI/CD pipeline completed successfully!");
 		return 0;
+	}
+
+	private static async Task UpdateRepositoryTopicsAsync(
+		GitHubService gitHubService,
+		IBuildLogger logger,
+		string workspace,
+		CancellationToken cancellationToken)
+	{
+		string tagsFile = Path.Combine(workspace, "TAGS.md");
+		if (!File.Exists(tagsFile))
+		{
+			logger.WriteVerbose("No TAGS.md found, skipping repository topic update.");
+			return;
+		}
+
+#pragma warning disable CA1031 // Topic update is non-fatal
+		try
+		{
+			IReadOnlyList<string> topics = await TagsParser.ParseAsync(tagsFile, cancellationToken).ConfigureAwait(false);
+			if (topics.Count > 0)
+			{
+				await gitHubService.SetRepositoryTopicsAsync(workspace, topics, cancellationToken).ConfigureAwait(false);
+			}
+		}
+		catch (Exception ex)
+		{
+			logger.WriteWarning($"Failed to update repository topics: {ex.Message}");
+		}
+#pragma warning restore CA1031
 	}
 
 	private static VersionType? ParseVersionBump(string versionBump) => versionBump.ToLowerInvariant() switch

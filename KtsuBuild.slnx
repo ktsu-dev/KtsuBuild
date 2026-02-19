@@ -1,0 +1,10 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="KtsuBuild.CLI/KtsuBuild.CLI.csproj" />
+  <Project Path="KtsuBuild.Tests/KtsuBuild.Tests.csproj" />
+  <Project Path="KtsuBuild/KtsuBuild.csproj" />
+</Solution>
