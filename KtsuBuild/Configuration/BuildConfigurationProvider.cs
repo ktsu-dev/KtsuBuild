@@ -95,10 +95,10 @@ public class BuildConfigurationProvider(IGitService gitService, IGitHubService g
 		{
 			// Try to detect from git remote
 			string? remoteUrl = await gitService.GetRemoteUrlAsync(workspacePath, cancellationToken: cancellationToken).ConfigureAwait(false);
-			if (!string.IsNullOrEmpty(remoteUrl) && remoteUrl!.Contains("github.com"))
+			if (!string.IsNullOrEmpty(remoteUrl) && remoteUrl.Contains("github.com"))
 			{
 				// Parse owner/repo from URL
-				int startIndex = remoteUrl!.IndexOf("github.com", StringComparison.OrdinalIgnoreCase) + 11;
+				int startIndex = remoteUrl.IndexOf("github.com", StringComparison.OrdinalIgnoreCase) + 11;
 				if (startIndex < remoteUrl.Length)
 				{
 					char separator = remoteUrl[startIndex];

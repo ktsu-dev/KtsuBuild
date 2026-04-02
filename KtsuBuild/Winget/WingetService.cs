@@ -48,7 +48,7 @@ public class WingetService(IProcessRunner processRunner, IBuildLogger logger) : 
 			};
 		}
 
-		string[] parts = gitHubRepo!.Split('/');
+		string[] parts = gitHubRepo.Split('/');
 		string owner = parts[0];
 		string repoName = parts[1];
 

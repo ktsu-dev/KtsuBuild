@@ -241,7 +241,7 @@ public static class ProjectDetector
 				string? authors = doc.Descendants("Authors").FirstOrDefault()?.Value;
 				if (!string.IsNullOrEmpty(authors))
 				{
-					projectInfo.Publisher = authors!.Split(',')[0].Trim();
+					projectInfo.Publisher = authors.Split(',')[0].Trim();
 				}
 			}
 
