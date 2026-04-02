@@ -2,8 +2,6 @@
 
 Changes since v1.3.3:
 
-- Bump Polyfill from 9.17.0 to 9.18.0 ([@dependabot[bot]](https://github.com/dependabot[bot]))
-- Bump Polyfill from 9.16.0 to 9.17.0 ([@dependabot[bot]](https://github.com/dependabot[bot]))
-- Bump Polyfill from 9.13.0 to 9.16.0 ([@dependabot[bot]](https://github.com/dependabot[bot]))
-- Bump Polyfill from 9.12.0 to 9.13.0 ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- [patch] Fix CI bootstrap deadlock: use current checkout for self-builds ([@matt-edmondson](https://github.com/matt-edmondson))
+- [patch] Remove unnecessary null-forgiving operators after IsNullOrEmpty checks (IDE0370) ([@matt-edmondson](https://github.com/matt-edmondson))
 
