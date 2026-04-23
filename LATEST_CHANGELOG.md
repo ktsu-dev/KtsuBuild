@@ -1,6 +1,6 @@
-## v1.3.12 (patch)
+## v1.3.13 (patch)
 
-Changes since v1.3.11:
+Changes since v1.3.12:
 
-- Bump the microsoft group with 7 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the system group with 1 update ([@dependabot[bot]](https://github.com/dependabot[bot]))
 
