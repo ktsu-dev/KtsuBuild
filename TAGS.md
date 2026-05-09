@@ -1,0 +1,1 @@
+build automation;semantic versioning;changelog generation;nuget publishing;github releases;winget;multi platform publishing;ci cd;dotnet sdk;cli tool;msbuild;dotnet;csharp
