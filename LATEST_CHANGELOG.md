@@ -1,6 +1,6 @@
-## v1.3.17 (patch)
+## v1.3.18 (patch)
 
-Changes since v1.3.16:
+Changes since v1.3.17:
 
-- Bump Polyfill from 10.4.0 to 10.5.0 ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Add TAGS.md with NuGet package tags ([@matt-edmondson](https://github.com/matt-edmondson))
 
