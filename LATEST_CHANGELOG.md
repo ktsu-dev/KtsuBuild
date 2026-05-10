@@ -1,6 +1,4 @@
-## v1.3.18 (patch)
+## v1.3.18
 
-Changes since v1.3.17:
-
-- Add TAGS.md with NuGet package tags ([@matt-edmondson](https://github.com/matt-edmondson))
+No significant changes detected since v1.3.18.
 
