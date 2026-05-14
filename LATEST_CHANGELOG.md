@@ -1,6 +1,6 @@
-## v1.3.20 (patch)
+## v1.3.21 (patch)
 
-Changes since v1.3.19:
+Changes since v1.3.20:
 
-- Bump the microsoft group with 7 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump System.CommandLine from 2.0.7 to 2.0.8 ([@dependabot[bot]](https://github.com/dependabot[bot]))
 
