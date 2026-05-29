@@ -93,7 +93,10 @@ public class MetadataService(IGitService gitService, IBuildLogger logger) : IMet
 				logger.WriteInfo($"Adding files to git: {string.Join(", ", filesToAdd)}");
 				await gitService.StageFilesAsync(config.WorkspacePath, filesToAdd, cancellationToken).ConfigureAwait(false);
 
-				hasChanges = await gitService.HasUncommittedChangesAsync(config.WorkspacePath, cancellationToken).ConfigureAwait(false);
+				// Only the staged metadata files are committed, so check for staged changes specifically.
+				// If the generated files are identical to what's already committed, nothing is staged
+				// and committing would fail with "nothing to commit", erroring the whole process.
+				hasChanges = await gitService.HasStagedChangesAsync(config.WorkspacePath, cancellationToken).ConfigureAwait(false);
 
 				if (hasChanges)
 				{

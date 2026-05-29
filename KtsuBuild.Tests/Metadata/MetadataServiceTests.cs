@@ -229,6 +229,9 @@ public class MetadataServiceTests
 		public Task<bool> HasUncommittedChangesAsync(string workingDirectory, CancellationToken cancellationToken = default)
 			=> Task.FromResult(false);
 
+		public Task<bool> HasStagedChangesAsync(string workingDirectory, CancellationToken cancellationToken = default)
+			=> Task.FromResult(false);
+
 		public Task SetIdentityAsync(string workingDirectory, string name, string email, CancellationToken cancellationToken = default)
 			=> Task.CompletedTask;
 	}
