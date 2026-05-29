@@ -141,6 +141,14 @@ public interface IGitService
 	public Task<bool> HasUncommittedChangesAsync(string workingDirectory, CancellationToken cancellationToken = default);
 
 	/// <summary>
+	/// Checks if there are staged changes ready to be committed.
+	/// </summary>
+	/// <param name="workingDirectory">The repository directory.</param>
+	/// <param name="cancellationToken">A cancellation token.</param>
+	/// <returns>True if there are staged changes.</returns>
+	public Task<bool> HasStagedChangesAsync(string workingDirectory, CancellationToken cancellationToken = default);
+
+	/// <summary>
 	/// Sets the git user identity for commits.
 	/// </summary>
 	/// <param name="workingDirectory">The repository directory.</param>

@@ -222,6 +222,16 @@ public class GitService(IProcessRunner processRunner, IBuildLogger logger) : IGi
 	}
 
 	/// <inheritdoc/>
+	public async Task<bool> HasStagedChangesAsync(string workingDirectory, CancellationToken cancellationToken = default)
+	{
+		Ensure.NotNull(workingDirectory);
+		// --cached limits the diff to staged changes, which is exactly what `git commit` would commit.
+		// --name-only keeps the output empty when nothing is staged so we can detect a no-op commit.
+		ProcessResult result = await processRunner.RunAsync("git", "diff --cached --name-only", workingDirectory, cancellationToken).ConfigureAwait(false);
+		return !string.IsNullOrWhiteSpace(result.StandardOutput);
+	}
+
+	/// <inheritdoc/>
 	public async Task SetIdentityAsync(string workingDirectory, string name, string email, CancellationToken cancellationToken = default)
 	{
 		Ensure.NotNull(workingDirectory);
