@@ -312,7 +312,7 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger) : 
 		IEnumerable<string> bundles = Directory.GetDirectories(searchRoot, "*.app", SearchOption.AllDirectories);
 		if (!string.IsNullOrEmpty(ridSegment))
 		{
-			bundles = bundles.Where(b => b.Contains(ridSegment!, StringComparison.OrdinalIgnoreCase));
+			bundles = bundles.Where(b => b.Contains(ridSegment, StringComparison.OrdinalIgnoreCase));
 		}
 
 		return [.. bundles];
