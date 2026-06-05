@@ -437,9 +437,6 @@ internal sealed class Program
 
 	private static void AddIosCommand(RootCommand rootCommand, IProcessRunner processRunner, IBuildLogger logger)
 	{
-		const string simulatorRuntime = "iossimulator-arm64";
-		const string deviceRuntime = "ios-arm64";
-
 		IosCommand iosCommand = new();
 
 		Command buildCommand = iosCommand.Subcommands.First(c => c.Name == "build");
@@ -459,8 +456,6 @@ internal sealed class Program
 			logger.VerboseEnabled = verbose;
 			logger.WriteStepHeader("Building iOS Head(s)");
 
-			KtsuBuild.DotNet.DotNetService dotNetService = new(processRunner, logger);
-
 #pragma warning disable CA1031 // Top-level command handler must catch all exceptions
 			try
 			{
@@ -473,36 +468,21 @@ internal sealed class Program
 					return 0;
 				}
 
-				List<string> heads = string.IsNullOrEmpty(project)
-					? [.. dotNetService.GetIosHeads(workspace)]
-					: [project];
+				KtsuBuild.DotNet.DotNetService dotNetService = new(processRunner, logger);
+				KtsuBuild.Ios.IosBuildService iosBuildService = new(dotNetService, logger);
 
-				if (heads.Count == 0)
+				bool success = await iosBuildService.BuildAsync(new KtsuBuild.Ios.IosBuildOptions
 				{
-					logger.WriteInfo("No iOS heads found in workspace. Nothing to build.");
-					return 0;
-				}
+					WorkingDirectory = workspace,
+					Configuration = configuration,
+					Project = project,
+					Runtime = runtime,
+					RequiredFrameworks = requireFrameworks,
+				}, ct).ConfigureAwait(false);
 
-				// Default builds both the simulator and device runtimes; --runtime narrows
-				// to one. The device runtime is the one the embedded-frameworks check runs
-				// against, since the simulator bundle does not exercise the device assets.
-				string[] runtimes = string.IsNullOrEmpty(runtime)
-					? [simulatorRuntime, deviceRuntime]
-					: [runtime];
-
-				foreach (string head in heads)
+				if (!success)
 				{
-					logger.WriteInfo($"Building iOS head: {head}");
-					foreach (string rid in runtimes)
-					{
-						await dotNetService.BuildIosAsync(workspace, head, rid, configuration, codeSigning: false, ct).ConfigureAwait(false);
-
-						bool isDevice = !rid.Contains("simulator", StringComparison.OrdinalIgnoreCase);
-						if (isDevice && !VerifyDeviceBundle(head, configuration, rid, requireFrameworks, logger))
-						{
-							return 1;
-						}
-					}
+					return 1;
 				}
 
 				logger.WriteSuccess("iOS build(s) completed successfully!");
@@ -517,50 +497,5 @@ internal sealed class Program
 		});
 
 		rootCommand.Subcommands.Add(iosCommand);
-	}
-
-	private static bool VerifyDeviceBundle(string head, string configuration, string rid, string[] requireFrameworks, IBuildLogger logger)
-	{
-		string headDir = Path.GetDirectoryName(Path.GetFullPath(head)) ?? Directory.GetCurrentDirectory();
-		string searchRoot = Path.Combine(headDir, "bin", configuration);
-
-		IReadOnlyList<string> bundles = KtsuBuild.DotNet.DotNetService.FindAppBundles(searchRoot, rid);
-		if (bundles.Count == 0)
-		{
-			// Fall back to any .app under the search root in case the RID is not a path segment.
-			bundles = KtsuBuild.DotNet.DotNetService.FindAppBundles(searchRoot);
-		}
-
-		if (bundles.Count == 0)
-		{
-			logger.WriteError($"Device .app bundle not found under {searchRoot}. The iOS build did not produce an app bundle.");
-			return false;
-		}
-
-		string bundle = bundles[0];
-		logger.WriteInfo($"Device bundle: {bundle}");
-
-		IReadOnlyList<string> frameworks = KtsuBuild.DotNet.DotNetService.GetEmbeddedNativeFrameworks(bundle);
-		if (frameworks.Count > 0)
-		{
-			logger.WriteInfo($"Embedded native frameworks: {string.Join(", ", frameworks)}");
-		}
-		else
-		{
-			logger.WriteInfo("No native frameworks embedded in the device bundle.");
-		}
-
-		foreach (string required in requireFrameworks)
-		{
-			if (!KtsuBuild.DotNet.DotNetService.BundleContainsNativeLibrary(bundle, required))
-			{
-				logger.WriteError($"Required native framework '{required}' is not embedded in the device bundle ({bundle}). This usually means a native asset resolved to the wrong target framework and would crash the app at launch.");
-				return false;
-			}
-
-			logger.WriteInfo($"Verified native framework embedded: {required}");
-		}
-
-		return true;
 	}
 }
