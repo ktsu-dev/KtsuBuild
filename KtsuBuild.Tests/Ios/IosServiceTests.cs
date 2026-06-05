@@ -61,6 +61,127 @@ public class IosServiceTests
 			Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
+	// UploadAsync — signing gate
+
+	[TestMethod]
+	public async Task UploadAsync_SigningUnavailable_SkipsWithoutAnyProcessCalls()
+	{
+		IosUploadResult result = await _service.UploadAsync(new IosUploadOptions
+		{
+			WorkingDirectory = _tempDir,
+			SigningAvailable = false,
+		}).ConfigureAwait(false);
+
+		Assert.IsTrue(result.Success);
+		Assert.IsTrue(result.Skipped);
+		Assert.IsNotNull(result.SkipReason);
+		Assert.AreEqual(0, result.UploadedIpaPaths.Count);
+
+		// The signing material is never touched, and no heads are even enumerated.
+		_dotNetService.DidNotReceive().GetIosHeads(Arg.Any<string>());
+		await _processRunner.DidNotReceive().RunAsync(
+			Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+	}
+
+	// UploadIpaAsync — command-string construction and failure detection
+
+	[TestMethod]
+	public async Task UploadIpaAsync_BuildsAltoolArgs_OnSuccess()
+	{
+		_processRunner.RunAsync("xcrun", Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+			.Returns(TestHelpers.SuccessResult("No errors uploading."));
+
+		await _service.UploadIpaAsync("/path/to/MyApp.ipa", "KEYID123", "issuer-uuid").ConfigureAwait(false);
+
+		await _processRunner.Received(1).RunAsync(
+			"xcrun",
+			Arg.Is<string>(a =>
+				a.Contains("altool --upload-app") &&
+				a.Contains("--type ios") &&
+				a.Contains("--file \"/path/to/MyApp.ipa\"") &&
+				a.Contains("--apiKey \"KEYID123\"") &&
+				a.Contains("--apiIssuer \"issuer-uuid\"")),
+			Arg.Any<string?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+	}
+
+	[TestMethod]
+	public async Task UploadIpaAsync_NonZeroExit_Throws()
+	{
+		_processRunner.RunAsync("xcrun", Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+			.Returns(TestHelpers.FailureResult());
+
+		await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+			() => _service.UploadIpaAsync("/path/to/MyApp.ipa", "KEYID123", "issuer-uuid")).ConfigureAwait(false);
+	}
+
+	[TestMethod]
+	public async Task UploadIpaAsync_FailureStringWithZeroExit_Throws()
+	{
+		// altool's exit code is unreliable: a zero exit with a reported failure must still fail.
+		_processRunner.RunAsync("xcrun", Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+			.Returns(TestHelpers.SuccessResult("*** Error: UPLOAD FAILED with errors."));
+
+		await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+			() => _service.UploadIpaAsync("/path/to/MyApp.ipa", "KEYID123", "issuer-uuid")).ConfigureAwait(false);
+	}
+
+	[TestMethod]
+	public void AltoolReportedFailure_DetectsFailureStrings()
+	{
+		Assert.IsTrue(IosService.AltoolReportedFailure("*** Error: UPLOAD FAILED with errors."));
+		Assert.IsTrue(IosService.AltoolReportedFailure("Failed to upload package to App Store Connect."));
+		Assert.IsFalse(IosService.AltoolReportedFailure("No errors uploading 'MyApp.ipa'."));
+		Assert.IsFalse(IosService.AltoolReportedFailure(string.Empty));
+	}
+
+	// LocateIpas
+
+	[TestMethod]
+	public void LocateIpas_ExplicitPath_ReturnedWhenPresent()
+	{
+		string ipa = Path.Combine(_tempDir, "Explicit.ipa");
+		File.WriteAllText(ipa, "archive");
+
+		IReadOnlyList<string> located = _service.LocateIpas(new IosUploadOptions
+		{
+			WorkingDirectory = _tempDir,
+			IpaPath = ipa,
+		});
+
+		Assert.AreEqual(1, located.Count);
+		Assert.AreEqual(ipa, located[0]);
+		_dotNetService.DidNotReceive().GetIosHeads(Arg.Any<string>());
+	}
+
+	[TestMethod]
+	public void LocateIpas_ExplicitPathMissing_Throws()
+	{
+		Assert.ThrowsExactly<InvalidOperationException>(() => _service.LocateIpas(new IosUploadOptions
+		{
+			WorkingDirectory = _tempDir,
+			IpaPath = Path.Combine(_tempDir, "does-not-exist.ipa"),
+		}));
+	}
+
+	[TestMethod]
+	public void LocateIpas_FindsArchiveUnderHeadBin()
+	{
+		string head = CreateHead("MyApp.iOS");
+		string ipa = Path.Combine(_tempDir, "MyApp.iOS", "bin", "Release", "net10.0-ios", "ios-arm64", "publish", "MyApp.ipa");
+		Directory.CreateDirectory(Path.GetDirectoryName(ipa)!);
+		File.WriteAllText(ipa, "archive");
+
+		_dotNetService.GetIosHeads(_tempDir).Returns([head]);
+
+		IReadOnlyList<string> located = _service.LocateIpas(new IosUploadOptions
+		{
+			WorkingDirectory = _tempDir,
+		});
+
+		Assert.AreEqual(1, located.Count);
+		Assert.AreEqual(ipa, located[0]);
+	}
+
 	// ArchiveAsync — command-string construction
 
 	[TestMethod]

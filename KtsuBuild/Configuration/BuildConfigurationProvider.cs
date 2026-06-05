@@ -144,8 +144,17 @@ public class BuildConfigurationProvider(IGitService gitService, IGitHubService g
 
 		BuildConfiguration configuration = await CreateAsync(options, cancellationToken).ConfigureAwait(false);
 
-		// iOS signing inputs. These carry secrets and are read here only; nothing logs them.
-		// IosSigningAvailable is the single boolean gate that may surface in output.
+		ApplyIosEnvironment(configuration);
+
+		return configuration;
+	}
+
+	// Reads the iOS signing, toolchain, and App Store Connect inputs from the environment
+	// onto the configuration. Extracted to keep CreateFromEnvironmentAsync's complexity in
+	// check. These carry secrets and are read here only; nothing logs them.
+	// IosSigningAvailable is the single boolean gate that may surface in output.
+	private static void ApplyIosEnvironment(BuildConfiguration configuration)
+	{
 		configuration.IosSigningAvailable = string.Equals(Environment.GetEnvironmentVariable("IOS_SIGNING_AVAILABLE"), "true", StringComparison.OrdinalIgnoreCase);
 		configuration.IosCodesignKey = Environment.GetEnvironmentVariable("IOS_CODESIGN_KEY") ?? string.Empty;
 		configuration.IosProvisionName = Environment.GetEnvironmentVariable("IOS_PROVISION_NAME") ?? string.Empty;
@@ -156,6 +165,10 @@ public class BuildConfigurationProvider(IGitService gitService, IGitHubService g
 		configuration.XcodeVersion = Environment.GetEnvironmentVariable("IOS_XCODE_VERSION") ?? string.Empty;
 		configuration.IosWorkloadVersion = Environment.GetEnvironmentVariable("IOS_WORKLOAD_VERSION") ?? string.Empty;
 
-		return configuration;
+		// App Store Connect API inputs for the TestFlight upload. The key is a secret and is
+		// never logged; the key/issuer identifiers are not surfaced either.
+		configuration.AppStoreConnectKeyBase64 = Environment.GetEnvironmentVariable("APP_STORE_CONNECT_KEY_BASE64") ?? string.Empty;
+		configuration.AppStoreConnectKeyId = Environment.GetEnvironmentVariable("APP_STORE_CONNECT_KEY_ID") ?? string.Empty;
+		configuration.AppStoreConnectIssuerId = Environment.GetEnvironmentVariable("APP_STORE_CONNECT_ISSUER_ID") ?? string.Empty;
 	}
 }

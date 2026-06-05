@@ -81,8 +81,10 @@ ktsubuild
 └── ios
     ├── build     # Build iOS head(s) for simulator + device, unsigned (macOS only)
     │   # Options: --workspace, --configuration, --verbose, --project, --runtime, --require-framework
-    └── package   # Provision toolchain + stamp version + sign + archive .ipa (macOS only)
-        # Options: --workspace, --configuration, --verbose, --project, --runtime, --framework, --version, --build-number
+    ├── package   # Provision toolchain + stamp version + sign + archive .ipa (macOS only)
+    │   # Options: --workspace, --configuration, --verbose, --project, --runtime, --framework, --version, --build-number
+    └── upload    # Upload the signed .ipa to TestFlight (macOS only)
+        # Options: --workspace, --configuration, --verbose, --project, --ipa
 ```
 
 The `ios build` command is the pull-request validation path for iOS consumers
@@ -107,8 +109,19 @@ distribution certificate into a temporary `build.keychain` (with the OpenSSL 3DE
 transcode fallback for stubborn `.p12` files), installs the provisioning profile,
 and runs `dotnet publish -p:ArchiveOnBuild=true -p:BuildIpa=true` to produce a
 signed `.ipa`. The signing inputs carry secrets and are never logged; only the
-`IosSigningAvailable` boolean surfaces in output. The `upload` subcommand (push
-to TestFlight) arrives in a later phase (see `docs/ios-support-plan.md`).
+`IosSigningAvailable` boolean surfaces in output.
+
+The `ios upload` command is the TestFlight delivery path (plan phase 4). It gates
+on `IOS_SIGNING_AVAILABLE` the same way as `package`, so it is also safe to call
+unconditionally. When signing is available it locates the produced `.ipa` (either
+the `--ipa` path, or by searching each detected head's `bin` directory), installs
+the App Store Connect API key (`.p8`) under `~/.appstoreconnect/private_keys`, and
+runs `xcrun altool --upload-app --type ios --apiKey … --apiIssuer …` for each
+archive. `altool`'s exit code is unreliable (it has returned `0` on an App Store
+Connect validation failure), so the command also scans the captured output for the
+`UPLOAD FAILED` / `Failed to upload package` strings and fails on either signal.
+The API key is a secret and is never logged; the decoded `.p8` is wiped after the
+run.
 
 ## Architecture
 
@@ -188,6 +201,15 @@ but the first carry secrets and are never logged:
 | `IOS_PROVISIONING_PROFILE_BASE64` | Base64 `.mobileprovision` |
 | `IOS_XCODE_VERSION` | Pinned Xcode version (optional, e.g. `26.3`) |
 | `IOS_WORKLOAD_VERSION` | Pinned iOS workload rollback entry (optional, e.g. `26.2.10233/10.0.100`) |
+
+App Store Connect inputs (read by the same provider, consumed by `ios upload`).
+The key is a secret and is never logged:
+
+| Variable | Purpose |
+|----------|---------|
+| `APP_STORE_CONNECT_KEY_BASE64` | Base64 App Store Connect API key (`.p8`) |
+| `APP_STORE_CONNECT_KEY_ID` | API key identifier (`--apiKey`, names the `AuthKey_{id}.p8` file) |
+| `APP_STORE_CONNECT_ISSUER_ID` | API issuer identifier (`--apiIssuer`) |
 
 ## Version Calculation
 
@@ -322,6 +344,9 @@ ios-package:
     IOS_CERT_P12_PASSWORD: ${{ secrets.IOS_CERT_P12_PASSWORD }}
     IOS_KEYCHAIN_PASSWORD: ${{ secrets.IOS_KEYCHAIN_PASSWORD }}
     IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+    APP_STORE_CONNECT_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_KEY_BASE64 }}
+    APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+    APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
     IOS_XCODE_VERSION: "26.3"
     IOS_WORKLOAD_VERSION: "26.2.10233/10.0.100"
   steps:
@@ -331,7 +356,14 @@ ios-package:
     - run: >
         dotnet run --project "${{ runner.temp }}/KtsuBuild/KtsuBuild.CLI" --
         ios package --workspace "${{ github.workspace }}" --verbose
+    - run: >
+        dotnet run --project "${{ runner.temp }}/KtsuBuild/KtsuBuild.CLI" --
+        ios upload --workspace "${{ github.workspace }}" --verbose
 ```
+
+The `ios upload` step reuses the `.ipa` produced by `ios package` in the same
+workspace, so it must run on the same runner after the package step. It no-ops the
+same way when `IOS_SIGNING_AVAILABLE` is not `true`.
 
 ## Serena MCP Plugin Integration
 

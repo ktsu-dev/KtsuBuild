@@ -199,4 +199,24 @@ public class BuildConfiguration
 	/// example <c>26.2.10233/10.0.100</c>). Empty skips workload installation.
 	/// </summary>
 	public string IosWorkloadVersion { get; set; } = string.Empty;
+
+	/// <summary>
+	/// Gets or sets the base64-encoded App Store Connect API key (<c>.p8</c>) used to
+	/// authenticate the TestFlight upload. Secret: never log it. Decoded material is
+	/// wiped after the upload.
+	/// </summary>
+	public string AppStoreConnectKeyBase64 { get; set; } = string.Empty;
+
+	/// <summary>
+	/// Gets or sets the App Store Connect API key identifier (the <c>--apiKey</c> value,
+	/// which also names the decoded <c>AuthKey_{id}.p8</c> file). An identifier rather
+	/// than a secret, but not surfaced in output.
+	/// </summary>
+	public string AppStoreConnectKeyId { get; set; } = string.Empty;
+
+	/// <summary>
+	/// Gets or sets the App Store Connect API issuer identifier (the <c>--apiIssuer</c>
+	/// value). An identifier rather than a secret, but not surfaced in output.
+	/// </summary>
+	public string AppStoreConnectIssuerId { get; set; } = string.Empty;
 }

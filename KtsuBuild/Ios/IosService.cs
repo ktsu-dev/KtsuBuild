@@ -97,6 +97,193 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 		return new IosPackageResult { Success = true, IpaPaths = ipas };
 	}
 
+	/// <inheritdoc/>
+	public async Task<IosUploadResult> UploadAsync(IosUploadOptions options, CancellationToken cancellationToken = default)
+	{
+		Ensure.NotNull(options);
+
+		// Gate on the signing material, exactly like the package step. Forks and
+		// contributors without secrets get a clean no-op rather than a failure.
+		if (!options.SigningAvailable)
+		{
+			string reason = "iOS signing material is not available. Skipping the upload step.";
+			logger.WriteInfo(reason);
+			return new IosUploadResult { Success = true, Skipped = true, SkipReason = reason };
+		}
+
+		// altool ships with Xcode, so the upload is macOS-only too. Skip cleanly elsewhere
+		// so the command is safe to call unconditionally from a consumer workflow.
+		if (!RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+		{
+			string reason = "iOS upload requires a macOS host. Skipping the upload step on this platform.";
+			logger.WriteInfo(reason);
+			return new IosUploadResult { Success = true, Skipped = true, SkipReason = reason };
+		}
+
+		// The key authenticates the upload; without it there is nothing to do but fail
+		// loudly (the signing gate said material was available, so a missing key is a
+		// misconfiguration, not a fork without secrets).
+		byte[] keyBytes = DecodeBase64(options.AppStoreConnectKeyBase64);
+		if (keyBytes.Length == 0)
+		{
+			throw new InvalidOperationException("The base64 App Store Connect API key decoded to nothing. Set APP_STORE_CONNECT_KEY_BASE64 to a base64-encoded .p8.");
+		}
+
+		if (string.IsNullOrWhiteSpace(options.AppStoreConnectKeyId) || string.IsNullOrWhiteSpace(options.AppStoreConnectIssuerId))
+		{
+			throw new InvalidOperationException("The App Store Connect API key and issuer identifiers are required. Set APP_STORE_CONNECT_KEY_ID and APP_STORE_CONNECT_ISSUER_ID.");
+		}
+
+		IReadOnlyList<string> ipas = LocateIpas(options);
+		if (ipas.Count == 0)
+		{
+			logger.WriteInfo("No iOS .ipa archives found to upload. Run 'ios package' first.");
+			return new IosUploadResult { Success = true };
+		}
+
+		// altool discovers the key by name under ~/.appstoreconnect/private_keys; place it
+		// there for the run and wipe it afterwards.
+		string keyPath = await InstallAppStoreConnectKeyAsync(keyBytes, options.AppStoreConnectKeyId, cancellationToken).ConfigureAwait(false);
+		List<string> uploaded = [];
+		try
+		{
+			foreach (string ipa in ipas)
+			{
+				await UploadIpaAsync(ipa, options.AppStoreConnectKeyId, options.AppStoreConnectIssuerId, cancellationToken).ConfigureAwait(false);
+				uploaded.Add(ipa);
+			}
+		}
+		finally
+		{
+			TryDeleteFile(keyPath);
+		}
+
+		return new IosUploadResult { Success = true, UploadedIpaPaths = uploaded };
+	}
+
+	/// <summary>
+	/// Uploads a single <c>.ipa</c> to TestFlight with <c>xcrun altool --upload-app</c>,
+	/// authenticating with an App Store Connect API key already installed under
+	/// <c>~/.appstoreconnect/private_keys</c>. altool's exit code is unreliable (it has
+	/// returned zero on an App Store Connect validation failure), so this inspects the
+	/// captured output for the failure strings altool prints and fails on either signal.
+	/// </summary>
+	/// <param name="ipaPath">The archive to upload.</param>
+	/// <param name="apiKeyId">The App Store Connect API key identifier (<c>--apiKey</c>).</param>
+	/// <param name="apiIssuerId">The App Store Connect API issuer identifier (<c>--apiIssuer</c>).</param>
+	/// <param name="cancellationToken">A cancellation token.</param>
+	public async Task UploadIpaAsync(string ipaPath, string apiKeyId, string apiIssuerId, CancellationToken cancellationToken = default)
+	{
+		Ensure.NotNull(ipaPath);
+		Ensure.NotNull(apiKeyId);
+		Ensure.NotNull(apiIssuerId);
+		logger.WriteStepHeader("Uploading to TestFlight");
+		logger.WriteInfo($"Uploading archive: {ipaPath}");
+
+		// The key/issuer identifiers and key file are not echoed by the process runner, and
+		// the .p8 itself is referenced by name rather than passed on the command line.
+		string args = $"altool --upload-app --type ios --file \"{ipaPath}\" --apiKey \"{apiKeyId}\" --apiIssuer \"{apiIssuerId}\"";
+		ProcessResult result = await processRunner.RunAsync("xcrun", args, null, cancellationToken).ConfigureAwait(false);
+
+		string output = $"{result.StandardOutput}\n{result.StandardError}";
+		if (!string.IsNullOrWhiteSpace(output.Trim()))
+		{
+			logger.WriteInfo(output.Trim());
+		}
+
+		if (!result.Success || AltoolReportedFailure(output))
+		{
+			throw new InvalidOperationException($"TestFlight upload failed for {ipaPath}. altool did not deliver the build; see the log above for the App Store Connect validation error.");
+		}
+
+		logger.WriteInfo($"Uploaded to TestFlight: {ipaPath}");
+	}
+
+	/// <summary>
+	/// Detects the failure strings <c>altool</c> prints on an upload error, since its exit
+	/// code cannot be trusted on its own.
+	/// </summary>
+	/// <param name="altoolOutput">The combined standard output and error from altool.</param>
+	/// <returns>True when altool reported an upload failure.</returns>
+	public static bool AltoolReportedFailure(string altoolOutput)
+	{
+		Ensure.NotNull(altoolOutput);
+		return altoolOutput.Contains("UPLOAD FAILED", StringComparison.OrdinalIgnoreCase)
+			|| altoolOutput.Contains("Failed to upload package", StringComparison.OrdinalIgnoreCase);
+	}
+
+	/// <summary>
+	/// Resolves the <c>.ipa</c> archive(s) to upload. An explicit path wins; otherwise the
+	/// archive is located under each detected (or specified) head's <c>bin</c> directory,
+	/// matching what <c>ios package</c> produced in the same workspace.
+	/// </summary>
+	/// <param name="options">The upload options.</param>
+	/// <returns>The archives to upload, in head order.</returns>
+	public IReadOnlyList<string> LocateIpas(IosUploadOptions options)
+	{
+		Ensure.NotNull(options);
+
+		if (!string.IsNullOrEmpty(options.IpaPath))
+		{
+			if (!File.Exists(options.IpaPath))
+			{
+				throw new InvalidOperationException($"The specified .ipa was not found: {options.IpaPath}");
+			}
+
+			return [options.IpaPath];
+		}
+
+		IReadOnlyList<string> heads = string.IsNullOrEmpty(options.Project)
+			? dotNetService.GetIosHeads(options.WorkingDirectory)
+			: [options.Project];
+
+		List<string> ipas = [];
+		foreach (string head in heads)
+		{
+			string headDir = Path.GetDirectoryName(Path.GetFullPath(head)) ?? Directory.GetCurrentDirectory();
+			string? ipa = FindIpa(Path.Combine(headDir, "bin"));
+			if (ipa is null)
+			{
+				logger.WriteWarning($"No .ipa found under {head}; nothing to upload for this head. Run 'ios package' first.");
+				continue;
+			}
+
+			ipas.Add(ipa);
+		}
+
+		return ipas;
+	}
+
+	private async Task<string> InstallAppStoreConnectKeyAsync(byte[] keyBytes, string apiKeyId, CancellationToken cancellationToken)
+	{
+		string keyDir = Path.Combine(
+			Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+			".appstoreconnect",
+			"private_keys");
+		Directory.CreateDirectory(keyDir);
+
+		string keyPath = Path.Combine(keyDir, $"AuthKey_{apiKeyId}.p8");
+#if NETSTANDARD
+		File.WriteAllBytes(keyPath, keyBytes);
+		cancellationToken.ThrowIfCancellationRequested();
+#else
+		await File.WriteAllBytesAsync(keyPath, keyBytes, cancellationToken).ConfigureAwait(false);
+#endif
+
+#if NET7_0_OR_GREATER
+		// Keep the private key owner-only; altool warns about world-readable keys. The
+		// upload path is macOS-only, but guard the call so the analyzer is satisfied on the
+		// Windows-targeting build of the multi-targeted library.
+		if (!OperatingSystem.IsWindows())
+		{
+			File.SetUnixFileMode(keyPath, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+		}
+#endif
+
+		logger.WriteInfo("Installed the App Store Connect API key.");
+		return keyPath;
+	}
+
 	/// <summary>
 	/// Provisions the iOS toolchain: selects the pinned Xcode (when a version is given)
 	/// and installs the pinned iOS workload via a rollback file (when a version is given).

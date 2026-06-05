@@ -9,7 +9,8 @@ using System.CommandLine;
 /// <summary>
 /// iOS command for building, packaging, and uploading iOS application heads.
 /// Phase 2 ships the unsigned <c>build</c> subcommand; phase 3 adds the signed
-/// <c>package</c> subcommand; <c>upload</c> arrives with the TestFlight work.
+/// <c>package</c> subcommand; phase 4 adds the <c>upload</c> subcommand that pushes
+/// the signed <c>.ipa</c> to TestFlight.
 /// </summary>
 #pragma warning disable CA1010 // System.CommandLine.Command implements IEnumerable for collection initializer support
 public class IosCommand : Command
@@ -22,6 +23,7 @@ public class IosCommand : Command
 	{
 		Subcommands.Add(new BuildSubcommand());
 		Subcommands.Add(new PackageSubcommand());
+		Subcommands.Add(new UploadSubcommand());
 	}
 
 #pragma warning disable CA1010
@@ -102,6 +104,32 @@ public class IosCommand : Command
 			Options.Add(FrameworkOption);
 			Options.Add(VersionOption);
 			Options.Add(BuildNumberOption);
+		}
+	}
+
+#pragma warning disable CA1010
+	private sealed class UploadSubcommand : Command
+#pragma warning restore CA1010
+	{
+		private static readonly Option<string?> ProjectOption = new(
+			"--project", "-p")
+		{
+			Description = "Path to a specific iOS head whose .ipa to upload. Defaults to auto-detecting all iOS heads in the workspace.",
+		};
+
+		private static readonly Option<string?> IpaOption = new(
+			"--ipa", "-i")
+		{
+			Description = "Path to a specific .ipa to upload. Defaults to locating the archive under the head's bin directory.",
+		};
+
+		public UploadSubcommand() : base("upload", "Upload the signed .ipa to TestFlight (no-ops without signing secrets)")
+		{
+			Options.Add(GlobalOptions.Workspace);
+			Options.Add(GlobalOptions.Configuration);
+			Options.Add(GlobalOptions.Verbose);
+			Options.Add(ProjectOption);
+			Options.Add(IpaOption);
 		}
 	}
 }
