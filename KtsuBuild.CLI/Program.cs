@@ -5,6 +5,7 @@
 namespace KtsuBuild.CLI;
 
 using System.CommandLine;
+using System.Runtime.InteropServices;
 using KtsuBuild.Abstractions;
 using KtsuBuild.CLI.Commands;
 using KtsuBuild.Utilities;
@@ -37,6 +38,7 @@ internal sealed class Program
 		AddVersionCommand(rootCommand, processRunner, logger);
 		AddMetadataCommand(rootCommand, processRunner, logger);
 		AddWingetCommand(rootCommand, processRunner, logger);
+		AddIosCommand(rootCommand, processRunner, logger);
 
 		// Parse and invoke
 		return await rootCommand.Parse(args).InvokeAsync(configuration: null, cancellationToken: CancellationToken.None).ConfigureAwait(false);
@@ -431,5 +433,134 @@ internal sealed class Program
 		});
 
 		rootCommand.Subcommands.Add(wingetCommand);
+	}
+
+	private static void AddIosCommand(RootCommand rootCommand, IProcessRunner processRunner, IBuildLogger logger)
+	{
+		const string simulatorRuntime = "iossimulator-arm64";
+		const string deviceRuntime = "ios-arm64";
+
+		IosCommand iosCommand = new();
+
+		Command buildCommand = iosCommand.Subcommands.First(c => c.Name == "build");
+		Option<string?> projectOption = (Option<string?>)buildCommand.Options.First(o => o.Aliases.Contains("-p"));
+		Option<string?> runtimeOption = (Option<string?>)buildCommand.Options.First(o => o.Aliases.Contains("-r"));
+		Option<string[]> requireFrameworkOption = (Option<string[]>)buildCommand.Options.First(o => o.Name == "--require-framework");
+
+		buildCommand.SetAction(async (parseResult, ct) =>
+		{
+			string workspace = parseResult.GetValue(GlobalOptions.Workspace)!;
+			string configuration = parseResult.GetValue(GlobalOptions.Configuration)!;
+			bool verbose = parseResult.GetValue(GlobalOptions.Verbose);
+			string? project = parseResult.GetValue(projectOption);
+			string? runtime = parseResult.GetValue(runtimeOption);
+			string[] requireFrameworks = parseResult.GetValue(requireFrameworkOption) ?? [];
+
+			logger.VerboseEnabled = verbose;
+			logger.WriteStepHeader("Building iOS Head(s)");
+
+			KtsuBuild.DotNet.DotNetService dotNetService = new(processRunner, logger);
+
+#pragma warning disable CA1031 // Top-level command handler must catch all exceptions
+			try
+			{
+				// iOS heads build only on macOS (the workload and the Xcode toolchain
+				// are macOS-only). Skip cleanly elsewhere so the command is safe to call
+				// unconditionally from a consumer workflow.
+				if (!RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+				{
+					logger.WriteInfo("iOS builds require a macOS host. Skipping iOS build on this platform.");
+					return 0;
+				}
+
+				List<string> heads = string.IsNullOrEmpty(project)
+					? [.. dotNetService.GetIosHeads(workspace)]
+					: [project];
+
+				if (heads.Count == 0)
+				{
+					logger.WriteInfo("No iOS heads found in workspace. Nothing to build.");
+					return 0;
+				}
+
+				// Default builds both the simulator and device runtimes; --runtime narrows
+				// to one. The device runtime is the one the embedded-frameworks check runs
+				// against, since the simulator bundle does not exercise the device assets.
+				string[] runtimes = string.IsNullOrEmpty(runtime)
+					? [simulatorRuntime, deviceRuntime]
+					: [runtime];
+
+				foreach (string head in heads)
+				{
+					logger.WriteInfo($"Building iOS head: {head}");
+					foreach (string rid in runtimes)
+					{
+						await dotNetService.BuildIosAsync(workspace, head, rid, configuration, codeSigning: false, ct).ConfigureAwait(false);
+
+						bool isDevice = !rid.Contains("simulator", StringComparison.OrdinalIgnoreCase);
+						if (isDevice && !VerifyDeviceBundle(head, configuration, rid, requireFrameworks, logger))
+						{
+							return 1;
+						}
+					}
+				}
+
+				logger.WriteSuccess("iOS build(s) completed successfully!");
+				return 0;
+			}
+			catch (Exception ex)
+			{
+				logger.WriteError($"iOS build failed: {ex.Message}");
+				return 1;
+			}
+#pragma warning restore CA1031
+		});
+
+		rootCommand.Subcommands.Add(iosCommand);
+	}
+
+	private static bool VerifyDeviceBundle(string head, string configuration, string rid, string[] requireFrameworks, IBuildLogger logger)
+	{
+		string headDir = Path.GetDirectoryName(Path.GetFullPath(head)) ?? Directory.GetCurrentDirectory();
+		string searchRoot = Path.Combine(headDir, "bin", configuration);
+
+		IReadOnlyList<string> bundles = KtsuBuild.DotNet.DotNetService.FindAppBundles(searchRoot, rid);
+		if (bundles.Count == 0)
+		{
+			// Fall back to any .app under the search root in case the RID is not a path segment.
+			bundles = KtsuBuild.DotNet.DotNetService.FindAppBundles(searchRoot);
+		}
+
+		if (bundles.Count == 0)
+		{
+			logger.WriteError($"Device .app bundle not found under {searchRoot}. The iOS build did not produce an app bundle.");
+			return false;
+		}
+
+		string bundle = bundles[0];
+		logger.WriteInfo($"Device bundle: {bundle}");
+
+		IReadOnlyList<string> frameworks = KtsuBuild.DotNet.DotNetService.GetEmbeddedNativeFrameworks(bundle);
+		if (frameworks.Count > 0)
+		{
+			logger.WriteInfo($"Embedded native frameworks: {string.Join(", ", frameworks)}");
+		}
+		else
+		{
+			logger.WriteInfo("No native frameworks embedded in the device bundle.");
+		}
+
+		foreach (string required in requireFrameworks)
+		{
+			if (!KtsuBuild.DotNet.DotNetService.BundleContainsNativeLibrary(bundle, required))
+			{
+				logger.WriteError($"Required native framework '{required}' is not embedded in the device bundle ({bundle}). This usually means a native asset resolved to the wrong target framework and would crash the app at launch.");
+				return false;
+			}
+
+			logger.WriteInfo($"Verified native framework embedded: {required}");
+		}
+
+		return true;
 	}
 }
