@@ -79,8 +79,10 @@ ktsubuild
 │   ├── generate  # Generate Winget manifests (--version, --repo, --package-id, --staging)
 │   └── upload    # Upload manifests to GitHub release (--version)
 └── ios
-    └── build     # Build iOS head(s) for simulator + device, unsigned (macOS only)
-        # Options: --workspace, --configuration, --verbose, --project, --runtime, --require-framework
+    ├── build     # Build iOS head(s) for simulator + device, unsigned (macOS only)
+    │   # Options: --workspace, --configuration, --verbose, --project, --runtime, --require-framework
+    └── package   # Provision toolchain + stamp version + sign + archive .ipa (macOS only)
+        # Options: --workspace, --configuration, --verbose, --project, --runtime, --framework, --version, --build-number
 ```
 
 The `ios build` command is the pull-request validation path for iOS consumers
@@ -91,8 +93,22 @@ device `.app` bundle was produced. `--require-framework <name>` (repeatable)
 fails the device build when a named native framework (for example
 `libSkiaSharp`) is not embedded in the bundle, catching the asset-resolution
 launch crash in CI. On a non-macOS host the command logs a skip and exits 0, so
-it is safe to call unconditionally. The signed `package`/`upload` subcommands
-arrive in later phases (see `docs/ios-support-plan.md`).
+it is safe to call unconditionally.
+
+The `ios package` command is the signed release path (plan phase 3). It gates on
+`IOS_SIGNING_AVAILABLE`: with no signing material it no-ops and exits 0, so it is
+also safe to call unconditionally (forks and contributors without secrets still
+get a green run). When signing is available it selects the pinned Xcode and
+installs the pinned iOS workload (both optional, via `IOS_XCODE_VERSION` /
+`IOS_WORKLOAD_VERSION`), stamps `CFBundleShortVersionString` (KtsuBuild's computed
+version) and `CFBundleVersion` (the build number, defaulting to
+`GITHUB_RUN_NUMBER`) into each head's `Info.plist` with `PlistBuddy`, imports the
+distribution certificate into a temporary `build.keychain` (with the OpenSSL 3DES
+transcode fallback for stubborn `.p12` files), installs the provisioning profile,
+and runs `dotnet publish -p:ArchiveOnBuild=true -p:BuildIpa=true` to produce a
+signed `.ipa`. The signing inputs carry secrets and are never logged; only the
+`IosSigningAvailable` boolean surfaces in output. The `upload` subcommand (push
+to TestFlight) arrives in a later phase (see `docs/ios-support-plan.md`).
 
 ## Architecture
 
@@ -157,6 +173,21 @@ The `BuildConfigurationProvider.CreateFromEnvironmentAsync()` reads:
 | `NUGET_API_KEY` | `${{ secrets.NUGET_KEY }}` |
 | `KTSU_PACKAGE_KEY` | `${{ secrets.KTSU_PACKAGE_KEY }}` |
 | `EXPECTED_OWNER` | Hardcoded per-project (e.g., `ktsu-dev`) |
+
+iOS signing inputs (read by the same provider, consumed by `ios package`). All
+but the first carry secrets and are never logged:
+
+| Variable | Purpose |
+|----------|---------|
+| `IOS_SIGNING_AVAILABLE` | Boolean gate (`true`) for the signing/upload path |
+| `IOS_CODESIGN_KEY` | Distribution certificate common name (`CodesignKey`) |
+| `IOS_PROVISION_NAME` | Provisioning profile name (`CodesignProvision`) |
+| `IOS_CERT_P12_BASE64` | Base64 `.p12` distribution certificate |
+| `IOS_CERT_P12_PASSWORD` | Password for the `.p12` |
+| `IOS_KEYCHAIN_PASSWORD` | Password for the temporary signing keychain |
+| `IOS_PROVISIONING_PROFILE_BASE64` | Base64 `.mobileprovision` |
+| `IOS_XCODE_VERSION` | Pinned Xcode version (optional, e.g. `26.3`) |
+| `IOS_WORKLOAD_VERSION` | Pinned iOS workload rollback entry (optional, e.g. `26.2.10233/10.0.100`) |
 
 ## Version Calculation
 
@@ -267,6 +298,39 @@ ios-build:
         dotnet run --project "${{ runner.temp }}/KtsuBuild/KtsuBuild.CLI" --
         ios build --workspace "${{ github.workspace }}" --verbose
         --require-framework libSkiaSharp
+```
+
+### iOS Signed Packaging
+
+On a release tag, a second macOS job archives a signed `.ipa`. The signing
+material lives in a protected `ios-release` environment; the toolchain pins and
+the build/sign/archive logic now live in the tool, so the job is thin. The
+command no-ops when `IOS_SIGNING_AVAILABLE` is not `true`, so it is safe to call
+unconditionally:
+
+```yaml
+ios-package:
+  needs: ios-build
+  if: startsWith(github.ref, 'refs/tags/ios-v')
+  runs-on: macos-latest
+  environment: ios-release
+  env:
+    IOS_SIGNING_AVAILABLE: ${{ secrets.IOS_SIGNING_AVAILABLE }}
+    IOS_CODESIGN_KEY: ${{ secrets.IOS_CODESIGN_KEY }}
+    IOS_PROVISION_NAME: ${{ secrets.IOS_PROVISION_NAME }}
+    IOS_CERT_P12_BASE64: ${{ secrets.IOS_CERT_P12_BASE64 }}
+    IOS_CERT_P12_PASSWORD: ${{ secrets.IOS_CERT_P12_PASSWORD }}
+    IOS_KEYCHAIN_PASSWORD: ${{ secrets.IOS_KEYCHAIN_PASSWORD }}
+    IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+    IOS_XCODE_VERSION: "26.3"
+    IOS_WORKLOAD_VERSION: "26.2.10233/10.0.100"
+  steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-dotnet@v4
+    - run: git clone --depth 1 https://github.com/ktsu-dev/KtsuBuild.git "${{ runner.temp }}/KtsuBuild"
+    - run: >
+        dotnet run --project "${{ runner.temp }}/KtsuBuild/KtsuBuild.CLI" --
+        ios package --workspace "${{ github.workspace }}" --verbose
 ```
 
 ## Serena MCP Plugin Integration

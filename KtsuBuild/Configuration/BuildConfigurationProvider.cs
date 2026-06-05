@@ -142,6 +142,20 @@ public class BuildConfigurationProvider(IGitService gitService, IGitHubService g
 			],
 		};
 
-		return await CreateAsync(options, cancellationToken).ConfigureAwait(false);
+		BuildConfiguration configuration = await CreateAsync(options, cancellationToken).ConfigureAwait(false);
+
+		// iOS signing inputs. These carry secrets and are read here only; nothing logs them.
+		// IosSigningAvailable is the single boolean gate that may surface in output.
+		configuration.IosSigningAvailable = string.Equals(Environment.GetEnvironmentVariable("IOS_SIGNING_AVAILABLE"), "true", StringComparison.OrdinalIgnoreCase);
+		configuration.IosCodesignKey = Environment.GetEnvironmentVariable("IOS_CODESIGN_KEY") ?? string.Empty;
+		configuration.IosProvisionName = Environment.GetEnvironmentVariable("IOS_PROVISION_NAME") ?? string.Empty;
+		configuration.IosCertP12Base64 = Environment.GetEnvironmentVariable("IOS_CERT_P12_BASE64") ?? string.Empty;
+		configuration.IosCertP12Password = Environment.GetEnvironmentVariable("IOS_CERT_P12_PASSWORD") ?? string.Empty;
+		configuration.IosKeychainPassword = Environment.GetEnvironmentVariable("IOS_KEYCHAIN_PASSWORD") ?? string.Empty;
+		configuration.IosProvisioningProfileBase64 = Environment.GetEnvironmentVariable("IOS_PROVISIONING_PROFILE_BASE64") ?? string.Empty;
+		configuration.XcodeVersion = Environment.GetEnvironmentVariable("IOS_XCODE_VERSION") ?? string.Empty;
+		configuration.IosWorkloadVersion = Environment.GetEnvironmentVariable("IOS_WORKLOAD_VERSION") ?? string.Empty;
+
+		return configuration;
 	}
 }
