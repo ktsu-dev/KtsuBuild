@@ -1,7 +1,8 @@
-## v1.5.0 (minor)
+## v1.6.0 (minor)
 
-Changes since v1.4.0:
+Changes since v1.5.0:
 
-- Add iOS-aware project classification and host build gating ([@Claude](https://github.com/Claude))
-- Add plan for iOS build and publish support ([@Claude](https://github.com/Claude))
+- Extract iOS build orchestration into testable IosBuildService ([@Claude](https://github.com/Claude))
+- Remove unnecessary null-forgiving operator in FindAppBundles ([@Claude](https://github.com/Claude))
+- Add unsigned iOS build command (iOS support phase 2) ([@Claude](https://github.com/Claude))
 
