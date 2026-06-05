@@ -82,7 +82,7 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 			string? plist = string.IsNullOrEmpty(options.InfoPlistPath) ? ResolveInfoPlist(head) : options.InfoPlistPath;
 			if (!string.IsNullOrEmpty(plist) && File.Exists(plist))
 			{
-				await StampVersionAsync(plist!, options.ShortVersion, options.BuildNumber, cancellationToken).ConfigureAwait(false);
+				await StampVersionAsync(plist, options.ShortVersion, options.BuildNumber, cancellationToken).ConfigureAwait(false);
 			}
 			else
 			{
@@ -215,11 +215,9 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 		}
 
 		string headDir = Path.GetDirectoryName(Path.GetFullPath(projectPath)) ?? Directory.GetCurrentDirectory();
-		string? ipa = FindIpa(Path.Combine(headDir, "bin"));
-		if (ipa is null)
-		{
-			throw new InvalidOperationException($"iOS archive completed but no .ipa was produced under {Path.Combine(headDir, "bin")}.");
-		}
+		string binDir = Path.Combine(headDir, "bin");
+		string ipa = FindIpa(binDir)
+			?? throw new InvalidOperationException($"iOS archive completed but no .ipa was produced under {binDir}.");
 
 		logger.WriteInfo($"Archive: {ipa}");
 		return ipa;
@@ -517,7 +515,7 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 		}
 
 		// Strip any whitespace or BOM a copy-paste may have baked into the secret.
-		string cleaned = new(value.Where(c => !char.IsWhiteSpace(c)).ToArray());
+		string cleaned = string.Concat(value.Where(c => !char.IsWhiteSpace(c)));
 		try
 		{
 			return Convert.FromBase64String(cleaned);
