@@ -74,6 +74,29 @@ public interface IDotNetService
 	public IReadOnlyList<string> GetProjectFiles(string workingDirectory);
 
 	/// <summary>
+	/// Gets the project files in a directory that can be restored and built on
+	/// the current host, excluding projects whose target framework ties them to
+	/// a different platform (for example iOS projects on a non-macOS host).
+	/// </summary>
+	/// <param name="workingDirectory">The working directory to search.</param>
+	/// <returns>A list of buildable project file paths.</returns>
+	public IReadOnlyList<string> GetBuildableProjects(string workingDirectory);
+
+	/// <summary>
+	/// Classifies a project by the platform its target framework(s) tie it to.
+	/// </summary>
+	/// <param name="projectPath">Path to the project file.</param>
+	/// <returns>The platform classification for the project.</returns>
+	public ProjectPlatform GetProjectPlatform(string projectPath);
+
+	/// <summary>
+	/// Checks whether a project can be restored and built on the current host.
+	/// </summary>
+	/// <param name="projectPath">Path to the project file.</param>
+	/// <returns>True if the current host can build the project.</returns>
+	public bool CanBuildOnCurrentHost(string projectPath);
+
+	/// <summary>
 	/// Checks if a project is an executable.
 	/// </summary>
 	/// <param name="projectPath">Path to the project file.</param>

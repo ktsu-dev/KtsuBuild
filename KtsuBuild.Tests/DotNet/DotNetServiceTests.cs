@@ -4,6 +4,7 @@
 
 namespace KtsuBuild.Tests.DotNet;
 
+using System.Runtime.InteropServices;
 using KtsuBuild.Abstractions;
 using KtsuBuild.DotNet;
 using KtsuBuild.Tests.Helpers;
@@ -466,4 +467,177 @@ public class DotNetServiceTests
 	[TestMethod]
 	public void IsTestProject_FileNotFound_ReturnsFalse() =>
 		Assert.IsFalse(_service.IsTestProject(Path.Combine(_tempDir, "nonexistent.csproj")));
+
+	// IsExecutableProject - iOS
+
+	[TestMethod]
+	public void IsExecutableProject_SdkIos_ReturnsTrue()
+	{
+		string projPath = Path.Combine(_tempDir, "App.csproj");
+		File.WriteAllText(projPath, "<Project Sdk=\"ktsu.Sdk.Ios/1.0.0\"><PropertyGroup><TargetFramework>net10.0-ios</TargetFramework></PropertyGroup></Project>");
+
+		Assert.IsTrue(_service.IsExecutableProject(projPath));
+	}
+
+	[TestMethod]
+	public void IsExecutableProject_IosHeadWithOutputTypeExe_ReturnsTrue()
+	{
+		string projPath = Path.Combine(_tempDir, "App.iOS.csproj");
+		File.WriteAllText(projPath, "<Project><PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0-ios</TargetFramework></PropertyGroup></Project>");
+
+		Assert.IsTrue(_service.IsExecutableProject(projPath));
+	}
+
+	// ClassifyTargetFrameworks
+
+	[TestMethod]
+	public void ClassifyTargetFrameworks_Neutral_ReturnsNeutral() =>
+		Assert.AreEqual(ProjectPlatform.Neutral, DotNetService.ClassifyTargetFrameworks(["net10.0"]));
+
+	[TestMethod]
+	public void ClassifyTargetFrameworks_NetStandard_ReturnsNeutral() =>
+		Assert.AreEqual(ProjectPlatform.Neutral, DotNetService.ClassifyTargetFrameworks(["netstandard2.0"]));
+
+	[TestMethod]
+	public void ClassifyTargetFrameworks_IosOnly_ReturnsIos() =>
+		Assert.AreEqual(ProjectPlatform.Ios, DotNetService.ClassifyTargetFrameworks(["net10.0-ios"]));
+
+	[TestMethod]
+	public void ClassifyTargetFrameworks_IosWithVersion_ReturnsIos() =>
+		Assert.AreEqual(ProjectPlatform.Ios, DotNetService.ClassifyTargetFrameworks(["net10.0-ios17.0"]));
+
+	[TestMethod]
+	public void ClassifyTargetFrameworks_WindowsOnly_ReturnsWindows() =>
+		Assert.AreEqual(ProjectPlatform.Windows, DotNetService.ClassifyTargetFrameworks(["net10.0-windows10.0.19041.0"]));
+
+	[TestMethod]
+	public void ClassifyTargetFrameworks_NeutralAndIos_ReturnsNeutral() =>
+		Assert.AreEqual(ProjectPlatform.Neutral, DotNetService.ClassifyTargetFrameworks(["net10.0", "net10.0-ios"]));
+
+	[TestMethod]
+	public void ClassifyTargetFrameworks_IosAndWindows_ReturnsNeutral() =>
+		Assert.AreEqual(ProjectPlatform.Neutral, DotNetService.ClassifyTargetFrameworks(["net10.0-ios", "net10.0-windows10.0.19041.0"]));
+
+	[TestMethod]
+	public void ClassifyTargetFrameworks_Empty_ReturnsNeutral() =>
+		Assert.AreEqual(ProjectPlatform.Neutral, DotNetService.ClassifyTargetFrameworks([]));
+
+	// GetProjectPlatform
+
+	[TestMethod]
+	public void GetProjectPlatform_NeutralProject_ReturnsNeutral()
+	{
+		string projPath = Path.Combine(_tempDir, "Lib.csproj");
+		File.WriteAllText(projPath, "<Project><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>");
+
+		Assert.AreEqual(ProjectPlatform.Neutral, _service.GetProjectPlatform(projPath));
+	}
+
+	[TestMethod]
+	public void GetProjectPlatform_IosProject_ReturnsIos()
+	{
+		string projPath = Path.Combine(_tempDir, "App.iOS.csproj");
+		File.WriteAllText(projPath, "<Project><PropertyGroup><TargetFramework>net10.0-ios</TargetFramework></PropertyGroup></Project>");
+
+		Assert.AreEqual(ProjectPlatform.Ios, _service.GetProjectPlatform(projPath));
+	}
+
+	[TestMethod]
+	public void GetProjectPlatform_WindowsProject_ReturnsWindows()
+	{
+		string projPath = Path.Combine(_tempDir, "App.csproj");
+		File.WriteAllText(projPath, "<Project><PropertyGroup><TargetFramework>net10.0-windows10.0.19041.0</TargetFramework></PropertyGroup></Project>");
+
+		Assert.AreEqual(ProjectPlatform.Windows, _service.GetProjectPlatform(projPath));
+	}
+
+	[TestMethod]
+	public void GetProjectPlatform_MultiTargetWithNeutral_ReturnsNeutral()
+	{
+		string projPath = Path.Combine(_tempDir, "Lib.csproj");
+		File.WriteAllText(projPath, "<Project><PropertyGroup><TargetFrameworks>net10.0;net10.0-ios</TargetFrameworks></PropertyGroup></Project>");
+
+		Assert.AreEqual(ProjectPlatform.Neutral, _service.GetProjectPlatform(projPath));
+	}
+
+	[TestMethod]
+	public void GetProjectPlatform_FileNotFound_ReturnsNeutral() =>
+		Assert.AreEqual(ProjectPlatform.Neutral, _service.GetProjectPlatform(Path.Combine(_tempDir, "nonexistent.csproj")));
+
+	// CanPlatformBuildOnHost
+
+	[TestMethod]
+	public void CanPlatformBuildOnHost_Neutral_AlwaysTrue()
+	{
+		Assert.IsTrue(DotNetService.CanPlatformBuildOnHost(ProjectPlatform.Neutral, hostIsWindows: true, hostIsMacOs: false));
+		Assert.IsTrue(DotNetService.CanPlatformBuildOnHost(ProjectPlatform.Neutral, hostIsWindows: false, hostIsMacOs: true));
+		Assert.IsTrue(DotNetService.CanPlatformBuildOnHost(ProjectPlatform.Neutral, hostIsWindows: false, hostIsMacOs: false));
+	}
+
+	[TestMethod]
+	public void CanPlatformBuildOnHost_Windows_OnlyOnWindows()
+	{
+		Assert.IsTrue(DotNetService.CanPlatformBuildOnHost(ProjectPlatform.Windows, hostIsWindows: true, hostIsMacOs: false));
+		Assert.IsFalse(DotNetService.CanPlatformBuildOnHost(ProjectPlatform.Windows, hostIsWindows: false, hostIsMacOs: true));
+		Assert.IsFalse(DotNetService.CanPlatformBuildOnHost(ProjectPlatform.Windows, hostIsWindows: false, hostIsMacOs: false));
+	}
+
+	[TestMethod]
+	public void CanPlatformBuildOnHost_Ios_OnlyOnMacOs()
+	{
+		Assert.IsTrue(DotNetService.CanPlatformBuildOnHost(ProjectPlatform.Ios, hostIsWindows: false, hostIsMacOs: true));
+		Assert.IsFalse(DotNetService.CanPlatformBuildOnHost(ProjectPlatform.Ios, hostIsWindows: true, hostIsMacOs: false));
+		Assert.IsFalse(DotNetService.CanPlatformBuildOnHost(ProjectPlatform.Ios, hostIsWindows: false, hostIsMacOs: false));
+	}
+
+	// GetBuildableProjects
+
+	[TestMethod]
+	public void GetBuildableProjects_AlwaysIncludesNeutralProjects()
+	{
+		string libDir = Path.Combine(_tempDir, "MyLib");
+		Directory.CreateDirectory(libDir);
+		File.WriteAllText(Path.Combine(libDir, "MyLib.csproj"),
+			"<Project><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>");
+
+		IReadOnlyList<string> buildable = _service.GetBuildableProjects(_tempDir);
+
+		Assert.AreEqual(1, buildable.Count);
+		Assert.IsTrue(buildable[0].EndsWith("MyLib.csproj", StringComparison.Ordinal));
+	}
+
+	[TestMethod]
+	public void GetBuildableProjects_IosProjectIncludedOnlyOnMacOs()
+	{
+		string iosDir = Path.Combine(_tempDir, "MyApp.iOS");
+		Directory.CreateDirectory(iosDir);
+		string iosProj = Path.Combine(iosDir, "MyApp.iOS.csproj");
+		File.WriteAllText(iosProj,
+			"<Project><PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0-ios</TargetFramework></PropertyGroup></Project>");
+
+		IReadOnlyList<string> buildable = _service.GetBuildableProjects(_tempDir);
+
+		bool expected = RuntimeInformation.IsOSPlatform(OSPlatform.OSX);
+		Assert.AreEqual(expected, buildable.Any(p => p.EndsWith("MyApp.iOS.csproj", StringComparison.Ordinal)));
+	}
+
+	[TestMethod]
+	public void GetBuildableProjects_IsSubsetOfAllProjects()
+	{
+		string libDir = Path.Combine(_tempDir, "MyLib");
+		Directory.CreateDirectory(libDir);
+		File.WriteAllText(Path.Combine(libDir, "MyLib.csproj"),
+			"<Project><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>");
+
+		string iosDir = Path.Combine(_tempDir, "MyApp.iOS");
+		Directory.CreateDirectory(iosDir);
+		File.WriteAllText(Path.Combine(iosDir, "MyApp.iOS.csproj"),
+			"<Project><PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0-ios</TargetFramework></PropertyGroup></Project>");
+
+		IReadOnlyList<string> all = _service.GetProjectFiles(_tempDir);
+		IReadOnlyList<string> buildable = _service.GetBuildableProjects(_tempDir);
+
+		Assert.IsTrue(buildable.Count <= all.Count);
+		Assert.IsTrue(buildable.All(all.Contains));
+	}
 }
