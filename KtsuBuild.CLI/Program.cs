@@ -496,6 +496,122 @@ internal sealed class Program
 #pragma warning restore CA1031
 		});
 
+		Command packageCommand = iosCommand.Subcommands.First(c => c.Name == "package");
+		Option<string?> packageProjectOption = (Option<string?>)packageCommand.Options.First(o => o.Aliases.Contains("-p"));
+		Option<string?> packageRuntimeOption = (Option<string?>)packageCommand.Options.First(o => o.Aliases.Contains("-r"));
+		Option<string?> packageFrameworkOption = (Option<string?>)packageCommand.Options.First(o => o.Aliases.Contains("-f"));
+		Option<string?> packageVersionOption = (Option<string?>)packageCommand.Options.First(o => o.Aliases.Contains("-V"));
+		Option<string?> packageBuildNumberOption = (Option<string?>)packageCommand.Options.First(o => o.Aliases.Contains("-b"));
+
+		packageCommand.SetAction(async (parseResult, ct) =>
+		{
+			string workspace = parseResult.GetValue(GlobalOptions.Workspace)!;
+			string configuration = parseResult.GetValue(GlobalOptions.Configuration)!;
+			bool verbose = parseResult.GetValue(GlobalOptions.Verbose);
+			string? project = parseResult.GetValue(packageProjectOption);
+			string? runtime = parseResult.GetValue(packageRuntimeOption);
+			string? framework = parseResult.GetValue(packageFrameworkOption);
+			string? version = parseResult.GetValue(packageVersionOption);
+			string? buildNumber = parseResult.GetValue(packageBuildNumberOption);
+
+			logger.VerboseEnabled = verbose;
+			logger.WriteStepHeader("Packaging iOS Head(s)");
+
+#pragma warning disable CA1031 // Top-level command handler must catch all exceptions
+			try
+			{
+				// iOS packaging builds only on macOS. Skip cleanly elsewhere so the command
+				// is safe to call unconditionally from a consumer workflow, before touching
+				// git or the signing material.
+				if (!RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+				{
+					logger.WriteInfo("iOS packaging requires a macOS host. Skipping iOS packaging on this platform.");
+					return 0;
+				}
+
+				KtsuBuild.Git.GitService gitService = new(processRunner, logger);
+				KtsuBuild.Publishing.GitHubService gitHubService = new(processRunner, gitService, logger);
+				KtsuBuild.Configuration.BuildConfigurationProvider configProvider = new(gitService, gitHubService);
+				KtsuBuild.Configuration.BuildConfiguration buildConfig = await configProvider.CreateFromEnvironmentAsync(workspace, ct).ConfigureAwait(false);
+
+				// Resolve the marketing version (KtsuBuild's computed version unless overridden)
+				// and the monotonic build number (CI run number unless overridden).
+				if (string.IsNullOrEmpty(version))
+				{
+					KtsuBuild.Git.VersionCalculator versionCalculator = new(gitService, logger);
+					string commitHash = await gitService.GetCurrentCommitHashAsync(workspace, ct).ConfigureAwait(false);
+					KtsuBuild.Git.VersionInfo versionInfo = await versionCalculator.GetVersionInfoAsync(workspace, commitHash, cancellationToken: ct).ConfigureAwait(false);
+					version = versionInfo.Version;
+				}
+
+				if (string.IsNullOrEmpty(buildNumber))
+				{
+					buildNumber = Environment.GetEnvironmentVariable("GITHUB_RUN_NUMBER");
+					if (string.IsNullOrEmpty(buildNumber))
+					{
+						buildNumber = "1";
+					}
+				}
+
+				logger.WriteInfo($"iOS signing available: {buildConfig.IosSigningAvailable}");
+
+				KtsuBuild.DotNet.DotNetService dotNetService = new(processRunner, logger);
+				KtsuBuild.Ios.IosService iosService = new(dotNetService, processRunner, logger);
+
+				KtsuBuild.Ios.IosPackageResult result = await iosService.PackageAsync(new KtsuBuild.Ios.IosPackageOptions
+				{
+					WorkingDirectory = workspace,
+					Configuration = configuration,
+					Project = project,
+					Runtime = string.IsNullOrEmpty(runtime) ? "ios-arm64" : runtime,
+					Framework = framework,
+					ShortVersion = version,
+					BuildNumber = buildNumber,
+					SigningAvailable = buildConfig.IosSigningAvailable,
+					CodesignKey = buildConfig.IosCodesignKey,
+					ProvisionName = buildConfig.IosProvisionName,
+					CertificateP12Base64 = buildConfig.IosCertP12Base64,
+					CertificatePassword = buildConfig.IosCertP12Password,
+					KeychainPassword = buildConfig.IosKeychainPassword,
+					ProvisioningProfileBase64 = buildConfig.IosProvisioningProfileBase64,
+					XcodeVersion = buildConfig.XcodeVersion,
+					WorkloadVersion = buildConfig.IosWorkloadVersion,
+				}, ct).ConfigureAwait(false);
+
+				if (result.Skipped)
+				{
+					logger.WriteInfo(result.SkipReason ?? "iOS packaging was skipped.");
+					return 0;
+				}
+
+				if (!result.Success)
+				{
+					logger.WriteError($"iOS packaging failed: {result.Error}");
+					return 1;
+				}
+
+				if (result.IpaPaths.Count == 0)
+				{
+					logger.WriteInfo("iOS packaging completed with no archives (no iOS heads found).");
+					return 0;
+				}
+
+				logger.WriteSuccess($"Packaged {result.IpaPaths.Count} iOS archive(s):");
+				foreach (string ipa in result.IpaPaths)
+				{
+					logger.WriteInfo($"  - {ipa}");
+				}
+
+				return 0;
+			}
+			catch (Exception ex)
+			{
+				logger.WriteError($"iOS packaging failed: {ex.Message}");
+				return 1;
+			}
+#pragma warning restore CA1031
+		});
+
 		rootCommand.Subcommands.Add(iosCommand);
 	}
 }

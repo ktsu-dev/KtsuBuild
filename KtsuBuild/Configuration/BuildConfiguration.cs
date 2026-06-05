@@ -146,4 +146,57 @@ public class BuildConfiguration
 	/// Gets or sets the build configuration name (Debug/Release).
 	/// </summary>
 	public string Configuration { get; set; } = "Release";
+
+	/// <summary>
+	/// Gets or sets whether the iOS signing material is available. This is the only iOS
+	/// signing input that should ever surface in output, and only as a boolean. It gates
+	/// the iOS package and upload paths so forks and contributors without secrets still
+	/// get a clean run.
+	/// </summary>
+	public bool IosSigningAvailable { get; set; }
+
+	/// <summary>
+	/// Gets or sets the iOS distribution certificate common name (the <c>CodesignKey</c>
+	/// MSBuild property). Secret-adjacent: never log it.
+	/// </summary>
+	public string IosCodesignKey { get; set; } = string.Empty;
+
+	/// <summary>
+	/// Gets or sets the iOS provisioning profile name (the <c>CodesignProvision</c>
+	/// MSBuild property). Secret-adjacent: never log it.
+	/// </summary>
+	public string IosProvisionName { get; set; } = string.Empty;
+
+	/// <summary>
+	/// Gets or sets the base64-encoded iOS distribution certificate (<c>.p12</c>). Secret.
+	/// </summary>
+	public string IosCertP12Base64 { get; set; } = string.Empty;
+
+	/// <summary>
+	/// Gets or sets the password protecting the iOS distribution certificate. Secret.
+	/// </summary>
+	public string IosCertP12Password { get; set; } = string.Empty;
+
+	/// <summary>
+	/// Gets or sets the password used for the temporary iOS signing keychain. Secret.
+	/// </summary>
+	public string IosKeychainPassword { get; set; } = string.Empty;
+
+	/// <summary>
+	/// Gets or sets the base64-encoded iOS provisioning profile (<c>.mobileprovision</c>).
+	/// Secret.
+	/// </summary>
+	public string IosProvisioningProfileBase64 { get; set; } = string.Empty;
+
+	/// <summary>
+	/// Gets or sets the pinned Xcode version for iOS builds (for example <c>26.3</c>).
+	/// Empty leaves the host default in place.
+	/// </summary>
+	public string XcodeVersion { get; set; } = string.Empty;
+
+	/// <summary>
+	/// Gets or sets the pinned iOS workload version installed via a rollback file (for
+	/// example <c>26.2.10233/10.0.100</c>). Empty skips workload installation.
+	/// </summary>
+	public string IosWorkloadVersion { get; set; } = string.Empty;
 }
