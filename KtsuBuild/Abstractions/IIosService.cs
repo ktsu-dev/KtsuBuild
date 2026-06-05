@@ -7,9 +7,9 @@ namespace KtsuBuild.Abstractions;
 using KtsuBuild.Ios;
 
 /// <summary>
-/// Interface for the signed iOS packaging path (toolchain provisioning, version
-/// stamping, signing-material setup, and <c>.ipa</c> archiving). This is the release
-/// path and no-ops cleanly when signing material is unavailable, so it is safe to
+/// Interface for the signed iOS release path: toolchain provisioning, version
+/// stamping, signing-material setup, <c>.ipa</c> archiving, and TestFlight upload.
+/// Both steps no-op cleanly when signing material is unavailable, so they are safe to
 /// call unconditionally from a consumer workflow.
 /// </summary>
 public interface IIosService
@@ -22,4 +22,13 @@ public interface IIosService
 	/// <param name="cancellationToken">A cancellation token.</param>
 	/// <returns>The packaging result, including the produced <c>.ipa</c> paths or a skip reason.</returns>
 	public Task<IosPackageResult> PackageAsync(IosPackageOptions options, CancellationToken cancellationToken = default);
+
+	/// <summary>
+	/// Uploads the signed <c>.ipa</c> for the iOS head(s) described by the options to
+	/// TestFlight, using an App Store Connect API key.
+	/// </summary>
+	/// <param name="options">The upload options, including the App Store Connect API key.</param>
+	/// <param name="cancellationToken">A cancellation token.</param>
+	/// <returns>The upload result, including the uploaded <c>.ipa</c> paths or a skip reason.</returns>
+	public Task<IosUploadResult> UploadAsync(IosUploadOptions options, CancellationToken cancellationToken = default);
 }

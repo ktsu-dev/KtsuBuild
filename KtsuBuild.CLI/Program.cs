@@ -612,6 +612,88 @@ internal sealed class Program
 #pragma warning restore CA1031
 		});
 
+		Command uploadCommand = iosCommand.Subcommands.First(c => c.Name == "upload");
+		Option<string?> uploadProjectOption = (Option<string?>)uploadCommand.Options.First(o => o.Aliases.Contains("-p"));
+		Option<string?> uploadIpaOption = (Option<string?>)uploadCommand.Options.First(o => o.Aliases.Contains("-i"));
+
+		uploadCommand.SetAction(async (parseResult, ct) =>
+		{
+			string workspace = parseResult.GetValue(GlobalOptions.Workspace)!;
+			string configuration = parseResult.GetValue(GlobalOptions.Configuration)!;
+			bool verbose = parseResult.GetValue(GlobalOptions.Verbose);
+			string? project = parseResult.GetValue(uploadProjectOption);
+			string? ipa = parseResult.GetValue(uploadIpaOption);
+
+			logger.VerboseEnabled = verbose;
+			logger.WriteStepHeader("Uploading iOS Head(s) to TestFlight");
+
+#pragma warning disable CA1031 // Top-level command handler must catch all exceptions
+			try
+			{
+				// The upload runs altool, which is macOS-only. Skip cleanly elsewhere so the
+				// command is safe to call unconditionally, before touching the signing material.
+				if (!RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+				{
+					logger.WriteInfo("iOS upload requires a macOS host. Skipping iOS upload on this platform.");
+					return 0;
+				}
+
+				KtsuBuild.Git.GitService gitService = new(processRunner, logger);
+				KtsuBuild.Publishing.GitHubService gitHubService = new(processRunner, gitService, logger);
+				KtsuBuild.Configuration.BuildConfigurationProvider configProvider = new(gitService, gitHubService);
+				KtsuBuild.Configuration.BuildConfiguration buildConfig = await configProvider.CreateFromEnvironmentAsync(workspace, ct).ConfigureAwait(false);
+
+				logger.WriteInfo($"iOS signing available: {buildConfig.IosSigningAvailable}");
+
+				KtsuBuild.DotNet.DotNetService dotNetService = new(processRunner, logger);
+				KtsuBuild.Ios.IosService iosService = new(dotNetService, processRunner, logger);
+
+				KtsuBuild.Ios.IosUploadResult result = await iosService.UploadAsync(new KtsuBuild.Ios.IosUploadOptions
+				{
+					WorkingDirectory = workspace,
+					Configuration = configuration,
+					Project = project,
+					IpaPath = ipa,
+					SigningAvailable = buildConfig.IosSigningAvailable,
+					AppStoreConnectKeyBase64 = buildConfig.AppStoreConnectKeyBase64,
+					AppStoreConnectKeyId = buildConfig.AppStoreConnectKeyId,
+					AppStoreConnectIssuerId = buildConfig.AppStoreConnectIssuerId,
+				}, ct).ConfigureAwait(false);
+
+				if (result.Skipped)
+				{
+					logger.WriteInfo(result.SkipReason ?? "iOS upload was skipped.");
+					return 0;
+				}
+
+				if (!result.Success)
+				{
+					logger.WriteError($"iOS upload failed: {result.Error}");
+					return 1;
+				}
+
+				if (result.UploadedIpaPaths.Count == 0)
+				{
+					logger.WriteInfo("iOS upload completed with no archives (no .ipa found to upload).");
+					return 0;
+				}
+
+				logger.WriteSuccess($"Uploaded {result.UploadedIpaPaths.Count} iOS archive(s) to TestFlight:");
+				foreach (string uploaded in result.UploadedIpaPaths)
+				{
+					logger.WriteInfo($"  - {uploaded}");
+				}
+
+				return 0;
+			}
+			catch (Exception ex)
+			{
+				logger.WriteError($"iOS upload failed: {ex.Message}");
+				return 1;
+			}
+#pragma warning restore CA1031
+		});
+
 		rootCommand.Subcommands.Add(iosCommand);
 	}
 }
