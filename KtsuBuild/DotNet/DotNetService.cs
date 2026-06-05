@@ -4,6 +4,7 @@
 
 namespace KtsuBuild.DotNet;
 
+using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using KtsuBuild.Abstractions;
 #if !NET10_0_OR_GREATER
@@ -23,7 +24,9 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger) : 
 	private static readonly Regex OutputTypeExeRegex = new(@"<OutputType>\s*Exe\s*</OutputType>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 	private static readonly Regex OutputTypeWinExeRegex = new(@"<OutputType>\s*WinExe\s*</OutputType>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 	private static readonly Regex SdkAppRegex = new(@"Sdk=""[^""]*\.App[/""]", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+	private static readonly Regex SdkIosRegex = new(@"Sdk=""[^""]*\.Ios[/""]", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 	private static readonly Regex SdkTestRegex = new(@"Sdk=""[^""]*\.Test[/""]", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+	private static readonly Regex TargetFrameworkRegex = new(@"<TargetFrameworks?>\s*([^<]+?)\s*</TargetFrameworks?>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 #pragma warning restore SYSLIB1045
 
 	/// <inheritdoc/>
@@ -107,8 +110,8 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger) : 
 		Ensure.NotNull(workingDirectory);
 		logger.WriteStepHeader("Running Tests with Coverage");
 
-		// Check for test projects
-		List<string> testProjects = [.. GetProjectFiles(workingDirectory).Where(IsTestProject)];
+		// Check for test projects (only those buildable on the current host)
+		List<string> testProjects = [.. GetBuildableProjects(workingDirectory).Where(IsTestProject)];
 		if (testProjects.Count == 0)
 		{
 			logger.WriteInfo("No test projects found in solution. Skipping test execution.");
@@ -151,8 +154,8 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger) : 
 
 		Directory.CreateDirectory(outputPath);
 
-		// Get non-test project files to pack individually
-		List<string> packableProjects = [.. GetProjectFiles(workingDirectory)
+		// Get non-test project files to pack individually (only those buildable on the current host)
+		List<string> packableProjects = [.. GetBuildableProjects(workingDirectory)
 			.Where(p => !IsTestProject(p))];
 
 		if (packableProjects.Count == 0)
@@ -251,6 +254,106 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger) : 
 	}
 
 	/// <inheritdoc/>
+	public IReadOnlyList<string> GetBuildableProjects(string workingDirectory)
+	{
+		Ensure.NotNull(workingDirectory);
+		return [.. GetProjectFiles(workingDirectory).Where(CanBuildOnCurrentHost)];
+	}
+
+	/// <inheritdoc/>
+	public ProjectPlatform GetProjectPlatform(string projectPath)
+	{
+		Ensure.NotNull(projectPath);
+		if (!File.Exists(projectPath))
+		{
+			return ProjectPlatform.Neutral;
+		}
+
+		return ClassifyTargetFrameworks(GetTargetFrameworks(File.ReadAllText(projectPath)));
+	}
+
+	/// <inheritdoc/>
+	public bool CanBuildOnCurrentHost(string projectPath) =>
+		CanPlatformBuildOnHost(
+			GetProjectPlatform(projectPath),
+			RuntimeInformation.IsOSPlatform(OSPlatform.Windows),
+			RuntimeInformation.IsOSPlatform(OSPlatform.OSX));
+
+	/// <summary>
+	/// Determines whether a project of the given platform can be built on a host
+	/// described by the supplied flags. A neutral project builds anywhere; a
+	/// Windows project needs a Windows host; an iOS project needs a macOS host.
+	/// </summary>
+	/// <param name="platform">The project's platform classification.</param>
+	/// <param name="hostIsWindows">Whether the host is Windows.</param>
+	/// <param name="hostIsMacOs">Whether the host is macOS.</param>
+	/// <returns>True if the host can build the project.</returns>
+	public static bool CanPlatformBuildOnHost(ProjectPlatform platform, bool hostIsWindows, bool hostIsMacOs) =>
+		platform switch
+		{
+			ProjectPlatform.Windows => hostIsWindows,
+			ProjectPlatform.Ios => hostIsMacOs,
+			_ => true,
+		};
+
+	/// <summary>
+	/// Classifies a set of target frameworks into a single <see cref="ProjectPlatform"/>.
+	/// A project with any neutral target framework is treated as neutral (it can be
+	/// built on any host, selecting a framework where needed). A project whose target
+	/// frameworks are all iOS, or all Windows, is classified accordingly. Anything else
+	/// (including mixes of platform-specific frameworks) is treated as neutral so it is
+	/// not filtered out.
+	/// </summary>
+	/// <param name="targetFrameworks">The target framework monikers.</param>
+	/// <returns>The platform classification.</returns>
+	public static ProjectPlatform ClassifyTargetFrameworks(IEnumerable<string> targetFrameworks)
+	{
+		Ensure.NotNull(targetFrameworks);
+
+		bool anyNeutral = false;
+		bool anyIos = false;
+		bool anyWindows = false;
+
+		foreach (string tfm in targetFrameworks)
+		{
+			if (string.IsNullOrWhiteSpace(tfm))
+			{
+				continue;
+			}
+
+			if (tfm.Contains("-ios", StringComparison.OrdinalIgnoreCase))
+			{
+				anyIos = true;
+			}
+			else if (tfm.Contains("-windows", StringComparison.OrdinalIgnoreCase))
+			{
+				anyWindows = true;
+			}
+			else if (!tfm.Contains('-'))
+			{
+				anyNeutral = true;
+			}
+		}
+
+		if (anyNeutral)
+		{
+			return ProjectPlatform.Neutral;
+		}
+
+		if (anyIos && !anyWindows)
+		{
+			return ProjectPlatform.Ios;
+		}
+
+		if (anyWindows && !anyIos)
+		{
+			return ProjectPlatform.Windows;
+		}
+
+		return ProjectPlatform.Neutral;
+	}
+
+	/// <inheritdoc/>
 	public bool IsExecutableProject(string projectPath)
 	{
 		Ensure.NotNull(projectPath);
@@ -263,7 +366,19 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger) : 
 
 		return OutputTypeExeRegex.IsMatch(content) ||
 			   OutputTypeWinExeRegex.IsMatch(content) ||
-			   SdkAppRegex.IsMatch(content);
+			   SdkAppRegex.IsMatch(content) ||
+			   SdkIosRegex.IsMatch(content);
+	}
+
+	private static IEnumerable<string> GetTargetFrameworks(string projectContent)
+	{
+		foreach (Match match in TargetFrameworkRegex.Matches(projectContent))
+		{
+			foreach (string tfm in match.Groups[1].Value.Split([';'], StringSplitOptions.RemoveEmptyEntries))
+			{
+				yield return tfm.Trim();
+			}
+		}
 	}
 
 	/// <inheritdoc/>
