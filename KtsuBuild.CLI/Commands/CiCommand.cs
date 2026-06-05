@@ -5,10 +5,12 @@
 namespace KtsuBuild.CLI.Commands;
 
 using System.CommandLine;
+using System.Runtime.InteropServices;
 using KtsuBuild.Abstractions;
 using KtsuBuild.Configuration;
 using KtsuBuild.DotNet;
 using KtsuBuild.Git;
+using KtsuBuild.Ios;
 using KtsuBuild.Metadata;
 using KtsuBuild.Publishing;
 using KtsuBuild.Utilities;
@@ -159,6 +161,16 @@ public class CiCommand : Command
 		await dotNetService.BuildAsync(workspace, configuration, buildConfig.BuildArgs, cancellationToken).ConfigureAwait(false);
 		await dotNetService.TestAsync(workspace, configuration, "coverage", cancellationToken).ConfigureAwait(false);
 
+		// iOS validation: when the workspace contains an iOS head, build it unsigned
+		// for the simulator and device runtimes as part of CI, the same pull-request
+		// validation `ios build` performs. Running it automatically means a consumer
+		// with an iOS head does not need a separate invocation. iOS builds only on
+		// macOS, so on any other host the step reports the detected heads and skips.
+		if (!await ExecuteIosValidationAsync(dotNetService, logger, workspace, configuration, cancellationToken).ConfigureAwait(false))
+		{
+			return 1;
+		}
+
 		// Release workflow
 		if (buildConfig.ShouldRelease)
 		{
@@ -167,6 +179,57 @@ public class CiCommand : Command
 
 		logger.WriteSuccess("CI/CD pipeline completed successfully!");
 		return 0;
+	}
+
+	/// <summary>
+	/// Runs the unsigned iOS validation build when the workspace contains an iOS head
+	/// and the host is macOS, mirroring the <c>ios build</c> command. Returns false only
+	/// when an iOS build actually ran and failed; detecting no heads, or skipping on a
+	/// non-macOS host, both report cleanly and return true.
+	/// </summary>
+	private static async Task<bool> ExecuteIosValidationAsync(
+		DotNetService dotNetService,
+		IBuildLogger logger,
+		string workspace,
+		string configuration,
+		CancellationToken cancellationToken)
+	{
+		IReadOnlyList<string> iosHeads = dotNetService.GetIosHeads(workspace);
+		IosCiDisposition disposition = IosBuildService.ClassifyForCi(
+			iosHeads.Count,
+			RuntimeInformation.IsOSPlatform(OSPlatform.OSX));
+
+		switch (disposition)
+		{
+			case IosCiDisposition.NoHeads:
+				logger.WriteVerbose("No iOS heads detected in workspace. Skipping iOS validation.");
+				return true;
+
+			case IosCiDisposition.SkipNotMacOs:
+				logger.WriteInfo($"Detected {iosHeads.Count} iOS head(s), but iOS builds require a macOS host. Skipping iOS validation on this platform (it runs on a macOS CI job).");
+				return true;
+
+			case IosCiDisposition.Build:
+			default:
+				logger.WriteStepHeader("Validating iOS Head(s)");
+				IosBuildService iosBuildService = new(dotNetService, logger);
+				bool success = await iosBuildService.BuildAsync(new IosBuildOptions
+				{
+					WorkingDirectory = workspace,
+					Configuration = configuration,
+				}, cancellationToken).ConfigureAwait(false);
+
+				if (success)
+				{
+					logger.WriteSuccess("iOS validation build(s) completed successfully!");
+				}
+				else
+				{
+					logger.WriteError("iOS validation build failed.");
+				}
+
+				return success;
+		}
 	}
 
 	private static async Task UpdateRepositoryTopicsAsync(

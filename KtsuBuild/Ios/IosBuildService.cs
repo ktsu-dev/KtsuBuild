@@ -71,6 +71,21 @@ public class IosBuildService(IDotNetService dotNetService, IBuildLogger logger) 
 	}
 
 	/// <summary>
+	/// Decides what the automatic iOS validation step in the <c>ci</c> pipeline should
+	/// do, from the number of detected iOS heads and whether the host is macOS. This is
+	/// a pure function so the decision is unit-testable without a macOS host: the caller
+	/// supplies the head count (from <see cref="IDotNetService.GetIosHeads"/>) and the
+	/// host flag (from <c>RuntimeInformation</c>).
+	/// </summary>
+	/// <param name="iosHeadCount">The number of iOS heads detected in the workspace.</param>
+	/// <param name="hostIsMacOs">Whether the current host is macOS.</param>
+	/// <returns>The disposition the <c>ci</c> pipeline should act on.</returns>
+	public static IosCiDisposition ClassifyForCi(int iosHeadCount, bool hostIsMacOs) =>
+		iosHeadCount <= 0 ? IosCiDisposition.NoHeads
+		: !hostIsMacOs ? IosCiDisposition.SkipNotMacOs
+		: IosCiDisposition.Build;
+
+	/// <summary>
 	/// Determines whether a runtime identifier targets a device (rather than the
 	/// simulator). The embedded-frameworks check runs only for device runtimes.
 	/// </summary>

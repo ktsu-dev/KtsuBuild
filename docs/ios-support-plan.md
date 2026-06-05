@@ -326,11 +326,16 @@ per the existing `ProjectDetector.IsTestOrDemoProject` pitfall.
   into KtsuBuild for the first time. The keychain must be temporary and torn
   down, base64 material wiped after decode, and nothing secret logged. This
   deserves a careful security pass before Phase 3 merges.
-- **`ci` integration.** Should `ci` auto-run the iOS path when it detects a head,
-  or stay opt-in via the separate `ios` command? Auto-running is more in the
-  spirit of KtsuBuild replacing bespoke workflows, but it couples the
-  Windows-runner `ci` job to a macOS-only step. The plan defaults to opt-in and
-  leaves this for a follow-up decision.
+- **`ci` integration.** *Resolved: `ci` auto-runs the iOS path.* When `ci`
+  detects a `net*-ios` head it runs the unsigned validation build automatically
+  (after build/test, before release), so a consumer no longer needs a separate
+  `ios build` step. The Windows-runner coupling concern is handled by the
+  classification `IosBuildService.ClassifyForCi(headCount, hostIsMacOs)`: a
+  non-macOS host logs the detected heads and skips, so the actual build still
+  happens on a macOS `ci` job. Only the unsigned build is auto-run; the signed
+  `package`/`upload` path stays explicit because it is release-tag gated (see the
+  versioning-channel question below) and carries secrets `ci` should not handle
+  implicitly.
 - **Versioning channel.** MeltdownMonitor uses a separate `ios-v*` tag namespace
   so iOS releases do not collide with library versioning. KtsuBuild needs to
   decide whether iOS releases share the repo version or get their own channel,
