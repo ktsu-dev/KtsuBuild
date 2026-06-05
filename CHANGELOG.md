@@ -1,6 +1,9 @@
-## v1.4.2
+## v1.5.0 (minor)
 
-No significant changes detected since v1.4.2.
+Changes since v1.4.0:
+
+- Add iOS-aware project classification and host build gating ([@Claude](https://github.com/Claude))
+- Add plan for iOS build and publish support ([@Claude](https://github.com/Claude))
 
 ## v1.4.2 (patch)
 
