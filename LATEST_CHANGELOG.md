@@ -1,8 +1,7 @@
-## v1.6.0 (minor)
+## v1.7.0 (minor)
 
-Changes since v1.5.0:
+Changes since v1.6.0:
 
-- Extract iOS build orchestration into testable IosBuildService ([@Claude](https://github.com/Claude))
-- Remove unnecessary null-forgiving operator in FindAppBundles ([@Claude](https://github.com/Claude))
-- Add unsigned iOS build command (iOS support phase 2) ([@Claude](https://github.com/Claude))
+- Fix iOS packaging code-style errors flagged by CI ([@Claude](https://github.com/Claude))
+- Add signed iOS packaging command (iOS support phase 3) ([@Claude](https://github.com/Claude))
 
