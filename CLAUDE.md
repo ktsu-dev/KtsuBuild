@@ -61,7 +61,7 @@ dotnet run --project KtsuBuild.CLI -- ci --workspace /path/to/project --dry-run
 
 ```
 ktsubuild
-├── ci            # Full CI/CD pipeline (metadata + build + test + release)
+├── ci            # Full CI/CD pipeline (metadata + build + test + iOS validation + release)
 │   Options: --workspace, --configuration, --verbose, --dry-run, --version-bump
 ├── build         # Build workflow (restore + build + test)
 │   Options: --workspace, --configuration, --verbose
@@ -86,6 +86,19 @@ ktsubuild
     └── upload    # Upload the signed .ipa to TestFlight (macOS only)
         # Options: --workspace, --configuration, --verbose, --project, --ipa
 ```
+
+The `ci` command auto-detects iOS heads and runs the unsigned iOS validation
+build as part of the pipeline (after build/test, before release), so a consumer
+with a `net*-ios` head does not need a separate `ios build` invocation in their
+`ci` job. The decision is the pure `IosBuildService.ClassifyForCi(headCount,
+hostIsMacOs)` function (mirroring `DotNetService.CanPlatformBuildOnHost`): no
+heads is a silent no-op, heads on a non-macOS host log the detected count and
+skip (iOS builds only on macOS, so the real build runs on a macOS `ci` job), and
+heads on macOS run `IosBuildService.BuildAsync` for both runtimes. The
+auto-detected path runs without `--require-framework`; a consumer that needs the
+embedded-frameworks assertion still calls `ios build --require-framework` directly.
+The signed `package`/`upload` path stays explicit (it is release-tag gated), so
+`ci` never touches signing material.
 
 The `ios build` command is the pull-request validation path for iOS consumers
 (plan phase 2). It auto-detects iOS heads (executable projects on a `net*-ios`

@@ -44,6 +44,24 @@ public class IosBuildServiceTests
 	public void IsDeviceRuntime_SimulatorRid_ReturnsFalse() =>
 		Assert.IsFalse(IosBuildService.IsDeviceRuntime("iossimulator-arm64"));
 
+	// ClassifyForCi
+
+	[TestMethod]
+	public void ClassifyForCi_NoHeads_ReturnsNoHeads() =>
+		Assert.AreEqual(IosCiDisposition.NoHeads, IosBuildService.ClassifyForCi(0, hostIsMacOs: true));
+
+	[TestMethod]
+	public void ClassifyForCi_NoHeads_ReturnsNoHeadsRegardlessOfHost() =>
+		Assert.AreEqual(IosCiDisposition.NoHeads, IosBuildService.ClassifyForCi(0, hostIsMacOs: false));
+
+	[TestMethod]
+	public void ClassifyForCi_HeadsOnMacOs_ReturnsBuild() =>
+		Assert.AreEqual(IosCiDisposition.Build, IosBuildService.ClassifyForCi(1, hostIsMacOs: true));
+
+	[TestMethod]
+	public void ClassifyForCi_HeadsOnNonMacOs_ReturnsSkipNotMacOs() =>
+		Assert.AreEqual(IosCiDisposition.SkipNotMacOs, IosBuildService.ClassifyForCi(2, hostIsMacOs: false));
+
 	// BuildAsync — head resolution
 
 	[TestMethod]
