@@ -75,10 +75,24 @@ ktsubuild
 │   ├── update    # Update all metadata files (--no-commit)
 │   ├── license   # Generate LICENSE.md and COPYRIGHT.md
 │   └── changelog # Generate CHANGELOG.md
-└── winget
-    ├── generate  # Generate Winget manifests (--version, --repo, --package-id, --staging)
-    └── upload    # Upload manifests to GitHub release (--version)
+├── winget
+│   ├── generate  # Generate Winget manifests (--version, --repo, --package-id, --staging)
+│   └── upload    # Upload manifests to GitHub release (--version)
+└── ios
+    └── build     # Build iOS head(s) for simulator + device, unsigned (macOS only)
+        # Options: --workspace, --configuration, --verbose, --project, --runtime, --require-framework
 ```
+
+The `ios build` command is the pull-request validation path for iOS consumers
+(plan phase 2). It auto-detects iOS heads (executable projects on a `net*-ios`
+target framework), builds each for `iossimulator-arm64` and `ios-arm64` with
+signing disabled (`-p:EnableCodeSigning=false`, no secrets), and verifies the
+device `.app` bundle was produced. `--require-framework <name>` (repeatable)
+fails the device build when a named native framework (for example
+`libSkiaSharp`) is not embedded in the bundle, catching the asset-resolution
+launch crash in CI. On a non-macOS host the command logs a skip and exits 0, so
+it is safe to call unconditionally. The signed `package`/`upload` subcommands
+arrive in later phases (see `docs/ios-support-plan.md`).
 
 ## Architecture
 
@@ -232,6 +246,27 @@ Consumer projects clone KtsuBuild and invoke:
     }
 
     & dotnet run --project "${{ runner.temp }}/KtsuBuild/KtsuBuild.CLI" -- @args
+```
+
+### iOS Pull-Request Validation
+
+A consumer with a `net*-ios` head adds a macOS job for unsigned build validation.
+The macOS runner, Xcode selection, and iOS workload pin still live in the
+consumer workflow for now (toolchain provisioning is a later phase); the build
+and the embedded-frameworks check move into the tool:
+
+```yaml
+ios-build:
+  runs-on: macos-latest
+  steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-dotnet@v4
+    # ... select Xcode + install the pinned iOS workload ...
+    - run: git clone --depth 1 https://github.com/ktsu-dev/KtsuBuild.git "${{ runner.temp }}/KtsuBuild"
+    - run: >
+        dotnet run --project "${{ runner.temp }}/KtsuBuild/KtsuBuild.CLI" --
+        ios build --workspace "${{ github.workspace }}" --verbose
+        --require-framework libSkiaSharp
 ```
 
 ## Serena MCP Plugin Integration

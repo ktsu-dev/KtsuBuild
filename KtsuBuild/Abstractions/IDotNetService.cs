@@ -67,6 +67,39 @@ public interface IDotNetService
 		CancellationToken cancellationToken = default);
 
 	/// <summary>
+	/// Builds an iOS application head for a single runtime identifier. This is a
+	/// distinct build shape from the desktop <see cref="PublishAsync"/>: it drives
+	/// the iOS toolchain via MSBuild properties rather than the runtime-loop
+	/// publish, and produces a <c>.app</c> bundle rather than a runtime folder.
+	/// The build restores the project graph implicitly (no <c>--no-restore</c>),
+	/// so iOS heads can be built on a macOS host without a solution-wide restore
+	/// that would drag in Windows-only heads.
+	/// </summary>
+	/// <param name="workingDirectory">The working directory.</param>
+	/// <param name="projectPath">Path to the iOS head project file.</param>
+	/// <param name="runtimeIdentifier">The iOS runtime identifier (for example <c>iossimulator-arm64</c> or <c>ios-arm64</c>).</param>
+	/// <param name="configuration">The build configuration.</param>
+	/// <param name="codeSigning">Whether to leave code signing enabled. When false (the default) signing is disabled and the signing properties are emptied, producing an unsigned build suitable for pull-request validation without secrets.</param>
+	/// <param name="cancellationToken">A cancellation token.</param>
+	public Task BuildIosAsync(
+		string workingDirectory,
+		string projectPath,
+		string runtimeIdentifier,
+		string configuration = "Release",
+		bool codeSigning = false,
+		CancellationToken cancellationToken = default);
+
+	/// <summary>
+	/// Gets the iOS application heads in a directory: executable projects whose
+	/// target framework ties them to iOS. Unlike <see cref="GetBuildableProjects"/>
+	/// this is not filtered by the current host, so the heads can be reported even
+	/// when the host cannot build them.
+	/// </summary>
+	/// <param name="workingDirectory">The working directory to search.</param>
+	/// <returns>A list of iOS head project file paths.</returns>
+	public IReadOnlyList<string> GetIosHeads(string workingDirectory);
+
+	/// <summary>
 	/// Gets all project files in a directory.
 	/// </summary>
 	/// <param name="workingDirectory">The working directory to search.</param>

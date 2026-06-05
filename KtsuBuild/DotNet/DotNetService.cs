@@ -247,6 +247,124 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger) : 
 	}
 
 	/// <inheritdoc/>
+	public async Task BuildIosAsync(
+		string workingDirectory,
+		string projectPath,
+		string runtimeIdentifier,
+		string configuration = "Release",
+		bool codeSigning = false,
+		CancellationToken cancellationToken = default)
+	{
+		Ensure.NotNull(workingDirectory);
+		Ensure.NotNull(projectPath);
+		Ensure.NotNull(runtimeIdentifier);
+		logger.WriteStepHeader($"Building iOS Head ({runtimeIdentifier})");
+
+		// Unsigned by default: disable signing and empty the signing properties so
+		// the build needs no certificate or provisioning profile. BuildIpa stays
+		// off — packaging the .ipa is the signed release path, not this one.
+		string signingArgs = codeSigning
+			? string.Empty
+			: " -p:EnableCodeSigning=false -p:CodesignKey= -p:CodesignProvision=";
+
+		string args = $"build \"{projectPath}\" --configuration {configuration} " +
+			$"-p:RuntimeIdentifier={runtimeIdentifier} -p:BuildIpa=false{signingArgs} {QuietLogger}";
+
+		int exitCode = await processRunner.RunWithCallbackAsync(
+			"dotnet",
+			args,
+			workingDirectory,
+			logger.WriteInfo,
+			logger.WriteError,
+			cancellationToken).ConfigureAwait(false);
+
+		if (exitCode != 0)
+		{
+			throw new InvalidOperationException($"iOS build failed for {projectPath} ({runtimeIdentifier}) with exit code {exitCode}");
+		}
+	}
+
+	/// <inheritdoc/>
+	public IReadOnlyList<string> GetIosHeads(string workingDirectory)
+	{
+		Ensure.NotNull(workingDirectory);
+		return [.. GetProjectFiles(workingDirectory)
+			.Where(p => GetProjectPlatform(p) == ProjectPlatform.Ios && IsExecutableProject(p))];
+	}
+
+	/// <summary>
+	/// Finds the <c>.app</c> bundles produced by an iOS build under a search root,
+	/// optionally restricted to those whose path contains a runtime-identifier
+	/// segment (for example <c>ios-arm64</c>). Returns an empty list when the root
+	/// does not exist.
+	/// </summary>
+	/// <param name="searchRoot">The directory to search (typically <c>bin/{configuration}</c> under the head).</param>
+	/// <param name="ridSegment">An optional runtime-identifier path segment to filter on.</param>
+	/// <returns>The matching <c>.app</c> bundle directory paths.</returns>
+	public static IReadOnlyList<string> FindAppBundles(string searchRoot, string? ridSegment = null)
+	{
+		Ensure.NotNull(searchRoot);
+		if (!Directory.Exists(searchRoot))
+		{
+			return [];
+		}
+
+		IEnumerable<string> bundles = Directory.GetDirectories(searchRoot, "*.app", SearchOption.AllDirectories);
+		if (!string.IsNullOrEmpty(ridSegment))
+		{
+			bundles = bundles.Where(b => b.Contains(ridSegment, StringComparison.OrdinalIgnoreCase));
+		}
+
+		return [.. bundles];
+	}
+
+	/// <summary>
+	/// Lists the top-level entries of an app bundle's <c>Frameworks</c> directory
+	/// (the embedded native frameworks and dylibs). Returns an empty list when the
+	/// bundle has no <c>Frameworks</c> directory.
+	/// </summary>
+	/// <param name="appBundlePath">Path to the <c>.app</c> bundle.</param>
+	/// <returns>The names of the embedded native frameworks.</returns>
+	public static IReadOnlyList<string> GetEmbeddedNativeFrameworks(string appBundlePath)
+	{
+		Ensure.NotNull(appBundlePath);
+		string frameworksDir = Path.Combine(appBundlePath, "Frameworks");
+		if (!Directory.Exists(frameworksDir))
+		{
+			return [];
+		}
+
+		return [.. Directory.GetFileSystemEntries(frameworksDir)
+			.Select(Path.GetFileName)
+			.Where(n => !string.IsNullOrEmpty(n))
+			.Cast<string>()];
+	}
+
+	/// <summary>
+	/// Checks whether an app bundle embeds a native library whose file name starts
+	/// with the supplied name, searching the whole bundle (a framework's binary
+	/// lives inside a <c>.framework</c> directory, so the match is recursive). This
+	/// guards the launch-crash class where a native asset resolves to the wrong
+	/// target framework and is silently left out of the device bundle.
+	/// </summary>
+	/// <param name="appBundlePath">Path to the <c>.app</c> bundle.</param>
+	/// <param name="libraryName">The native library name to look for (for example <c>libSkiaSharp</c>).</param>
+	/// <returns>True if a matching native library is embedded in the bundle.</returns>
+	public static bool BundleContainsNativeLibrary(string appBundlePath, string libraryName)
+	{
+		Ensure.NotNull(appBundlePath);
+		Ensure.NotNull(libraryName);
+		if (!Directory.Exists(appBundlePath))
+		{
+			return false;
+		}
+
+		return Directory.EnumerateFileSystemEntries(appBundlePath, "*", SearchOption.AllDirectories)
+			.Select(Path.GetFileName)
+			.Any(n => n is not null && n.StartsWith(libraryName, StringComparison.OrdinalIgnoreCase));
+	}
+
+	/// <inheritdoc/>
 	public IReadOnlyList<string> GetProjectFiles(string workingDirectory)
 	{
 		Ensure.NotNull(workingDirectory);

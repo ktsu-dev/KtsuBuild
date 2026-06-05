@@ -640,4 +640,208 @@ public class DotNetServiceTests
 		Assert.IsTrue(buildable.Count <= all.Count);
 		Assert.IsTrue(buildable.All(all.Contains));
 	}
+
+	// BuildIosAsync
+
+	[TestMethod]
+	public async Task BuildIosAsync_Success_BuildsForRuntime()
+	{
+		_processRunner.RunWithCallbackAsync("dotnet", Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
+			.Returns(0);
+
+		await _service.BuildIosAsync(_tempDir, "App.iOS.csproj", "ios-arm64").ConfigureAwait(false);
+
+		await _processRunner.Received(1).RunWithCallbackAsync("dotnet",
+			Arg.Is<string>(a => a.Contains("build") && a.Contains("App.iOS.csproj") && a.Contains("-p:RuntimeIdentifier=ios-arm64")),
+			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+	}
+
+	[TestMethod]
+	public async Task BuildIosAsync_Unsigned_DisablesCodeSigning()
+	{
+		_processRunner.RunWithCallbackAsync("dotnet", Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
+			.Returns(0);
+
+		await _service.BuildIosAsync(_tempDir, "App.iOS.csproj", "iossimulator-arm64").ConfigureAwait(false);
+
+		await _processRunner.Received(1).RunWithCallbackAsync("dotnet",
+			Arg.Is<string>(a => a.Contains("-p:EnableCodeSigning=false") && a.Contains("-p:CodesignKey=") && a.Contains("-p:CodesignProvision=")),
+			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+	}
+
+	[TestMethod]
+	public async Task BuildIosAsync_Unsigned_LeavesIpaOff()
+	{
+		_processRunner.RunWithCallbackAsync("dotnet", Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
+			.Returns(0);
+
+		await _service.BuildIosAsync(_tempDir, "App.iOS.csproj", "ios-arm64").ConfigureAwait(false);
+
+		await _processRunner.Received(1).RunWithCallbackAsync("dotnet",
+			Arg.Is<string>(a => a.Contains("-p:BuildIpa=false")),
+			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+	}
+
+	[TestMethod]
+	public async Task BuildIosAsync_CodeSigning_OmitsSigningDisableProps()
+	{
+		_processRunner.RunWithCallbackAsync("dotnet", Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
+			.Returns(0);
+
+		await _service.BuildIosAsync(_tempDir, "App.iOS.csproj", "ios-arm64", codeSigning: true).ConfigureAwait(false);
+
+		await _processRunner.Received(1).RunWithCallbackAsync("dotnet",
+			Arg.Is<string>(a => !a.Contains("-p:EnableCodeSigning=false")),
+			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+	}
+
+	[TestMethod]
+	public async Task BuildIosAsync_DoesNotPassNoRestore()
+	{
+		_processRunner.RunWithCallbackAsync("dotnet", Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
+			.Returns(0);
+
+		await _service.BuildIosAsync(_tempDir, "App.iOS.csproj", "ios-arm64").ConfigureAwait(false);
+
+		// The iOS head must restore its own project graph; a solution-wide restore
+		// would drag in Windows-only heads on a macOS host.
+		await _processRunner.Received(1).RunWithCallbackAsync("dotnet",
+			Arg.Is<string>(a => !a.Contains("--no-restore")),
+			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+	}
+
+	[TestMethod]
+	public async Task BuildIosAsync_Failure_ThrowsInvalidOperationException()
+	{
+		_processRunner.RunWithCallbackAsync("dotnet", Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
+			.Returns(1);
+
+		await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+			() => _service.BuildIosAsync(_tempDir, "App.iOS.csproj", "ios-arm64")).ConfigureAwait(false);
+	}
+
+	// GetIosHeads
+
+	[TestMethod]
+	public void GetIosHeads_FindsIosExecutableHead()
+	{
+		string headDir = Path.Combine(_tempDir, "MyApp.iOS");
+		Directory.CreateDirectory(headDir);
+		File.WriteAllText(Path.Combine(headDir, "MyApp.iOS.csproj"),
+			"<Project><PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0-ios</TargetFramework></PropertyGroup></Project>");
+
+		IReadOnlyList<string> heads = _service.GetIosHeads(_tempDir);
+
+		Assert.AreEqual(1, heads.Count);
+		Assert.IsTrue(heads[0].EndsWith("MyApp.iOS.csproj", StringComparison.Ordinal));
+	}
+
+	[TestMethod]
+	public void GetIosHeads_ExcludesIosLibrary()
+	{
+		string libDir = Path.Combine(_tempDir, "MyApp.Ble.Apple");
+		Directory.CreateDirectory(libDir);
+		File.WriteAllText(Path.Combine(libDir, "MyApp.Ble.Apple.csproj"),
+			"<Project><PropertyGroup><TargetFramework>net10.0-ios</TargetFramework></PropertyGroup></Project>");
+
+		IReadOnlyList<string> heads = _service.GetIosHeads(_tempDir);
+
+		Assert.AreEqual(0, heads.Count);
+	}
+
+	[TestMethod]
+	public void GetIosHeads_ExcludesNeutralExecutable()
+	{
+		string appDir = Path.Combine(_tempDir, "MyApp.CLI");
+		Directory.CreateDirectory(appDir);
+		File.WriteAllText(Path.Combine(appDir, "MyApp.CLI.csproj"),
+			"<Project><PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>");
+
+		IReadOnlyList<string> heads = _service.GetIosHeads(_tempDir);
+
+		Assert.AreEqual(0, heads.Count);
+	}
+
+	// FindAppBundles
+
+	[TestMethod]
+	public void FindAppBundles_NonexistentRoot_ReturnsEmpty() =>
+		Assert.AreEqual(0, DotNetService.FindAppBundles(Path.Combine(_tempDir, "nope")).Count);
+
+	[TestMethod]
+	public void FindAppBundles_FindsAllAppBundles()
+	{
+		string deviceApp = Path.Combine(_tempDir, "bin", "Release", "net10.0-ios", "ios-arm64", "MyApp.app");
+		string simApp = Path.Combine(_tempDir, "bin", "Release", "net10.0-ios", "iossimulator-arm64", "MyApp.app");
+		Directory.CreateDirectory(deviceApp);
+		Directory.CreateDirectory(simApp);
+
+		IReadOnlyList<string> bundles = DotNetService.FindAppBundles(Path.Combine(_tempDir, "bin", "Release"));
+
+		Assert.AreEqual(2, bundles.Count);
+	}
+
+	[TestMethod]
+	public void FindAppBundles_RidSegment_FiltersToDevice()
+	{
+		string deviceApp = Path.Combine(_tempDir, "bin", "Release", "net10.0-ios", "ios-arm64", "MyApp.app");
+		string simApp = Path.Combine(_tempDir, "bin", "Release", "net10.0-ios", "iossimulator-arm64", "MyApp.app");
+		Directory.CreateDirectory(deviceApp);
+		Directory.CreateDirectory(simApp);
+
+		IReadOnlyList<string> bundles = DotNetService.FindAppBundles(Path.Combine(_tempDir, "bin", "Release"), "ios-arm64");
+
+		Assert.AreEqual(1, bundles.Count);
+		Assert.IsTrue(bundles[0].Contains("ios-arm64", StringComparison.Ordinal));
+	}
+
+	// GetEmbeddedNativeFrameworks
+
+	[TestMethod]
+	public void GetEmbeddedNativeFrameworks_NoFrameworksDir_ReturnsEmpty()
+	{
+		string bundle = Path.Combine(_tempDir, "MyApp.app");
+		Directory.CreateDirectory(bundle);
+
+		Assert.AreEqual(0, DotNetService.GetEmbeddedNativeFrameworks(bundle).Count);
+	}
+
+	[TestMethod]
+	public void GetEmbeddedNativeFrameworks_ListsTopLevelEntries()
+	{
+		string frameworks = Path.Combine(_tempDir, "MyApp.app", "Frameworks");
+		Directory.CreateDirectory(Path.Combine(frameworks, "libSkiaSharp.framework"));
+		File.WriteAllText(Path.Combine(frameworks, "libHarfBuzzSharp.dylib"), "native");
+
+		IReadOnlyList<string> frameworkNames = DotNetService.GetEmbeddedNativeFrameworks(Path.Combine(_tempDir, "MyApp.app"));
+
+		Assert.AreEqual(2, frameworkNames.Count);
+		Assert.IsTrue(frameworkNames.Contains("libSkiaSharp.framework"));
+		Assert.IsTrue(frameworkNames.Contains("libHarfBuzzSharp.dylib"));
+	}
+
+	// BundleContainsNativeLibrary
+
+	[TestMethod]
+	public void BundleContainsNativeLibrary_FindsNestedFrameworkBinary()
+	{
+		string frameworkDir = Path.Combine(_tempDir, "MyApp.app", "Frameworks", "libSkiaSharp.framework");
+		Directory.CreateDirectory(frameworkDir);
+		File.WriteAllText(Path.Combine(frameworkDir, "libSkiaSharp"), "native");
+
+		Assert.IsTrue(DotNetService.BundleContainsNativeLibrary(Path.Combine(_tempDir, "MyApp.app"), "libSkiaSharp"));
+	}
+
+	[TestMethod]
+	public void BundleContainsNativeLibrary_MissingLibrary_ReturnsFalse()
+	{
+		string bundle = Path.Combine(_tempDir, "MyApp.app");
+		Directory.CreateDirectory(Path.Combine(bundle, "Frameworks"));
+
+		Assert.IsFalse(DotNetService.BundleContainsNativeLibrary(bundle, "libSkiaSharp"));
+	}
+
+	[TestMethod]
+	public void BundleContainsNativeLibrary_NonexistentBundle_ReturnsFalse() =>
+		Assert.IsFalse(DotNetService.BundleContainsNativeLibrary(Path.Combine(_tempDir, "nope.app"), "libSkiaSharp"));
 }
