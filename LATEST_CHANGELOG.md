@@ -1,7 +1,8 @@
-## v1.7.0 (minor)
+## v1.8.0 (minor)
 
-Changes since v1.6.0:
+Changes since v1.7.0:
 
-- Fix iOS packaging code-style errors flagged by CI ([@Claude](https://github.com/Claude))
-- Add signed iOS packaging command (iOS support phase 3) ([@Claude](https://github.com/Claude))
+- Fix CA1506 coupling and resolve cross-platform IDE0055 line-ending errors ([@Claude](https://github.com/Claude))
+- Auto-detect and validate iOS heads in the ci pipeline ([@Claude](https://github.com/Claude))
+- Add TestFlight upload command (iOS support phase 4) ([@Claude](https://github.com/Claude))
 
