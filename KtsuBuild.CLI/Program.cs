@@ -439,6 +439,15 @@ internal sealed class Program
 	{
 		IosCommand iosCommand = new();
 
+		AddIosBuildSubcommand(iosCommand, processRunner, logger);
+		AddIosPackageSubcommand(iosCommand, processRunner, logger);
+		AddIosUploadSubcommand(iosCommand, processRunner, logger);
+
+		rootCommand.Subcommands.Add(iosCommand);
+	}
+
+	private static void AddIosBuildSubcommand(IosCommand iosCommand, IProcessRunner processRunner, IBuildLogger logger)
+	{
 		Command buildCommand = iosCommand.Subcommands.First(c => c.Name == "build");
 		Option<string?> projectOption = (Option<string?>)buildCommand.Options.First(o => o.Aliases.Contains("-p"));
 		Option<string?> runtimeOption = (Option<string?>)buildCommand.Options.First(o => o.Aliases.Contains("-r"));
@@ -495,7 +504,10 @@ internal sealed class Program
 			}
 #pragma warning restore CA1031
 		});
+	}
 
+	private static void AddIosPackageSubcommand(IosCommand iosCommand, IProcessRunner processRunner, IBuildLogger logger)
+	{
 		Command packageCommand = iosCommand.Subcommands.First(c => c.Name == "package");
 		Option<string?> packageProjectOption = (Option<string?>)packageCommand.Options.First(o => o.Aliases.Contains("-p"));
 		Option<string?> packageRuntimeOption = (Option<string?>)packageCommand.Options.First(o => o.Aliases.Contains("-r"));
@@ -611,7 +623,10 @@ internal sealed class Program
 			}
 #pragma warning restore CA1031
 		});
+	}
 
+	private static void AddIosUploadSubcommand(IosCommand iosCommand, IProcessRunner processRunner, IBuildLogger logger)
+	{
 		Command uploadCommand = iosCommand.Subcommands.First(c => c.Name == "upload");
 		Option<string?> uploadProjectOption = (Option<string?>)uploadCommand.Options.First(o => o.Aliases.Contains("-p"));
 		Option<string?> uploadIpaOption = (Option<string?>)uploadCommand.Options.First(o => o.Aliases.Contains("-i"));
@@ -693,7 +708,5 @@ internal sealed class Program
 			}
 #pragma warning restore CA1031
 		});
-
-		rootCommand.Subcommands.Add(iosCommand);
 	}
 }
