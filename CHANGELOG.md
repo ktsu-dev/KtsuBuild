@@ -1,6 +1,7 @@
 ## v1.8.0
 
-No significant changes detected since v1.8.0.
+Changes since v1.8.0:
+
 
 ## v1.8.0 (minor)
 
