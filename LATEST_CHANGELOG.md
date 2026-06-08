@@ -1,6 +1,4 @@
-## v1.8.1 (patch)
+## v1.8.1
 
-Changes since v1.8.0:
-
-- Retry code-coverage collector pipe flake in test runner [patch] ([@Claude](https://github.com/Claude))
+No significant changes detected since v1.8.1.
 
