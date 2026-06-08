@@ -128,13 +128,34 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger) : 
 			$"--coverage-output \"coverage.xml\" --results-directory \"{testResultsPath}\" " +
 			$"--report-trx --report-trx-filename TestResults.trx";
 
-		int exitCode = await processRunner.RunWithCallbackAsync(
-			"dotnet",
-			args,
-			workingDirectory,
-			logger.WriteInfo,
-			logger.WriteError,
-			cancellationToken).ConfigureAwait(false);
+		// The Microsoft.CodeCoverage collector intermittently drops its instrumentation IPC pipe during
+		// teardown when several test assemblies run, which Microsoft.Testing.Platform surfaces as exit
+		// code 7 ("error: 1") even though every test passed. Genuine test failures surface as exit code 2
+		// (with a non-zero failed count), so retrying exit code 7 — and only exit code 7 — recovers this
+		// infrastructure flake without ever masking a real test failure.
+		const int coverageFlakeExitCode = 7;
+		const int maxAttempts = 3;
+		int exitCode = 0;
+		for (int attempt = 1; attempt <= maxAttempts; attempt++)
+		{
+			exitCode = await processRunner.RunWithCallbackAsync(
+				"dotnet",
+				args,
+				workingDirectory,
+				logger.WriteInfo,
+				logger.WriteError,
+				cancellationToken).ConfigureAwait(false);
+			if (exitCode != coverageFlakeExitCode)
+			{
+				break;
+			}
+
+			if (attempt < maxAttempts)
+			{
+				logger.WriteWarning($"Test run exited with code {coverageFlakeExitCode} (known code-coverage " +
+					$"collector pipe flake — all tests passed). Retrying ({attempt}/{maxAttempts - 1})...");
+			}
+		}
 
 		if (exitCode != 0)
 		{

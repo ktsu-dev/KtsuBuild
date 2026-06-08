@@ -186,6 +186,67 @@ public class DotNetServiceTests
 			() => _service.TestAsync(_tempDir)).ConfigureAwait(false);
 	}
 
+	[TestMethod]
+	public async Task TestAsync_CoverageFlakeThenSuccess_RetriesAndCompletes()
+	{
+		string projDir = Path.Combine(_tempDir, "MyProject.Tests");
+		Directory.CreateDirectory(projDir);
+		await File.WriteAllTextAsync(Path.Combine(projDir, "MyProject.Tests.csproj"),
+			"<Project><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>").ConfigureAwait(false);
+
+		// Exit code 7 is the code-coverage collector pipe flake; the next attempt passes.
+		_processRunner.RunWithCallbackAsync("dotnet", Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
+			.Returns(7, 0);
+
+		await _service.TestAsync(_tempDir).ConfigureAwait(false);
+
+		// Should have retried once (first attempt exited 7, retry exited 0).
+		await _processRunner.Received(2).RunWithCallbackAsync("dotnet",
+			Arg.Is<string>(a => a.Contains("test")),
+			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+	}
+
+	[TestMethod]
+	public async Task TestAsync_RealFailure_ThrowsImmediatelyWithoutRetry()
+	{
+		string projDir = Path.Combine(_tempDir, "MyProject.Tests");
+		Directory.CreateDirectory(projDir);
+		await File.WriteAllTextAsync(Path.Combine(projDir, "MyProject.Tests.csproj"),
+			"<Project><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>").ConfigureAwait(false);
+
+		// Exit code 2 is a genuine test failure (non-zero failed count) and must not be retried.
+		_processRunner.RunWithCallbackAsync("dotnet", Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
+			.Returns(2);
+
+		await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+			() => _service.TestAsync(_tempDir)).ConfigureAwait(false);
+
+		await _processRunner.Received(1).RunWithCallbackAsync("dotnet",
+			Arg.Is<string>(a => a.Contains("test")),
+			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+	}
+
+	[TestMethod]
+	public async Task TestAsync_CoverageFlakePersists_ThrowsAfterMaxAttempts()
+	{
+		string projDir = Path.Combine(_tempDir, "MyProject.Tests");
+		Directory.CreateDirectory(projDir);
+		await File.WriteAllTextAsync(Path.Combine(projDir, "MyProject.Tests.csproj"),
+			"<Project><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>").ConfigureAwait(false);
+
+		// Exit code 7 on every attempt exhausts the retry budget and surfaces as a failure.
+		_processRunner.RunWithCallbackAsync("dotnet", Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
+			.Returns(7);
+
+		await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+			() => _service.TestAsync(_tempDir)).ConfigureAwait(false);
+
+		// Three attempts: the initial run plus two retries.
+		await _processRunner.Received(3).RunWithCallbackAsync("dotnet",
+			Arg.Is<string>(a => a.Contains("test")),
+			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+	}
+
 	// PackAsync
 
 	[TestMethod]
