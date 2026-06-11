@@ -1,6 +1,6 @@
-## v1.8.2 (patch)
+## v1.8.3 (patch)
 
-Changes since v1.8.1:
+Changes since v1.8.2:
 
-- Bump the microsoft group with 5 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump System.CommandLine from 2.0.8 to 2.0.9 ([@dependabot[bot]](https://github.com/dependabot[bot]))
 
