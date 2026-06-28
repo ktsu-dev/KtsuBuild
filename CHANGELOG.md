@@ -2,6 +2,7 @@
 
 Changes since v1.8.4:
 
+- chore: remove unused SourceLink package versions ([@matt-edmondson](https://github.com/matt-edmondson))
 - chore: remove redundant package references ([@matt-edmondson](https://github.com/matt-edmondson))
 - Remove stale files ([@matt-edmondson](https://github.com/matt-edmondson))
 
