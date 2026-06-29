@@ -1,6 +1,8 @@
-## v1.8.6
+## v1.8.7 (patch)
 
-No significant changes detected since v1.8.6.
+Changes since v1.8.6:
+
+- [patch] fix(pack): pass solution context (SolutionDir/SolutionName) to per-project pack ([@matt-edmondson](https://github.com/matt-edmondson))
 
 ## v1.8.6 (patch)
 
