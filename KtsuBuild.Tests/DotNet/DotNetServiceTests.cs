@@ -288,6 +288,29 @@ public class DotNetServiceTests
 	}
 
 	[TestMethod]
+	public async Task PackAsync_PassesSolutionContext_DiscoveringSlnx()
+	{
+		// A nested library plus a .slnx solution at the workspace root.
+		string libDir = Path.Combine(_tempDir, "Providers", "Json");
+		Directory.CreateDirectory(libDir);
+		await File.WriteAllTextAsync(Path.Combine(libDir, "Json.csproj"),
+			"<Project><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>").ConfigureAwait(false);
+		await File.WriteAllTextAsync(Path.Combine(_tempDir, "MySolution.slnx"), "<Solution />").ConfigureAwait(false);
+
+		string outputPath = Path.Combine(_tempDir, "output");
+		_processRunner.RunWithCallbackAsync("dotnet", Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
+			.Returns(0);
+
+		await _service.PackAsync(_tempDir, outputPath).ConfigureAwait(false);
+
+		// Pack must carry solution context so ktsu.Sdk resolves LICENSE.md/version/PackageId,
+		// and must discover the .slnx solution for SolutionName.
+		await _processRunner.Received(1).RunWithCallbackAsync("dotnet",
+			Arg.Is<string>(a => a.Contains("pack") && a.Contains("-p:SolutionDir=") && a.Contains("-p:SolutionName=\"MySolution\"")),
+			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+	}
+
+	[TestMethod]
 	public async Task PackAsync_PackFailure_LogsWarningButContinues()
 	{
 		string libDir = Path.Combine(_tempDir, "MyLib");

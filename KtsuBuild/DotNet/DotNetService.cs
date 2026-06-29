@@ -193,13 +193,28 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger) : 
 			releaseNotesArg = $" -p:PackageReleaseNotesFile=\"{absolutePath}\"";
 		}
 
+		// Packing each project individually (not via the solution) means MSBuild does not populate
+		// $(SolutionDir)/$(SolutionName). ktsu.Sdk derives package metadata (license, readme, version,
+		// PackageId) from the solution directory, so without it pack fails NU5030 ("LICENSE.md does
+		// not exist in the package") and falls back to a wrong directory for nested projects.
+		// Reconstruct the solution context from the workspace; discover both .slnx and .sln.
+		string solutionDir = workingDirectory.TrimEnd('/', '\\') + "/";
+		string solutionContextArgs = $" -p:SolutionDir=\"{solutionDir}\"";
+		string? solutionFile = Directory.EnumerateFiles(workingDirectory, "*.slnx")
+			.Concat(Directory.EnumerateFiles(workingDirectory, "*.sln"))
+			.FirstOrDefault();
+		if (solutionFile is not null)
+		{
+			solutionContextArgs += $" -p:SolutionName=\"{Path.GetFileNameWithoutExtension(solutionFile)}\"";
+		}
+
 		// Pack each non-test project individually
 		foreach (string project in packableProjects)
 		{
 			string projectName = Path.GetFileNameWithoutExtension(project);
 			logger.WriteInfo($"Packing {projectName}...");
 
-			string args = $"pack \"{project}\" --configuration {configuration} {QuietLogger} --no-build --output \"{outputPath}\"{releaseNotesArg}";
+			string args = $"pack \"{project}\" --configuration {configuration} {QuietLogger} --no-build --output \"{outputPath}\"{solutionContextArgs}{releaseNotesArg}";
 
 			int exitCode = await processRunner.RunWithCallbackAsync(
 				"dotnet",
