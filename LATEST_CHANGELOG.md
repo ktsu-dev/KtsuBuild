@@ -1,6 +1,6 @@
-## v1.8.11 (patch)
+## v1.8.12 (patch)
 
-Changes since v1.8.10:
+Changes since v1.8.11:
 
-- Bump NSubstitute from 5.3.0 to 6.0.0 ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump MSTest.Sdk from 4.3.0 to 4.3.2 ([@dependabot[bot]](https://github.com/dependabot[bot]))
 
