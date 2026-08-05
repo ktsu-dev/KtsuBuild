@@ -6,6 +6,7 @@ namespace KtsuBuild.Git;
 
 using System.Text.RegularExpressions;
 using KtsuBuild.Abstractions;
+using KtsuBuild.Utilities;
 #if !NET10_0_OR_GREATER
 using static Polyfill;
 #endif
@@ -26,8 +27,19 @@ public class CommitAnalyzer(IGitService gitService)
 	/// </summary>
 	private static readonly string[] PrPatterns = ["Merge pull request", "Merge branch 'main'", "Updated packages in", "Update.*package version"];
 
+	/// <summary>
+	/// Explicit version tags, in descending order of precedence.
+	/// </summary>
+	private static readonly (string Tag, VersionType Type)[] ExplicitVersionTags =
+	[
+		("[major]", VersionType.Major),
+		("[minor]", VersionType.Minor),
+		("[patch]", VersionType.Patch),
+		("[pre]", VersionType.Prerelease),
+	];
+
 #pragma warning disable SYSLIB1045 // GeneratedRegex not available in netstandard2.0/2.1
-	private static readonly Regex SkipCiRegex = new(@"\[skip ci\]|\[ci skip\]", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+	private static readonly Regex SkipCiRegex = new(@"\[skip ci\]|\[ci skip\]", RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexDefaults.MatchTimeout);
 #pragma warning restore SYSLIB1045
 
 	/// <summary>
@@ -56,68 +68,53 @@ public class CommitAnalyzer(IGitService gitService)
 		}
 
 		// Check for explicit version markers
-		foreach (string message in messages)
+		if (FindExplicitVersionTag(messages) is { } explicitVersion)
 		{
-			if (message.Contains("[major]", StringComparison.OrdinalIgnoreCase))
-			{
-				return (VersionType.Major, $"Explicit [major] tag found in commit message: {message}");
-			}
-		}
-
-		string minorReason = string.Empty;
-		string patchReason = string.Empty;
-		string preReason = string.Empty;
-
-		foreach (string message in messages)
-		{
-			if (message.Contains("[minor]", StringComparison.OrdinalIgnoreCase) && string.IsNullOrEmpty(minorReason))
-			{
-				minorReason = $"Explicit [minor] tag found in commit message: {message}";
-			}
-			else if (message.Contains("[patch]", StringComparison.OrdinalIgnoreCase) && string.IsNullOrEmpty(patchReason))
-			{
-				patchReason = $"Explicit [patch] tag found in commit message: {message}";
-			}
-			else if (message.Contains("[pre]", StringComparison.OrdinalIgnoreCase) && string.IsNullOrEmpty(preReason))
-			{
-				preReason = $"Explicit [pre] tag found in commit message: {message}";
-			}
-		}
-
-		if (!string.IsNullOrEmpty(minorReason))
-		{
-			return (VersionType.Minor, minorReason);
-		}
-
-		if (!string.IsNullOrEmpty(patchReason))
-		{
-			return (VersionType.Patch, patchReason);
-		}
-
-		if (!string.IsNullOrEmpty(preReason))
-		{
-			return (VersionType.Prerelease, preReason);
+			return explicitVersion;
 		}
 
 		// Check for meaningful commits (not bot/PR merges)
-		bool hasMeaningfulCommits = messages.Any(static m =>
-			!BotPatterns.Any(p => m.Contains(p, StringComparison.OrdinalIgnoreCase)) &&
-			!PrPatterns.Any(p => Regex.IsMatch(m, p, RegexOptions.IgnoreCase)));
-
-		if (hasMeaningfulCommits)
+		if (!HasMeaningfulCommits(messages))
 		{
-			// Check for public API changes
-			bool hasApiChanges = await CheckForApiChangesAsync(workingDirectory, range, cancellationToken).ConfigureAwait(false);
-			if (hasApiChanges)
-			{
-				return (VersionType.Minor, "Public API changes detected (additions, removals, or modifications)");
-			}
-
-			return (VersionType.Patch, "Found changes warranting at least a patch version");
+			return (VersionType.Prerelease, "No significant changes detected");
 		}
 
-		return (VersionType.Prerelease, "No significant changes detected");
+		// Check for public API changes
+		bool hasApiChanges = await CheckForApiChangesAsync(workingDirectory, range, cancellationToken).ConfigureAwait(false);
+
+		return hasApiChanges
+			? (VersionType.Minor, "Public API changes detected (additions, removals, or modifications)")
+			: (VersionType.Patch, "Found changes warranting at least a patch version");
 	}
+
+	/// <summary>
+	/// Finds the highest-precedence explicit version tag present in the commit messages.
+	/// </summary>
+	/// <param name="messages">The commit messages to scan.</param>
+	/// <returns>The version type and reason, or <see langword="null"/> when no tag is present.</returns>
+	private static (VersionType Type, string Reason)? FindExplicitVersionTag(IReadOnlyList<string> messages)
+	{
+		foreach ((string tag, VersionType type) in ExplicitVersionTags)
+		{
+			string? tagged = messages.FirstOrDefault(m => m.Contains(tag, StringComparison.OrdinalIgnoreCase));
+			if (tagged is not null)
+			{
+				return (type, $"Explicit {tag} tag found in commit message: {tagged}");
+			}
+		}
+
+		return null;
+	}
+
+	/// <summary>
+	/// Determines whether any commit is something other than a bot commit or a PR merge.
+	/// </summary>
+	/// <param name="messages">The commit messages to scan.</param>
+	/// <returns><see langword="true"/> when at least one commit is meaningful.</returns>
+	private static bool HasMeaningfulCommits(IReadOnlyList<string> messages) =>
+		messages.Any(static m =>
+			!BotPatterns.Any(p => m.Contains(p, StringComparison.OrdinalIgnoreCase)) &&
+			!PrPatterns.Any(p => Regex.IsMatch(m, p, RegexOptions.IgnoreCase, RegexDefaults.MatchTimeout)));
 
 	private async Task<bool> CheckForApiChangesAsync(string workingDirectory, string range, CancellationToken cancellationToken)
 	{
@@ -140,14 +137,6 @@ public class CommitAnalyzer(IGitService gitService)
 			@"^\-\s*public\s+const\s", // Removed public constants
 		];
 
-		foreach (string pattern in apiChangePatterns)
-		{
-			if (Regex.IsMatch(diff, pattern, RegexOptions.Multiline))
-			{
-				return true;
-			}
-		}
-
-		return false;
+		return apiChangePatterns.Any(pattern => Regex.IsMatch(diff, pattern, RegexOptions.Multiline, RegexDefaults.MatchTimeout));
 	}
 }

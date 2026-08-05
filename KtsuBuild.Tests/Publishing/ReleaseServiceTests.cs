@@ -6,6 +6,7 @@ namespace KtsuBuild.Tests.Publishing;
 
 using KtsuBuild.Abstractions;
 using KtsuBuild.Configuration;
+using KtsuBuild.DotNet;
 using KtsuBuild.Publishing;
 using KtsuBuild.Tests.Helpers;
 using KtsuBuild.Tests.Mocks;
@@ -66,7 +67,7 @@ public class ReleaseServiceTests
 
 		_dotNetService.GetProjectFiles(Arg.Any<string>()).Returns([projPath]);
 		_dotNetService.IsExecutableProject(projPath).Returns(true);
-		_dotNetService.PublishAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<bool>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
+		_dotNetService.PublishAsync(Arg.Any<PublishOptions>(), Arg.Any<CancellationToken>())
 			.Returns(Task.CompletedTask);
 
 		BuildConfiguration config = CreateDefaultConfig();
@@ -74,7 +75,7 @@ public class ReleaseServiceTests
 
 		// 7 runtimes per executable project
 		await _dotNetService.Received(7).PublishAsync(
-			Arg.Any<string>(), projPath, Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<bool>(), Arg.Any<bool>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+			ArgMatch.NotNull<PublishOptions>(o => o.ProjectPath == projPath), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
 	[TestMethod]
@@ -161,7 +162,7 @@ public class ReleaseServiceTests
 		await _service.ExecuteReleaseAsync(config, _tempDir, "Release").ConfigureAwait(false);
 
 		await _gitHubService.Received(1).CreateReleaseAsync(
-			Arg.Is<ReleaseOptions>(o => o.Version == "1.0.0" && o.CommitHash == "abc123"),
+			ArgMatch.NotNull<ReleaseOptions>(o => o.Version == "1.0.0" && o.CommitHash == "abc123"),
 			Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
@@ -174,7 +175,7 @@ public class ReleaseServiceTests
 		await _service.ExecuteReleaseAsync(config, _tempDir, "Release").ConfigureAwait(false);
 
 		await _gitHubService.Received(1).CreateReleaseAsync(
-			Arg.Is<ReleaseOptions>(o => o.IsPrerelease),
+			ArgMatch.NotNull<ReleaseOptions>(o => o.IsPrerelease),
 			Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
@@ -187,7 +188,7 @@ public class ReleaseServiceTests
 		await _service.ExecuteReleaseAsync(config, _tempDir, "Release").ConfigureAwait(false);
 
 		await _gitHubService.Received(1).CreateReleaseAsync(
-			Arg.Is<ReleaseOptions>(o => o.IsPrerelease),
+			ArgMatch.NotNull<ReleaseOptions>(o => o.IsPrerelease),
 			Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
@@ -200,7 +201,7 @@ public class ReleaseServiceTests
 		await _service.ExecuteReleaseAsync(config, _tempDir, "Release").ConfigureAwait(false);
 
 		await _gitHubService.Received(1).CreateReleaseAsync(
-			Arg.Is<ReleaseOptions>(o => o.IsPrerelease),
+			ArgMatch.NotNull<ReleaseOptions>(o => o.IsPrerelease),
 			Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
@@ -213,7 +214,7 @@ public class ReleaseServiceTests
 		await _service.ExecuteReleaseAsync(config, _tempDir, "Release").ConfigureAwait(false);
 
 		await _gitHubService.Received(1).CreateReleaseAsync(
-			Arg.Is<ReleaseOptions>(o => !o.IsPrerelease),
+			ArgMatch.NotNull<ReleaseOptions>(o => !o.IsPrerelease),
 			Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
@@ -227,7 +228,7 @@ public class ReleaseServiceTests
 		await _service.ExecuteReleaseAsync(config, _tempDir, "Release").ConfigureAwait(false);
 
 		await _dotNetService.DidNotReceive().PublishAsync(
-			Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<bool>(), Arg.Any<bool>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+			Arg.Any<PublishOptions>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
 	[TestMethod]

@@ -80,10 +80,15 @@ public class IosBuildService(IDotNetService dotNetService, IBuildLogger logger) 
 	/// <param name="iosHeadCount">The number of iOS heads detected in the workspace.</param>
 	/// <param name="hostIsMacOs">Whether the current host is macOS.</param>
 	/// <returns>The disposition the <c>ci</c> pipeline should act on.</returns>
-	public static IosCiDisposition ClassifyForCi(int iosHeadCount, bool hostIsMacOs) =>
-		iosHeadCount <= 0 ? IosCiDisposition.NoHeads
-		: !hostIsMacOs ? IosCiDisposition.SkipNotMacOs
-		: IosCiDisposition.Build;
+	public static IosCiDisposition ClassifyForCi(int iosHeadCount, bool hostIsMacOs)
+	{
+		if (iosHeadCount <= 0)
+		{
+			return IosCiDisposition.NoHeads;
+		}
+
+		return hostIsMacOs ? IosCiDisposition.Build : IosCiDisposition.SkipNotMacOs;
+	}
 
 	/// <summary>
 	/// Determines whether a runtime identifier targets a device (rather than the

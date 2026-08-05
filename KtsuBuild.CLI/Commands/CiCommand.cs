@@ -209,7 +209,8 @@ public class CiCommand : Command
 				logger.WriteInfo($"Detected {iosHeads.Count} iOS head(s), but iOS builds require a macOS host. Skipping iOS validation on this platform (it runs on a macOS CI job).");
 				return true;
 
-			case IosCiDisposition.Build:
+			// IosCiDisposition.Build, and any disposition added later, should build rather
+			// than silently skip the validation.
 			default:
 				logger.WriteStepHeader("Validating iOS Head(s)");
 				IosBuildService iosBuildService = new(dotNetService, logger);

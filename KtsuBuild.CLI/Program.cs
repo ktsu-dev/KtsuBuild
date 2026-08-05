@@ -548,22 +548,10 @@ internal sealed class Program
 
 				// Resolve the marketing version (KtsuBuild's computed version unless overridden)
 				// and the monotonic build number (CI run number unless overridden).
-				if (string.IsNullOrEmpty(version))
-				{
-					KtsuBuild.Git.VersionCalculator versionCalculator = new(gitService, logger);
-					string commitHash = await gitService.GetCurrentCommitHashAsync(workspace, ct).ConfigureAwait(false);
-					KtsuBuild.Git.VersionInfo versionInfo = await versionCalculator.GetVersionInfoAsync(workspace, commitHash, cancellationToken: ct).ConfigureAwait(false);
-					version = versionInfo.Version;
-				}
-
-				if (string.IsNullOrEmpty(buildNumber))
-				{
-					buildNumber = Environment.GetEnvironmentVariable("GITHUB_RUN_NUMBER");
-					if (string.IsNullOrEmpty(buildNumber))
-					{
-						buildNumber = "1";
-					}
-				}
+				version = string.IsNullOrEmpty(version)
+					? await ResolveIosShortVersionAsync(gitService, logger, workspace, ct).ConfigureAwait(false)
+					: version;
+				buildNumber = ResolveIosBuildNumber(buildNumber);
 
 				logger.WriteInfo($"iOS signing available: {buildConfig.IosSigningAvailable}");
 
@@ -590,31 +578,7 @@ internal sealed class Program
 					WorkloadVersion = buildConfig.IosWorkloadVersion,
 				}, ct).ConfigureAwait(false);
 
-				if (result.Skipped)
-				{
-					logger.WriteInfo(result.SkipReason ?? "iOS packaging was skipped.");
-					return 0;
-				}
-
-				if (!result.Success)
-				{
-					logger.WriteError($"iOS packaging failed: {result.Error}");
-					return 1;
-				}
-
-				if (result.IpaPaths.Count == 0)
-				{
-					logger.WriteInfo("iOS packaging completed with no archives (no iOS heads found).");
-					return 0;
-				}
-
-				logger.WriteSuccess($"Packaged {result.IpaPaths.Count} iOS archive(s):");
-				foreach (string ipa in result.IpaPaths)
-				{
-					logger.WriteInfo($"  - {ipa}");
-				}
-
-				return 0;
+				return ReportIosPackageResult(result, logger);
 			}
 			catch (Exception ex)
 			{
@@ -623,6 +587,64 @@ internal sealed class Program
 			}
 #pragma warning restore CA1031
 		});
+	}
+
+	/// <summary>
+	/// Resolves the marketing version stamped into the archive when the caller did not
+	/// pass one, using KtsuBuild's computed version.
+	/// </summary>
+	private static async Task<string> ResolveIosShortVersionAsync(KtsuBuild.Git.GitService gitService, IBuildLogger logger, string workspace, CancellationToken cancellationToken)
+	{
+		KtsuBuild.Git.VersionCalculator versionCalculator = new(gitService, logger);
+		string commitHash = await gitService.GetCurrentCommitHashAsync(workspace, cancellationToken).ConfigureAwait(false);
+		KtsuBuild.Git.VersionInfo versionInfo = await versionCalculator.GetVersionInfoAsync(workspace, commitHash, cancellationToken: cancellationToken).ConfigureAwait(false);
+		return versionInfo.Version;
+	}
+
+	/// <summary>
+	/// Resolves the monotonic build number, falling back to the CI run number and then to 1.
+	/// </summary>
+	private static string ResolveIosBuildNumber(string? buildNumber)
+	{
+		if (!string.IsNullOrEmpty(buildNumber))
+		{
+			return buildNumber;
+		}
+
+		string? runNumber = Environment.GetEnvironmentVariable("GITHUB_RUN_NUMBER");
+		return string.IsNullOrEmpty(runNumber) ? "1" : runNumber;
+	}
+
+	/// <summary>
+	/// Reports the outcome of an iOS packaging run and maps it to a process exit code.
+	/// </summary>
+	private static int ReportIosPackageResult(KtsuBuild.Ios.IosPackageResult result, IBuildLogger logger)
+	{
+		if (result.Skipped)
+		{
+			logger.WriteInfo(result.SkipReason ?? "iOS packaging was skipped.");
+			return 0;
+		}
+
+		if (!result.Success)
+		{
+			logger.WriteError($"iOS packaging failed: {result.Error}");
+			return 1;
+		}
+
+		if (result.IpaPaths.Count == 0)
+		{
+			logger.WriteInfo("iOS packaging completed with no archives (no iOS heads found).");
+			return 0;
+		}
+
+		logger.WriteSuccess($"Packaged {result.IpaPaths.Count} iOS archive(s):");
+		foreach (string ipa in result.IpaPaths)
+		{
+			logger.WriteInfo($"  - {ipa}");
+		}
+
+		return 0;
 	}
 
 	private static void AddIosUploadSubcommand(IosCommand iosCommand, IProcessRunner processRunner, IBuildLogger logger)

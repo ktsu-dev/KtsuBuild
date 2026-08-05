@@ -30,8 +30,13 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 	/// </summary>
 	public const string SigningKeychain = "build.keychain";
 
+	/// <summary>
+	/// The macOS keychain command-line tool used to manage the signing keychain.
+	/// </summary>
+	private const string SecurityTool = "security";
+
 #pragma warning disable SYSLIB1045 // GeneratedRegex not available in netstandard2.0/2.1
-	private static readonly Regex TargetFrameworkRegex = new(@"<TargetFrameworks?>\s*([^<]+?)\s*</TargetFrameworks?>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+	private static readonly Regex TargetFrameworkRegex = new(@"<TargetFrameworks?>\s*([^<]+?)\s*</TargetFrameworks?>", RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexDefaults.MatchTimeout);
 #pragma warning restore SYSLIB1045
 
 	/// <inheritdoc/>
@@ -89,8 +94,18 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 				logger.WriteWarning($"No Info.plist found for {head}; skipping version stamping. The archive will use the version baked into the project.");
 			}
 
-			string? framework = string.IsNullOrEmpty(options.Framework) ? ResolveIosFramework(head) : options.Framework;
-			string ipa = await ArchiveAsync(options.WorkingDirectory, head, options.Runtime, options.Configuration, framework, options.CodesignKey, options.ProvisionName, cancellationToken).ConfigureAwait(false);
+			IosArchiveOptions archiveOptions = new()
+			{
+				WorkingDirectory = options.WorkingDirectory,
+				ProjectPath = head,
+				RuntimeIdentifier = options.Runtime,
+				Configuration = options.Configuration,
+				Framework = string.IsNullOrEmpty(options.Framework) ? ResolveIosFramework(head) : options.Framework,
+				CodesignKey = options.CodesignKey,
+				ProvisionName = options.ProvisionName,
+			};
+
+			string ipa = await ArchiveAsync(archiveOptions, cancellationToken).ConfigureAwait(false);
 			ipas.Add(ipa);
 		}
 
@@ -355,53 +370,37 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 	/// distinct build shape from the desktop publish: it drives the iOS archive toolchain
 	/// via <c>ArchiveOnBuild</c>/<c>BuildIpa</c> and the signing properties.
 	/// </summary>
-	/// <param name="workingDirectory">The working directory.</param>
-	/// <param name="projectPath">The iOS head project file.</param>
-	/// <param name="runtimeIdentifier">The device runtime identifier (for example <c>ios-arm64</c>).</param>
-	/// <param name="configuration">The build configuration.</param>
-	/// <param name="framework">The iOS target framework for <c>-f</c>, or null to omit it.</param>
-	/// <param name="codesignKey">The distribution certificate common name.</param>
-	/// <param name="provisionName">The provisioning profile name.</param>
+	/// <param name="options">The archive options, including the signing material.</param>
 	/// <param name="cancellationToken">A cancellation token.</param>
 	/// <returns>The path to the produced <c>.ipa</c>.</returns>
-	public async Task<string> ArchiveAsync(
-		string workingDirectory,
-		string projectPath,
-		string runtimeIdentifier,
-		string configuration,
-		string? framework,
-		string codesignKey,
-		string provisionName,
-		CancellationToken cancellationToken = default)
+	public async Task<string> ArchiveAsync(IosArchiveOptions options, CancellationToken cancellationToken = default)
 	{
-		Ensure.NotNull(workingDirectory);
-		Ensure.NotNull(projectPath);
-		Ensure.NotNull(runtimeIdentifier);
-		logger.WriteStepHeader($"Archiving iOS Head ({runtimeIdentifier})");
+		Ensure.NotNull(options);
+		logger.WriteStepHeader($"Archiving iOS Head ({options.RuntimeIdentifier})");
 
-		string frameworkArg = string.IsNullOrEmpty(framework) ? string.Empty : $" -f {framework}";
+		string frameworkArg = string.IsNullOrEmpty(options.Framework) ? string.Empty : $" -f {options.Framework}";
 
 		// The signing properties carry the certificate common name and profile name. They
 		// are passed straight to MSBuild, matching the reference pipeline; the process
 		// runner does not echo arguments, so they are not logged here.
-		string args = $"publish \"{projectPath}\" --configuration {configuration}{frameworkArg} " +
-			$"-p:RuntimeIdentifier={runtimeIdentifier} -p:ArchiveOnBuild=true -p:BuildIpa=true " +
-			$"-p:CodesignKey=\"{codesignKey}\" -p:CodesignProvision=\"{provisionName}\"";
+		string args = $"publish \"{options.ProjectPath}\" --configuration {options.Configuration}{frameworkArg} " +
+			$"-p:RuntimeIdentifier={options.RuntimeIdentifier} -p:ArchiveOnBuild=true -p:BuildIpa=true " +
+			$"-p:CodesignKey=\"{options.CodesignKey}\" -p:CodesignProvision=\"{options.ProvisionName}\"";
 
 		int exitCode = await processRunner.RunWithCallbackAsync(
 			"dotnet",
 			args,
-			workingDirectory,
+			options.WorkingDirectory,
 			logger.WriteInfo,
 			logger.WriteError,
 			cancellationToken).ConfigureAwait(false);
 
 		if (exitCode != 0)
 		{
-			throw new InvalidOperationException($"iOS archive failed for {projectPath} ({runtimeIdentifier}) with exit code {exitCode}");
+			throw new InvalidOperationException($"iOS archive failed for {options.ProjectPath} ({options.RuntimeIdentifier}) with exit code {exitCode}");
 		}
 
-		string headDir = Path.GetDirectoryName(Path.GetFullPath(projectPath)) ?? Directory.GetCurrentDirectory();
+		string headDir = Path.GetDirectoryName(Path.GetFullPath(options.ProjectPath)) ?? Directory.GetCurrentDirectory();
 		string binDir = Path.Combine(headDir, "bin");
 		string ipa = FindIpa(binDir)
 			?? throw new InvalidOperationException($"iOS archive completed but no .ipa was produced under {binDir}.");
@@ -585,10 +584,10 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 	{
 		// A fresh, default, unlocked keychain with an auto-lock timeout. The runner is
 		// ephemeral, so this lives only for the run.
-		await RunOrThrowAsync("security", $"create-keychain -p \"{keychainPassword}\" {SigningKeychain}", null, "Failed to create the signing keychain.", cancellationToken).ConfigureAwait(false);
-		await RunOrThrowAsync("security", $"default-keychain -s {SigningKeychain}", null, "Failed to set the default keychain.", cancellationToken).ConfigureAwait(false);
-		await RunOrThrowAsync("security", $"unlock-keychain -p \"{keychainPassword}\" {SigningKeychain}", null, "Failed to unlock the signing keychain.", cancellationToken).ConfigureAwait(false);
-		await RunOrThrowAsync("security", $"set-keychain-settings -lut 3600 {SigningKeychain}", null, "Failed to configure keychain settings.", cancellationToken).ConfigureAwait(false);
+		await RunOrThrowAsync(SecurityTool, $"create-keychain -p \"{keychainPassword}\" {SigningKeychain}", null, "Failed to create the signing keychain.", cancellationToken).ConfigureAwait(false);
+		await RunOrThrowAsync(SecurityTool, $"default-keychain -s {SigningKeychain}", null, "Failed to set the default keychain.", cancellationToken).ConfigureAwait(false);
+		await RunOrThrowAsync(SecurityTool, $"unlock-keychain -p \"{keychainPassword}\" {SigningKeychain}", null, "Failed to unlock the signing keychain.", cancellationToken).ConfigureAwait(false);
+		await RunOrThrowAsync(SecurityTool, $"set-keychain-settings -lut 3600 {SigningKeychain}", null, "Failed to configure keychain settings.", cancellationToken).ConfigureAwait(false);
 	}
 
 	private async Task ImportCertificateAsync(byte[] certBytes, IosPackageOptions options, string workDir, CancellationToken cancellationToken)
@@ -604,18 +603,18 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 		// `security import` infers the .p12 format from the extension and the explicit
 		// `-f pkcs12`, and authorizes codesign/security to use the key.
 		string importArgs = $"import \"{certPath}\" -f pkcs12 -k {SigningKeychain} -P \"{options.CertificatePassword}\" -T /usr/bin/codesign -T /usr/bin/security";
-		ProcessResult import = await processRunner.RunAsync("security", importArgs, null, cancellationToken).ConfigureAwait(false);
+		ProcessResult import = await processRunner.RunAsync(SecurityTool, importArgs, null, cancellationToken).ConfigureAwait(false);
 		if (!import.Success)
 		{
 			logger.WriteWarning("Direct certificate import failed; transcoding to a 3DES PKCS#12 and retrying.");
 			string legacy = await TranscodeP12ToLegacyAsync(certPath, options.CertificatePassword, workDir, cancellationToken).ConfigureAwait(false);
-			await RunOrThrowAsync("security", $"import \"{legacy}\" -f pkcs12 -k {SigningKeychain} -P \"{options.CertificatePassword}\" -T /usr/bin/codesign -T /usr/bin/security", null, "Failed to import the signing certificate after the 3DES transcode.", cancellationToken).ConfigureAwait(false);
+			await RunOrThrowAsync(SecurityTool, $"import \"{legacy}\" -f pkcs12 -k {SigningKeychain} -P \"{options.CertificatePassword}\" -T /usr/bin/codesign -T /usr/bin/security", null, "Failed to import the signing certificate after the 3DES transcode.", cancellationToken).ConfigureAwait(false);
 		}
 
 		logger.WriteInfo("Imported the signing certificate.");
 
 		// Allow codesign to use the key without an interactive prompt.
-		await RunOrThrowAsync("security", $"set-key-partition-list -S apple-tool:,apple:,codesign: -s -k \"{options.KeychainPassword}\" {SigningKeychain}", null, "Failed to set the keychain key partition list.", cancellationToken).ConfigureAwait(false);
+		await RunOrThrowAsync(SecurityTool, $"set-key-partition-list -S apple-tool:,apple:,codesign: -s -k \"{options.KeychainPassword}\" {SigningKeychain}", null, "Failed to set the keychain key partition list.", cancellationToken).ConfigureAwait(false);
 	}
 
 	private async Task<string> TranscodeP12ToLegacyAsync(string certPath, string password, string workDir, CancellationToken cancellationToken)

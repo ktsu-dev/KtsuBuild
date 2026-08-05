@@ -32,9 +32,18 @@ public record ProcessResult
 	/// <summary>
 	/// Gets the combined output (stdout + stderr).
 	/// </summary>
-	public string CombinedOutput => string.IsNullOrEmpty(StandardError)
-		? StandardOutput
-		: string.IsNullOrEmpty(StandardOutput)
-			? StandardError
-			: $"{StandardOutput}\n{StandardError}";
+	public string CombinedOutput
+	{
+		get
+		{
+			if (string.IsNullOrEmpty(StandardError))
+			{
+				return StandardOutput;
+			}
+
+			return string.IsNullOrEmpty(StandardOutput)
+				? StandardError
+				: $"{StandardOutput}\n{StandardError}";
+		}
+	}
 }

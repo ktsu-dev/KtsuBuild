@@ -69,7 +69,7 @@ public class GitHubServiceTests
 		await _service.CreateReleaseAsync(options).ConfigureAwait(false);
 
 		await _processRunner.Received(1).RunWithCallbackAsync("gh",
-			Arg.Is<string>(a => a.Contains("--generate-notes")),
+			ArgMatch.NotNull<string>(a => a.Contains("--generate-notes")),
 			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
@@ -87,7 +87,7 @@ public class GitHubServiceTests
 		await _service.CreateReleaseAsync(options).ConfigureAwait(false);
 
 		await _processRunner.Received(1).RunWithCallbackAsync("gh",
-			Arg.Is<string>(a => a.Contains("--notes-file")),
+			ArgMatch.NotNull<string>(a => a.Contains("--notes-file")),
 			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
@@ -102,7 +102,7 @@ public class GitHubServiceTests
 		await _service.CreateReleaseAsync(options).ConfigureAwait(false);
 
 		await _processRunner.Received(1).RunWithCallbackAsync("gh",
-			Arg.Is<string>(a => a.Contains("--prerelease")),
+			ArgMatch.NotNull<string>(a => a.Contains("--prerelease")),
 			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
@@ -120,7 +120,7 @@ public class GitHubServiceTests
 		await _service.CreateReleaseAsync(options).ConfigureAwait(false);
 
 		await _processRunner.Received(1).RunWithCallbackAsync("gh",
-			Arg.Is<string>(a => a.Contains("mypackage.nupkg")),
+			ArgMatch.NotNull<string>(a => a.Contains("mypackage.nupkg")),
 			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
@@ -161,7 +161,7 @@ public class GitHubServiceTests
 		await _service.UploadReleaseAssetsAsync("1.0.0", [asset1, asset2]).ConfigureAwait(false);
 
 		await _processRunner.Received(2).RunWithCallbackAsync("gh",
-			Arg.Is<string>(a => a.Contains("release upload v1.0.0")),
+			ArgMatch.NotNull<string>(a => a.Contains("release upload v1.0.0")),
 			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
@@ -186,6 +186,11 @@ public class GitHubServiceTests
 
 		// Should not throw even on upload failure
 		await _service.UploadReleaseAssetsAsync("1.0.0", [asset]).ConfigureAwait(false);
+
+		// The failing upload was still attempted.
+		await _processRunner.Received(1).RunWithCallbackAsync("gh",
+			ArgMatch.NotNull<string>(a => a.Contains("release upload v1.0.0")),
+			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
 	// GetRepositoryInfoAsync
@@ -326,7 +331,7 @@ public class GitHubServiceTests
 		await _service.SetRepositoryTopicsAsync("/repo", ["dotnet", "csharp"]).ConfigureAwait(false);
 
 		await _processRunner.Received(1).RunWithCallbackAsync("gh",
-			Arg.Is<string>(a => a.Contains("repos/ktsu-dev/KtsuBuild/topics") && a.Contains("names[]=dotnet") && a.Contains("names[]=csharp")),
+			ArgMatch.NotNull<string>(a => a.Contains("repos/ktsu-dev/KtsuBuild/topics") && a.Contains("names[]=dotnet") && a.Contains("names[]=csharp")),
 			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
@@ -365,6 +370,11 @@ public class GitHubServiceTests
 
 		// Should not throw even on API failure
 		await _service.SetRepositoryTopicsAsync("/repo", ["dotnet"]).ConfigureAwait(false);
+
+		// The failing topics call was still attempted.
+		await _processRunner.Received(1).RunWithCallbackAsync("gh",
+			ArgMatch.NotNull<string>(a => a.Contains("repos/ktsu-dev/KtsuBuild/topics")),
+			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
 	private ReleaseOptions CreateReleaseOptions() => new()

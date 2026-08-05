@@ -56,19 +56,7 @@ public class GitHubService(IProcessRunner processRunner, IGitService gitService,
 			args.Add("--generate-notes");
 		}
 
-		// Add release notes file
-		string? notesFile = null;
-		if (!string.IsNullOrEmpty(options.LatestChangelogFile) && File.Exists(options.LatestChangelogFile))
-		{
-			notesFile = options.LatestChangelogFile;
-			logger.WriteInfo($"Using latest version changelog from {notesFile}");
-		}
-		else if (!string.IsNullOrEmpty(options.ChangelogFile) && File.Exists(options.ChangelogFile))
-		{
-			notesFile = options.ChangelogFile;
-			logger.WriteInfo($"Using full changelog from {notesFile}");
-		}
-
+		string? notesFile = ResolveReleaseNotesFile(options);
 		if (notesFile is not null)
 		{
 			args.Add("--notes-file");
@@ -80,27 +68,7 @@ public class GitHubService(IProcessRunner processRunner, IGitService gitService,
 			args.Add("--prerelease");
 		}
 
-		// Add asset files
-		foreach (string assetPath in options.AssetPaths)
-		{
-			if (File.Exists(assetPath))
-			{
-				args.Add(assetPath);
-			}
-			else
-			{
-				// Handle glob patterns
-				string? directory = Path.GetDirectoryName(assetPath);
-				string pattern = Path.GetFileName(assetPath);
-				if (!string.IsNullOrEmpty(directory) && Directory.Exists(directory))
-				{
-					foreach (string file in Directory.GetFiles(directory, pattern))
-					{
-						args.Add(file);
-					}
-				}
-			}
-		}
+		args.AddRange(ResolveAssetPaths(options.AssetPaths));
 
 		string argsString = string.Join(' ', args.Select(static a => a.Contains(' ') ? $"\"{a}\"" : a));
 
@@ -116,6 +84,58 @@ public class GitHubService(IProcessRunner processRunner, IGitService gitService,
 		{
 			throw new InvalidOperationException($"Failed to create GitHub release with exit code {exitCode}");
 		}
+	}
+
+	/// <summary>
+	/// Picks the changelog file to use as release notes, preferring the latest-version
+	/// changelog over the full one.
+	/// </summary>
+	/// <param name="options">The release options.</param>
+	/// <returns>The notes file path, or <see langword="null"/> when neither file exists.</returns>
+	private string? ResolveReleaseNotesFile(ReleaseOptions options)
+	{
+		if (!string.IsNullOrEmpty(options.LatestChangelogFile) && File.Exists(options.LatestChangelogFile))
+		{
+			logger.WriteInfo($"Using latest version changelog from {options.LatestChangelogFile}");
+			return options.LatestChangelogFile;
+		}
+
+		if (!string.IsNullOrEmpty(options.ChangelogFile) && File.Exists(options.ChangelogFile))
+		{
+			logger.WriteInfo($"Using full changelog from {options.ChangelogFile}");
+			return options.ChangelogFile;
+		}
+
+		return null;
+	}
+
+	/// <summary>
+	/// Expands the configured asset paths, resolving any that are glob patterns rather
+	/// than existing files.
+	/// </summary>
+	/// <param name="assetPaths">The configured asset paths.</param>
+	/// <returns>The concrete file paths to attach to the release.</returns>
+	private static List<string> ResolveAssetPaths(IEnumerable<string> assetPaths)
+	{
+		List<string> resolved = [];
+		foreach (string assetPath in assetPaths)
+		{
+			if (File.Exists(assetPath))
+			{
+				resolved.Add(assetPath);
+				continue;
+			}
+
+			// Handle glob patterns
+			string? directory = Path.GetDirectoryName(assetPath);
+			string pattern = Path.GetFileName(assetPath);
+			if (!string.IsNullOrEmpty(directory) && Directory.Exists(directory))
+			{
+				resolved.AddRange(Directory.GetFiles(directory, pattern));
+			}
+		}
+
+		return resolved;
 	}
 
 	/// <inheritdoc/>
