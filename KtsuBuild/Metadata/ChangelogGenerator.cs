@@ -164,14 +164,22 @@ public class ChangelogGenerator(IGitService gitService, IBuildLogger logger)
 		sb.Append(lineEnding);
 		sb.Append(lineEnding);
 
-		if (filteredCommits.Count > 0)
+		// Exclude [skip ci] commits before deciding whether there is anything to report, not while
+		// emitting. Testing the count on one list and emitting from another produced a "Changes
+		// since X:" header above an empty list, because the progressive relaxation in
+		// ApplyMultiLevelFiltering re-admits the bot's own [skip ci] metadata commits once no real
+		// commit survives level 1. That empty section differed from the previous run's output, so
+		// each release was followed by a couple of pointless metadata commits.
+		List<CommitInfo> reportableCommits = [.. filteredCommits.Where(static c => !c.Subject.Contains("[skip ci]", StringComparison.OrdinalIgnoreCase))];
+
+		if (reportableCommits.Count > 0)
 		{
 			if (resolvedFromTag != "v0.0.0")
 			{
 				sb.Append($"Changes since {resolvedFromTag}:{lineEnding}{lineEnding}");
 			}
 
-			foreach (CommitInfo commit in filteredCommits.Where(static c => !c.Subject.Contains("[skip ci]", StringComparison.OrdinalIgnoreCase)))
+			foreach (CommitInfo commit in reportableCommits)
 			{
 				sb.Append($"- {commit.FormattedEntry}{lineEnding}");
 			}
@@ -195,7 +203,11 @@ public class ChangelogGenerator(IGitService gitService, IBuildLogger logger)
 	/// Level 1: Exclude bots, merges, and version update commits (for stable releases)
 	/// Level 2: Exclude merges only (include bot commits)
 	/// Level 3: No filtering (all commits)
-	/// Level 4: Specifically include version update commits (for prereleases)
+	/// <para>
+	/// Relaxing this far can return nothing but bot or [skip ci] commits, so callers must decide
+	/// whether the result is worth reporting rather than assuming a non-empty list means there is
+	/// something to show.
+	/// </para>
 	/// </summary>
 	private static List<CommitInfo> ApplyMultiLevelFiltering(List<CommitInfo> commits, bool isPrerelease)
 	{
@@ -219,19 +231,13 @@ public class ChangelogGenerator(IGitService gitService, IBuildLogger logger)
 			return level2;
 		}
 
-		// Level 3: No filtering - all commits in range
-		if (commits.Count > 0)
-		{
-			return commits;
-		}
-
-		// Level 4: For prerelease only - specifically include version update commits
-		if (isPrerelease)
-		{
-			return [.. commits.Where(static c => IsVersionUpdateCommit(c))];
-		}
-
-		return [];
+		// Level 3: no filtering, every commit in the range. The empty case already returned at the
+		// top of this method, so this always returns a non-empty list and is the final level.
+		//
+		// There was a level 4 below here that re-admitted version update commits for prereleases.
+		// It was unreachable, because this return is unconditional, and it was also redundant:
+		// levels 1 and 2 already keep version update commits when isPrerelease is set.
+		return commits;
 	}
 
 	private static bool IsBotCommit(CommitInfo commit) =>
