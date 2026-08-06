@@ -46,7 +46,7 @@ public class DotNetServiceTests
 		await _service.RestoreAsync(_tempDir).ConfigureAwait(false);
 
 		await _processRunner.Received(1).RunWithCallbackAsync("dotnet",
-			Arg.Is<string>(a => a.Contains("restore")),
+			ArgMatch.NotNull<string>(a => a.Contains("restore")),
 			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
@@ -59,7 +59,7 @@ public class DotNetServiceTests
 		await _service.RestoreAsync(_tempDir, lockedMode: true).ConfigureAwait(false);
 
 		await _processRunner.Received(1).RunWithCallbackAsync("dotnet",
-			Arg.Is<string>(a => a.Contains("--locked-mode")),
+			ArgMatch.NotNull<string>(a => a.Contains("--locked-mode")),
 			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
@@ -72,7 +72,7 @@ public class DotNetServiceTests
 		await _service.RestoreAsync(_tempDir, lockedMode: false).ConfigureAwait(false);
 
 		await _processRunner.Received(1).RunWithCallbackAsync("dotnet",
-			Arg.Is<string>(a => !a.Contains("--locked-mode")),
+			ArgMatch.NotNull<string>(a => !a.Contains("--locked-mode")),
 			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
@@ -97,7 +97,7 @@ public class DotNetServiceTests
 		await _service.BuildAsync(_tempDir).ConfigureAwait(false);
 
 		await _processRunner.Received(1).RunWithCallbackAsync("dotnet",
-			Arg.Is<string>(a => a.Contains("build") && a.Contains("--configuration Release")),
+			ArgMatch.NotNull<string>(a => a.Contains("build") && a.Contains("--configuration Release")),
 			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
@@ -110,7 +110,7 @@ public class DotNetServiceTests
 		await _service.BuildAsync(_tempDir, additionalArgs: "-maxCpuCount:1").ConfigureAwait(false);
 
 		await _processRunner.Received(1).RunWithCallbackAsync("dotnet",
-			Arg.Is<string>(a => a.Contains("-maxCpuCount:1")),
+			ArgMatch.NotNull<string>(a => a.Contains("-maxCpuCount:1")),
 			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
@@ -148,7 +148,7 @@ public class DotNetServiceTests
 
 		// RunWithCallbackAsync should not be called for dotnet test
 		await _processRunner.DidNotReceive().RunWithCallbackAsync("dotnet",
-			Arg.Is<string>(a => a.Contains("test")),
+			ArgMatch.NotNull<string>(a => a.Contains("test")),
 			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
@@ -167,7 +167,7 @@ public class DotNetServiceTests
 		await _service.TestAsync(_tempDir).ConfigureAwait(false);
 
 		await _processRunner.Received(1).RunWithCallbackAsync("dotnet",
-			Arg.Is<string>(a => a.Contains("test")),
+			ArgMatch.NotNull<string>(a => a.Contains("test")),
 			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
@@ -202,7 +202,7 @@ public class DotNetServiceTests
 
 		// Should have retried once (first attempt exited 7, retry exited 0).
 		await _processRunner.Received(2).RunWithCallbackAsync("dotnet",
-			Arg.Is<string>(a => a.Contains("test")),
+			ArgMatch.NotNull<string>(a => a.Contains("test")),
 			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
@@ -222,7 +222,7 @@ public class DotNetServiceTests
 			() => _service.TestAsync(_tempDir)).ConfigureAwait(false);
 
 		await _processRunner.Received(1).RunWithCallbackAsync("dotnet",
-			Arg.Is<string>(a => a.Contains("test")),
+			ArgMatch.NotNull<string>(a => a.Contains("test")),
 			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
@@ -243,7 +243,7 @@ public class DotNetServiceTests
 
 		// Three attempts: the initial run plus two retries.
 		await _processRunner.Received(3).RunWithCallbackAsync("dotnet",
-			Arg.Is<string>(a => a.Contains("test")),
+			ArgMatch.NotNull<string>(a => a.Contains("test")),
 			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
@@ -257,7 +257,7 @@ public class DotNetServiceTests
 		await _service.PackAsync(_tempDir, outputPath).ConfigureAwait(false);
 
 		await _processRunner.DidNotReceive().RunWithCallbackAsync("dotnet",
-			Arg.Is<string>(a => a.Contains("pack")),
+			ArgMatch.NotNull<string>(a => a.Contains("pack")),
 			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
@@ -283,7 +283,7 @@ public class DotNetServiceTests
 
 		// Should only pack the library, not the test project
 		await _processRunner.Received(1).RunWithCallbackAsync("dotnet",
-			Arg.Is<string>(a => a.Contains("pack") && a.Contains("MyLib.csproj") && !a.Contains("Tests")),
+			ArgMatch.NotNull<string>(a => a.Contains("pack") && a.Contains("MyLib.csproj") && !a.Contains("Tests")),
 			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
@@ -306,7 +306,7 @@ public class DotNetServiceTests
 		// Pack must carry solution context so ktsu.Sdk resolves LICENSE.md/version/PackageId,
 		// and must discover the .slnx solution for SolutionName.
 		await _processRunner.Received(1).RunWithCallbackAsync("dotnet",
-			Arg.Is<string>(a => a.Contains("pack") && a.Contains("-p:SolutionDir=") && a.Contains("-p:SolutionName=\"MySolution\"")),
+			ArgMatch.NotNull<string>(a => a.Contains("pack") && a.Contains("-p:SolutionDir=") && a.Contains("-p:SolutionName=\"MySolution\"")),
 			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
@@ -324,6 +324,11 @@ public class DotNetServiceTests
 
 		// Should NOT throw - pack failures are logged as warnings
 		await _service.PackAsync(_tempDir, outputPath).ConfigureAwait(false);
+
+		// The failing pack was still attempted, and the run continued past it.
+		await _processRunner.Received(1).RunWithCallbackAsync("dotnet",
+			ArgMatch.NotNull<string>(a => a.Contains("pack") && a.Contains("MyLib.csproj")),
+			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
 	[TestMethod]
@@ -338,6 +343,16 @@ public class DotNetServiceTests
 
 	// PublishAsync
 
+	private static PublishOptions PublishOpts(string workingDirectory, string outputPath, bool selfContained = true, bool singleFile = false) => new()
+	{
+		WorkingDirectory = workingDirectory,
+		ProjectPath = "project.csproj",
+		OutputPath = outputPath,
+		Runtime = "win-x64",
+		SelfContained = selfContained,
+		SingleFile = singleFile,
+	};
+
 	[TestMethod]
 	public async Task PublishAsync_Success_Completes()
 	{
@@ -345,10 +360,10 @@ public class DotNetServiceTests
 			.Returns(0);
 
 		string outputPath = Path.Combine(_tempDir, "publish");
-		await _service.PublishAsync(_tempDir, "project.csproj", outputPath, "win-x64").ConfigureAwait(false);
+		await _service.PublishAsync(PublishOpts(_tempDir, outputPath)).ConfigureAwait(false);
 
 		await _processRunner.Received(1).RunWithCallbackAsync("dotnet",
-			Arg.Is<string>(a => a.Contains("publish") && a.Contains("--runtime win-x64")),
+			ArgMatch.NotNull<string>(a => a.Contains("publish") && a.Contains("--runtime win-x64")),
 			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
@@ -359,10 +374,10 @@ public class DotNetServiceTests
 			.Returns(0);
 
 		string outputPath = Path.Combine(_tempDir, "publish");
-		await _service.PublishAsync(_tempDir, "project.csproj", outputPath, "win-x64", selfContained: true).ConfigureAwait(false);
+		await _service.PublishAsync(PublishOpts(_tempDir, outputPath, selfContained: true)).ConfigureAwait(false);
 
 		await _processRunner.Received(1).RunWithCallbackAsync("dotnet",
-			Arg.Is<string>(a => a.Contains("--self-contained true")),
+			ArgMatch.NotNull<string>(a => a.Contains("--self-contained true")),
 			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
@@ -373,10 +388,10 @@ public class DotNetServiceTests
 			.Returns(0);
 
 		string outputPath = Path.Combine(_tempDir, "publish");
-		await _service.PublishAsync(_tempDir, "project.csproj", outputPath, "win-x64", selfContained: false).ConfigureAwait(false);
+		await _service.PublishAsync(PublishOpts(_tempDir, outputPath, selfContained: false)).ConfigureAwait(false);
 
 		await _processRunner.Received(1).RunWithCallbackAsync("dotnet",
-			Arg.Is<string>(a => a.Contains("--self-contained false")),
+			ArgMatch.NotNull<string>(a => a.Contains("--self-contained false")),
 			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
@@ -387,10 +402,10 @@ public class DotNetServiceTests
 			.Returns(0);
 
 		string outputPath = Path.Combine(_tempDir, "publish");
-		await _service.PublishAsync(_tempDir, "project.csproj", outputPath, "win-x64", singleFile: true).ConfigureAwait(false);
+		await _service.PublishAsync(PublishOpts(_tempDir, outputPath, singleFile: true)).ConfigureAwait(false);
 
 		await _processRunner.Received(1).RunWithCallbackAsync("dotnet",
-			Arg.Is<string>(a => a.Contains("PublishSingleFile=true")),
+			ArgMatch.NotNull<string>(a => a.Contains("PublishSingleFile=true")),
 			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
@@ -402,7 +417,7 @@ public class DotNetServiceTests
 
 		string outputPath = Path.Combine(_tempDir, "publish");
 		await Assert.ThrowsExactlyAsync<InvalidOperationException>(
-			() => _service.PublishAsync(_tempDir, "project.csproj", outputPath, "win-x64")).ConfigureAwait(false);
+			() => _service.PublishAsync(PublishOpts(_tempDir, outputPath))).ConfigureAwait(false);
 	}
 
 	[TestMethod]
@@ -412,7 +427,7 @@ public class DotNetServiceTests
 			.Returns(0);
 
 		string outputPath = Path.Combine(_tempDir, "deep", "publish", "dir");
-		await _service.PublishAsync(_tempDir, "project.csproj", outputPath, "win-x64").ConfigureAwait(false);
+		await _service.PublishAsync(PublishOpts(_tempDir, outputPath)).ConfigureAwait(false);
 
 		Assert.IsTrue(Directory.Exists(outputPath));
 	}
@@ -736,7 +751,7 @@ public class DotNetServiceTests
 		await _service.BuildIosAsync(_tempDir, "App.iOS.csproj", "ios-arm64").ConfigureAwait(false);
 
 		await _processRunner.Received(1).RunWithCallbackAsync("dotnet",
-			Arg.Is<string>(a => a.Contains("build") && a.Contains("App.iOS.csproj") && a.Contains("-p:RuntimeIdentifier=ios-arm64")),
+			ArgMatch.NotNull<string>(a => a.Contains("build") && a.Contains("App.iOS.csproj") && a.Contains("-p:RuntimeIdentifier=ios-arm64")),
 			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
@@ -749,7 +764,7 @@ public class DotNetServiceTests
 		await _service.BuildIosAsync(_tempDir, "App.iOS.csproj", "iossimulator-arm64").ConfigureAwait(false);
 
 		await _processRunner.Received(1).RunWithCallbackAsync("dotnet",
-			Arg.Is<string>(a => a.Contains("-p:EnableCodeSigning=false") && a.Contains("-p:CodesignKey=") && a.Contains("-p:CodesignProvision=")),
+			ArgMatch.NotNull<string>(a => a.Contains("-p:EnableCodeSigning=false") && a.Contains("-p:CodesignKey=") && a.Contains("-p:CodesignProvision=")),
 			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
@@ -762,7 +777,7 @@ public class DotNetServiceTests
 		await _service.BuildIosAsync(_tempDir, "App.iOS.csproj", "ios-arm64").ConfigureAwait(false);
 
 		await _processRunner.Received(1).RunWithCallbackAsync("dotnet",
-			Arg.Is<string>(a => a.Contains("-p:BuildIpa=false")),
+			ArgMatch.NotNull<string>(a => a.Contains("-p:BuildIpa=false")),
 			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
@@ -775,7 +790,7 @@ public class DotNetServiceTests
 		await _service.BuildIosAsync(_tempDir, "App.iOS.csproj", "ios-arm64", codeSigning: true).ConfigureAwait(false);
 
 		await _processRunner.Received(1).RunWithCallbackAsync("dotnet",
-			Arg.Is<string>(a => !a.Contains("-p:EnableCodeSigning=false")),
+			ArgMatch.NotNull<string>(a => !a.Contains("-p:EnableCodeSigning=false")),
 			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
@@ -790,7 +805,7 @@ public class DotNetServiceTests
 		// The iOS head must restore its own project graph; a solution-wide restore
 		// would drag in Windows-only heads on a macOS host.
 		await _processRunner.Received(1).RunWithCallbackAsync("dotnet",
-			Arg.Is<string>(a => !a.Contains("--no-restore")),
+			ArgMatch.NotNull<string>(a => !a.Contains("--no-restore")),
 			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 

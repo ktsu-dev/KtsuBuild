@@ -4,6 +4,8 @@
 
 namespace KtsuBuild.Abstractions;
 
+using KtsuBuild.DotNet;
+
 /// <summary>
 /// Interface for .NET SDK operations.
 /// </summary>
@@ -48,23 +50,9 @@ public interface IDotNetService
 	/// <summary>
 	/// Publishes an application for a specific runtime.
 	/// </summary>
-	/// <param name="workingDirectory">The working directory.</param>
-	/// <param name="projectPath">Path to the project file.</param>
-	/// <param name="outputPath">The output path.</param>
-	/// <param name="runtime">The target runtime (e.g., win-x64).</param>
-	/// <param name="configuration">The build configuration.</param>
-	/// <param name="selfContained">Whether to create a self-contained deployment.</param>
-	/// <param name="singleFile">Whether to create a single file executable.</param>
+	/// <param name="options">The publish options.</param>
 	/// <param name="cancellationToken">A cancellation token.</param>
-	public Task PublishAsync(
-		string workingDirectory,
-		string projectPath,
-		string outputPath,
-		string runtime,
-		string configuration = "Release",
-		bool selfContained = true,
-		bool singleFile = false,
-		CancellationToken cancellationToken = default);
+	public Task PublishAsync(PublishOptions options, CancellationToken cancellationToken = default);
 
 	/// <summary>
 	/// Builds an iOS application head for a single runtime identifier. This is a

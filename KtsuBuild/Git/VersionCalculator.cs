@@ -6,6 +6,7 @@ namespace KtsuBuild.Git;
 
 using System.Text.RegularExpressions;
 using KtsuBuild.Abstractions;
+using KtsuBuild.Utilities;
 #if !NET10_0_OR_GREATER
 using static Polyfill;
 #endif
@@ -20,8 +21,8 @@ public class VersionCalculator(IGitService gitService, IBuildLogger logger)
 	private readonly CommitAnalyzer _commitAnalyzer = new(gitService);
 
 #pragma warning disable SYSLIB1045 // GeneratedRegex not available in netstandard2.0/2.1
-	private static readonly Regex PrereleaseRegex = new(@"-(?:alpha|beta|rc|pre).*$", RegexOptions.Compiled);
-	private static readonly Regex PrereleaseNumberRegex = new(@"-(?:(alpha|beta|rc|pre))\.(\d+)", RegexOptions.Compiled);
+	private static readonly Regex PrereleaseRegex = new(@"-(?:alpha|beta|rc|pre).*$", RegexOptions.Compiled, RegexDefaults.MatchTimeout);
+	private static readonly Regex PrereleaseNumberRegex = new(@"-(?:(alpha|beta|rc|pre))\.(\d+)", RegexOptions.Compiled, RegexDefaults.MatchTimeout);
 #pragma warning restore SYSLIB1045
 
 	/// <summary>

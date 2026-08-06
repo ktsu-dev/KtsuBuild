@@ -18,6 +18,11 @@ using static Polyfill;
 [SuppressMessage("Performance", "CA1873:Use conditional log level evaluation", Justification = "Parameters are already simple strings; IsEnabled guards add unnecessary complexity")]
 public class BuildLogger : IBuildLogger
 {
+	/// <summary>
+	/// Structured logging template for a single message parameter.
+	/// </summary>
+	private const string MessageTemplate = "{Message}";
+
 	private readonly ILogger<BuildLogger>? _logger;
 
 	/// <summary>
@@ -46,7 +51,7 @@ public class BuildLogger : IBuildLogger
 		Ensure.NotNull(message);
 		string header = $"\n=== {message} ===\n";
 		WriteColored(header, ConsoleColor.Cyan);
-		_logger?.LogInformation("{Message}", header);
+		_logger?.LogInformation(MessageTemplate, header);
 	}
 
 	/// <inheritdoc/>
@@ -54,7 +59,7 @@ public class BuildLogger : IBuildLogger
 	{
 		Ensure.NotNull(message);
 		Console.WriteLine(message);
-		_logger?.LogInformation("{Message}", message);
+		_logger?.LogInformation(MessageTemplate, message);
 	}
 
 	/// <inheritdoc/>
@@ -62,7 +67,7 @@ public class BuildLogger : IBuildLogger
 	{
 		Ensure.NotNull(message);
 		WriteColored(message, ConsoleColor.Yellow);
-		_logger?.LogWarning("{Message}", message);
+		_logger?.LogWarning(MessageTemplate, message);
 	}
 
 	/// <inheritdoc/>
@@ -70,7 +75,7 @@ public class BuildLogger : IBuildLogger
 	{
 		Ensure.NotNull(message);
 		WriteColored(message, ConsoleColor.Red);
-		_logger?.LogError("{Message}", message);
+		_logger?.LogError(MessageTemplate, message);
 	}
 
 	/// <inheritdoc/>
@@ -78,7 +83,7 @@ public class BuildLogger : IBuildLogger
 	{
 		Ensure.NotNull(message);
 		WriteColored(message, ConsoleColor.Green);
-		_logger?.LogInformation("{Message}", message);
+		_logger?.LogInformation(MessageTemplate, message);
 	}
 
 	/// <inheritdoc/>
@@ -88,7 +93,7 @@ public class BuildLogger : IBuildLogger
 		if (VerboseEnabled)
 		{
 			WriteColored(message, ConsoleColor.DarkGray);
-			_logger?.LogDebug("{Message}", message);
+			_logger?.LogDebug(MessageTemplate, message);
 		}
 	}
 

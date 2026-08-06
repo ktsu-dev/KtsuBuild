@@ -4,6 +4,7 @@
 
 namespace KtsuBuild.Configuration;
 
+using System.Diagnostics.CodeAnalysis;
 using KtsuBuild.Abstractions;
 #if !NET10_0_OR_GREATER
 using static Polyfill;
@@ -16,6 +17,22 @@ using static Polyfill;
 /// <param name="gitHubService">The GitHub service.</param>
 public class BuildConfigurationProvider(IGitService gitService, IGitHubService gitHubService) : IBuildConfigurationProvider
 {
+	/// <summary>
+	/// Name of the directory that packaged artifacts are staged into.
+	/// </summary>
+	private const string StagingDirectoryName = "staging";
+
+	/// <summary>
+	/// GitHub host used when <c>GITHUB_SERVER_URL</c> is not set.
+	/// </summary>
+	[SuppressMessage("Minor Code Smell", "S1075:URIs should not be hardcoded", Justification = "This is the documented fallback for GITHUB_SERVER_URL, not a fixed endpoint; callers override it through the environment.")]
+	private const string DefaultServerUrl = "https://github.com";
+
+	/// <summary>
+	/// The GitHub host name looked for when parsing a Git remote URL.
+	/// </summary>
+	private const string GitHubHost = "github.com";
+
 	/// <inheritdoc/>
 	public async Task<BuildConfiguration> CreateAsync(BuildConfigurationOptions options, CancellationToken cancellationToken = default)
 	{
@@ -34,7 +51,7 @@ public class BuildConfigurationProvider(IGitService gitService, IGitHubService g
 
 		// Setup paths
 		string outputPath = Path.Combine(options.WorkspacePath, "output");
-		string stagingPath = Path.Combine(options.WorkspacePath, "staging");
+		string stagingPath = Path.Combine(options.WorkspacePath, StagingDirectoryName);
 
 		return new BuildConfiguration
 		{
@@ -74,48 +91,11 @@ public class BuildConfigurationProvider(IGitService gitService, IGitHubService g
 		Ensure.NotNull(workspacePath);
 
 		// Read from environment variables (GitHub Actions style)
-		string serverUrl = Environment.GetEnvironmentVariable("GITHUB_SERVER_URL") ?? "https://github.com";
+		string serverUrl = Environment.GetEnvironmentVariable("GITHUB_SERVER_URL") ?? DefaultServerUrl;
 		string gitRef = Environment.GetEnvironmentVariable("GITHUB_REF") ?? string.Empty;
 		string gitSha = Environment.GetEnvironmentVariable("GITHUB_SHA") ?? await gitService.GetCurrentCommitHashAsync(workspacePath, cancellationToken).ConfigureAwait(false);
 
-		string? repository = Environment.GetEnvironmentVariable("GITHUB_REPOSITORY");
-		string githubOwner = string.Empty;
-		string githubRepo = string.Empty;
-
-		if (!string.IsNullOrEmpty(repository))
-		{
-			string[] parts = repository.Split('/');
-			if (parts.Length == 2)
-			{
-				githubOwner = parts[0];
-				githubRepo = repository;
-			}
-		}
-		else
-		{
-			// Try to detect from git remote
-			string? remoteUrl = await gitService.GetRemoteUrlAsync(workspacePath, cancellationToken: cancellationToken).ConfigureAwait(false);
-			if (!string.IsNullOrEmpty(remoteUrl) && remoteUrl.Contains("github.com"))
-			{
-				// Parse owner/repo from URL
-				int startIndex = remoteUrl.IndexOf("github.com", StringComparison.OrdinalIgnoreCase) + 11;
-				if (startIndex < remoteUrl.Length)
-				{
-					char separator = remoteUrl[startIndex];
-					if (separator is ':' or '/')
-					{
-						startIndex++;
-					}
-					string ownerRepo = remoteUrl[startIndex..].TrimEnd('/').Replace(".git", string.Empty);
-					string[] parts = ownerRepo.Split('/');
-					if (parts.Length == 2)
-					{
-						githubOwner = parts[0];
-						githubRepo = ownerRepo;
-					}
-				}
-			}
-		}
+		(string githubOwner, string githubRepo) = await ResolveRepositoryAsync(workspacePath, cancellationToken).ConfigureAwait(false);
 
 		string githubToken = Environment.GetEnvironmentVariable("GITHUB_TOKEN") ?? Environment.GetEnvironmentVariable("GH_TOKEN") ?? string.Empty;
 		string nugetApiKey = Environment.GetEnvironmentVariable("NUGET_API_KEY") ?? string.Empty;
@@ -136,9 +116,9 @@ public class BuildConfigurationProvider(IGitService gitService, IGitHubService g
 			ExpectedOwner = expectedOwner,
 			AssetPatterns =
 			[
-				Path.Combine(workspacePath, "staging", "*.nupkg"),
-				Path.Combine(workspacePath, "staging", "*.snupkg"),
-				Path.Combine(workspacePath, "staging", "*.zip"),
+				Path.Combine(workspacePath, StagingDirectoryName, "*.nupkg"),
+				Path.Combine(workspacePath, StagingDirectoryName, "*.snupkg"),
+				Path.Combine(workspacePath, StagingDirectoryName, "*.zip"),
 			],
 		};
 
@@ -147,6 +127,57 @@ public class BuildConfigurationProvider(IGitService gitService, IGitHubService g
 		ApplyIosEnvironment(configuration);
 
 		return configuration;
+	}
+
+	/// <summary>
+	/// Resolves the GitHub owner and <c>owner/repo</c> pair from the environment, falling back
+	/// to the configured Git remote.
+	/// </summary>
+	/// <param name="workspacePath">The repository directory.</param>
+	/// <param name="cancellationToken">A cancellation token.</param>
+	/// <returns>The owner and <c>owner/repo</c>, both empty when neither source identifies them.</returns>
+	private async Task<(string Owner, string Repo)> ResolveRepositoryAsync(string workspacePath, CancellationToken cancellationToken)
+	{
+		string? repository = Environment.GetEnvironmentVariable("GITHUB_REPOSITORY");
+		if (!string.IsNullOrEmpty(repository))
+		{
+			string[] parts = repository.Split('/');
+			return parts.Length == 2 ? (parts[0], repository) : (string.Empty, string.Empty);
+		}
+
+		// Try to detect from git remote
+		string? remoteUrl = await gitService.GetRemoteUrlAsync(workspacePath, cancellationToken: cancellationToken).ConfigureAwait(false);
+		return ParseRepositoryFromRemoteUrl(remoteUrl);
+	}
+
+	/// <summary>
+	/// Parses the GitHub owner and <c>owner/repo</c> pair out of a Git remote URL.
+	/// </summary>
+	/// <param name="remoteUrl">The remote URL, in either HTTPS or SSH form.</param>
+	/// <returns>The owner and <c>owner/repo</c>, both empty when the URL is not a GitHub remote.</returns>
+	private static (string Owner, string Repo) ParseRepositoryFromRemoteUrl(string? remoteUrl)
+	{
+		if (string.IsNullOrEmpty(remoteUrl) || !remoteUrl.Contains(GitHubHost))
+		{
+			return (string.Empty, string.Empty);
+		}
+
+		// Parse owner/repo from URL
+		int startIndex = remoteUrl.IndexOf(GitHubHost, StringComparison.OrdinalIgnoreCase) + 11;
+		if (startIndex >= remoteUrl.Length)
+		{
+			return (string.Empty, string.Empty);
+		}
+
+		char separator = remoteUrl[startIndex];
+		if (separator is ':' or '/')
+		{
+			startIndex++;
+		}
+
+		string ownerRepo = remoteUrl[startIndex..].TrimEnd('/').Replace(".git", string.Empty);
+		string[] parts = ownerRepo.Split('/');
+		return parts.Length == 2 ? (parts[0], ownerRepo) : (string.Empty, string.Empty);
 	}
 
 	// Reads the iOS signing, toolchain, and App Store Connect inputs from the environment

@@ -201,7 +201,7 @@ public class WingetServiceTests
 		await _service.UploadManifestsAsync("1.0.0", manifestDir).ConfigureAwait(false);
 
 		await _processRunner.Received(1).RunWithCallbackAsync("gh",
-			Arg.Is<string>(a => a.Contains("release upload v1.0.0")),
+			ArgMatch.NotNull<string>(a => a.Contains("release upload v1.0.0")),
 			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
@@ -217,6 +217,11 @@ public class WingetServiceTests
 
 		// Should not throw
 		await _service.UploadManifestsAsync("1.0.0", manifestDir).ConfigureAwait(false);
+
+		// The failing upload was still attempted.
+		await _processRunner.Received(1).RunWithCallbackAsync("gh",
+			ArgMatch.NotNull<string>(a => a.Contains("release upload v1.0.0")),
+			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
 	[TestMethod]
@@ -233,7 +238,7 @@ public class WingetServiceTests
 		await _service.UploadManifestsAsync("2.0.0", manifestDir).ConfigureAwait(false);
 
 		await _processRunner.Received(1).RunWithCallbackAsync("gh",
-			Arg.Is<string>(a => a.Contains("release upload v2.0.0")),
+			ArgMatch.NotNull<string>(a => a.Contains("release upload v2.0.0")),
 			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 

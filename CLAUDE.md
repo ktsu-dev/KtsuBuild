@@ -47,7 +47,7 @@ Uses MSTest.Sdk with Microsoft.Testing.Platform runner and NSubstitute for mocki
 # Build
 dotnet build
 
-# Run tests (67 tests)
+# Run tests (357 tests)
 dotnet test
 
 # Run CLI directly
@@ -56,6 +56,27 @@ dotnet run --project KtsuBuild.CLI -- <command> [options]
 # Example: dry-run CI against another project
 dotnet run --project KtsuBuild.CLI -- ci --workspace /path/to/project --dry-run
 ```
+
+### Reproducing SonarCloud warnings locally
+
+CI analyses this repository with the SonarCloud scanner, which injects the Sonar
+analyzers into the compilation. A plain `dotnet build` does **not** run them, so Sonar
+warnings are invisible locally and only surface after a push. To run the same analyzers
+with the same rule set:
+
+```bash
+dotnet build -p:CustomBeforeMicrosoftCommonProps=$PWD/.sonarlint/sonar-local.props
+```
+
+```powershell
+dotnet build -p:CustomBeforeMicrosoftCommonProps=$PWD\.sonarlint\sonar-local.props
+```
+
+A clean run means a clean Sonar run in CI. The opt-in lives in
+`.sonarlint/sonar-local.props` (analyzer package) and `.sonarlint/sonar-local.globalconfig`
+(rule severities — it raises the rules CI reports that the analyzer package ships disabled,
+and silences the ones CI's quality profile does not report). Nothing imports these
+automatically, so normal builds, the CI pipeline, and packaging are unaffected.
 
 ## CLI Command Tree
 

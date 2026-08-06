@@ -6,6 +6,7 @@ namespace KtsuBuild.Tests.Publishing;
 
 using KtsuBuild.Abstractions;
 using KtsuBuild.Publishing;
+using KtsuBuild.Tests.Helpers;
 using KtsuBuild.Tests.Mocks;
 using NSubstitute;
 
@@ -33,7 +34,7 @@ public class NuGetPublisherTests
 		await _publisher.PublishToGitHubAsync("*.nupkg", "testowner", "testtoken").ConfigureAwait(false);
 
 		await _processRunner.Received(1).RunWithCallbackAsync("dotnet",
-			Arg.Is<string>(a => a.Contains("nuget push")),
+			ArgMatch.NotNull<string>(a => a.Contains("nuget push")),
 			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
@@ -46,7 +47,7 @@ public class NuGetPublisherTests
 		await _publisher.PublishToGitHubAsync("*.nupkg", "myowner", "token").ConfigureAwait(false);
 
 		await _processRunner.Received(1).RunWithCallbackAsync("dotnet",
-			Arg.Is<string>(a => a.Contains("https://nuget.pkg.github.com/myowner/index.json")),
+			ArgMatch.NotNull<string>(a => a.Contains("https://nuget.pkg.github.com/myowner/index.json")),
 			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
@@ -71,7 +72,7 @@ public class NuGetPublisherTests
 		await _publisher.PublishToNuGetOrgAsync("*.nupkg", "apikey").ConfigureAwait(false);
 
 		await _processRunner.Received(1).RunWithCallbackAsync("dotnet",
-			Arg.Is<string>(a => a.Contains("https://api.nuget.org/v3/index.json")),
+			ArgMatch.NotNull<string>(a => a.Contains("https://api.nuget.org/v3/index.json")),
 			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
@@ -96,7 +97,7 @@ public class NuGetPublisherTests
 		await _publisher.PublishToSourceAsync("*.nupkg", "https://custom.feed/v3/index.json", "apikey").ConfigureAwait(false);
 
 		await _processRunner.Received(1).RunWithCallbackAsync("dotnet",
-			Arg.Is<string>(a => a.Contains("https://custom.feed/v3/index.json")),
+			ArgMatch.NotNull<string>(a => a.Contains("https://custom.feed/v3/index.json")),
 			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
@@ -119,7 +120,7 @@ public class NuGetPublisherTests
 		await _publisher.PublishToNuGetOrgAsync("*.nupkg", "apikey").ConfigureAwait(false);
 
 		await _processRunner.Received(1).RunWithCallbackAsync("dotnet",
-			Arg.Is<string>(a => a.Contains("--skip-duplicate")),
+			ArgMatch.NotNull<string>(a => a.Contains("--skip-duplicate")),
 			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
@@ -132,7 +133,7 @@ public class NuGetPublisherTests
 		await _publisher.PublishToNuGetOrgAsync("*.nupkg", "my-secret-key").ConfigureAwait(false);
 
 		await _processRunner.Received(1).RunWithCallbackAsync("dotnet",
-			Arg.Is<string>(a => a.Contains("my-secret-key")),
+			ArgMatch.NotNull<string>(a => a.Contains("my-secret-key")),
 			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 }

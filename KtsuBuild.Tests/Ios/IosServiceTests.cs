@@ -95,7 +95,7 @@ public class IosServiceTests
 
 		await _processRunner.Received(1).RunAsync(
 			"xcrun",
-			Arg.Is<string>(a =>
+			ArgMatch.NotNull<string>(a =>
 				a.Contains("altool --upload-app") &&
 				a.Contains("--type ios") &&
 				a.Contains("--file \"/path/to/MyApp.ipa\"") &&
@@ -184,6 +184,17 @@ public class IosServiceTests
 
 	// ArchiveAsync — command-string construction
 
+	private static IosArchiveOptions ArchiveOpts(string workingDirectory, string head, string? framework, string codesignKey = "key", string provisionName = "profile") => new()
+	{
+		WorkingDirectory = workingDirectory,
+		ProjectPath = head,
+		RuntimeIdentifier = "ios-arm64",
+		Configuration = "Release",
+		Framework = framework,
+		CodesignKey = codesignKey,
+		ProvisionName = provisionName,
+	};
+
 	[TestMethod]
 	public async Task ArchiveAsync_BuildsSignedPublishArgs_AndReturnsIpa()
 	{
@@ -195,12 +206,12 @@ public class IosServiceTests
 		_processRunner.RunWithCallbackAsync("dotnet", Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
 			.Returns(0);
 
-		string produced = await _service.ArchiveAsync(_tempDir, head, "ios-arm64", "Release", "net10.0-ios", "Apple Distribution: ktsu", "ktsu profile").ConfigureAwait(false);
+		string produced = await _service.ArchiveAsync(ArchiveOpts(_tempDir, head, "net10.0-ios", "Apple Distribution: ktsu", "ktsu profile")).ConfigureAwait(false);
 
 		Assert.AreEqual(ipa, produced);
 		await _processRunner.Received(1).RunWithCallbackAsync(
 			"dotnet",
-			Arg.Is<string>(a =>
+			ArgMatch.NotNull<string>(a =>
 				a.Contains("publish") &&
 				a.Contains("--configuration Release") &&
 				a.Contains("-f net10.0-ios") &&
@@ -223,11 +234,11 @@ public class IosServiceTests
 		_processRunner.RunWithCallbackAsync("dotnet", Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
 			.Returns(0);
 
-		await _service.ArchiveAsync(_tempDir, head, "ios-arm64", "Release", framework: null, "key", "profile").ConfigureAwait(false);
+		await _service.ArchiveAsync(ArchiveOpts(_tempDir, head, framework: null)).ConfigureAwait(false);
 
 		await _processRunner.Received(1).RunWithCallbackAsync(
 			"dotnet",
-			Arg.Is<string>(a => !a.Contains(" -f ")),
+			ArgMatch.NotNull<string>(a => !a.Contains(" -f ")),
 			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
@@ -239,7 +250,7 @@ public class IosServiceTests
 			.Returns(1);
 
 		await Assert.ThrowsExactlyAsync<InvalidOperationException>(
-			() => _service.ArchiveAsync(_tempDir, head, "ios-arm64", "Release", null, "key", "profile")).ConfigureAwait(false);
+			() => _service.ArchiveAsync(ArchiveOpts(_tempDir, head, framework: null))).ConfigureAwait(false);
 	}
 
 	[TestMethod]
@@ -250,7 +261,7 @@ public class IosServiceTests
 			.Returns(0);
 
 		await Assert.ThrowsExactlyAsync<InvalidOperationException>(
-			() => _service.ArchiveAsync(_tempDir, head, "ios-arm64", "Release", null, "key", "profile")).ConfigureAwait(false);
+			() => _service.ArchiveAsync(ArchiveOpts(_tempDir, head, framework: null))).ConfigureAwait(false);
 	}
 
 	// StampVersionAsync
@@ -269,11 +280,11 @@ public class IosServiceTests
 
 		await _processRunner.Received(1).RunAsync(
 			"/usr/libexec/PlistBuddy",
-			Arg.Is<string>(a => a.Contains("Set :CFBundleShortVersionString 1.2.3")),
+			ArgMatch.NotNull<string>(a => a.Contains("Set :CFBundleShortVersionString 1.2.3")),
 			Arg.Any<string?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 		await _processRunner.Received(1).RunAsync(
 			"/usr/libexec/PlistBuddy",
-			Arg.Is<string>(a => a.Contains("Set :CFBundleVersion 42")),
+			ArgMatch.NotNull<string>(a => a.Contains("Set :CFBundleVersion 42")),
 			Arg.Any<string?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 
 		// Both keys exist, so no Add is issued.
@@ -297,11 +308,11 @@ public class IosServiceTests
 
 		await _processRunner.Received(1).RunWithCallbackAsync(
 			"/usr/libexec/PlistBuddy",
-			Arg.Is<string>(a => a.Contains("Add :CFBundleShortVersionString string 1.2.3")),
+			ArgMatch.NotNull<string>(a => a.Contains("Add :CFBundleShortVersionString string 1.2.3")),
 			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 		await _processRunner.Received(1).RunWithCallbackAsync(
 			"/usr/libexec/PlistBuddy",
-			Arg.Is<string>(a => a.Contains("Add :CFBundleVersion string 42")),
+			ArgMatch.NotNull<string>(a => a.Contains("Add :CFBundleVersion string 42")),
 			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
@@ -329,7 +340,7 @@ public class IosServiceTests
 
 		await _processRunner.Received(1).RunWithCallbackAsync(
 			"dotnet",
-			Arg.Is<string>(a => a.Contains("workload install ios --from-rollback-file")),
+			ArgMatch.NotNull<string>(a => a.Contains("workload install ios --from-rollback-file")),
 			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 

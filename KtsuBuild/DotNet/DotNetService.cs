@@ -7,6 +7,7 @@ namespace KtsuBuild.DotNet;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using KtsuBuild.Abstractions;
+using KtsuBuild.Utilities;
 #if !NET10_0_OR_GREATER
 using static Polyfill;
 #endif
@@ -18,15 +19,25 @@ using static Polyfill;
 /// <param name="logger">The build logger.</param>
 public class DotNetService(IProcessRunner processRunner, IBuildLogger logger) : IDotNetService
 {
+	/// <summary>
+	/// The .NET CLI executable name.
+	/// </summary>
+	private const string DotNetCli = "dotnet";
+
+	/// <summary>
+	/// The build configuration used when the caller does not specify one.
+	/// </summary>
+	private const string DefaultConfiguration = "Release";
+
 	private const string QuietLogger = "-logger:\"Microsoft.Build.Logging.ConsoleLogger,Microsoft.Build;Summary;ForceNoAlign;ShowTimestamp;ShowCommandLine;Verbosity=quiet\"";
 
 #pragma warning disable SYSLIB1045 // GeneratedRegex not available in netstandard2.0/2.1
-	private static readonly Regex OutputTypeExeRegex = new(@"<OutputType>\s*Exe\s*</OutputType>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-	private static readonly Regex OutputTypeWinExeRegex = new(@"<OutputType>\s*WinExe\s*</OutputType>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-	private static readonly Regex SdkAppRegex = new(@"Sdk=""[^""]*\.App[/""]", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-	private static readonly Regex SdkIosRegex = new(@"Sdk=""[^""]*\.Ios[/""]", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-	private static readonly Regex SdkTestRegex = new(@"Sdk=""[^""]*\.Test[/""]", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-	private static readonly Regex TargetFrameworkRegex = new(@"<TargetFrameworks?>\s*([^<]+?)\s*</TargetFrameworks?>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+	private static readonly Regex OutputTypeExeRegex = new(@"<OutputType>\s*Exe\s*</OutputType>", RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexDefaults.MatchTimeout);
+	private static readonly Regex OutputTypeWinExeRegex = new(@"<OutputType>\s*WinExe\s*</OutputType>", RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexDefaults.MatchTimeout);
+	private static readonly Regex SdkAppRegex = new(@"Sdk=""[^""]*\.App[/""]", RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexDefaults.MatchTimeout);
+	private static readonly Regex SdkIosRegex = new(@"Sdk=""[^""]*\.Ios[/""]", RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexDefaults.MatchTimeout);
+	private static readonly Regex SdkTestRegex = new(@"Sdk=""[^""]*\.Test[/""]", RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexDefaults.MatchTimeout);
+	private static readonly Regex TargetFrameworkRegex = new(@"<TargetFrameworks?>\s*([^<]+?)\s*</TargetFrameworks?>", RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexDefaults.MatchTimeout);
 #pragma warning restore SYSLIB1045
 
 	/// <inheritdoc/>
@@ -43,7 +54,7 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger) : 
 		}
 
 		exitCode = await processRunner.RunWithCallbackAsync(
-			"dotnet",
+			DotNetCli,
 			args,
 			workingDirectory,
 			logger.WriteInfo,
@@ -57,7 +68,7 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger) : 
 	}
 
 	/// <inheritdoc/>
-	public async Task BuildAsync(string workingDirectory, string configuration = "Release", string? additionalArgs = null, CancellationToken cancellationToken = default)
+	public async Task BuildAsync(string workingDirectory, string configuration = DefaultConfiguration, string? additionalArgs = null, CancellationToken cancellationToken = default)
 	{
 		Ensure.NotNull(workingDirectory);
 		logger.WriteStepHeader("Building Solution");
@@ -69,7 +80,7 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger) : 
 		}
 
 		int exitCode = await processRunner.RunWithCallbackAsync(
-			"dotnet",
+			DotNetCli,
 			args,
 			workingDirectory,
 			logger.WriteInfo,
@@ -82,7 +93,7 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger) : 
 
 			// Retry with more verbose output
 			exitCode = await processRunner.RunWithCallbackAsync(
-				"dotnet",
+				DotNetCli,
 				args,
 				workingDirectory,
 				logger.WriteInfo,
@@ -105,7 +116,7 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger) : 
 	}
 
 	/// <inheritdoc/>
-	public async Task TestAsync(string workingDirectory, string configuration = "Release", string? coverageOutputPath = null, CancellationToken cancellationToken = default)
+	public async Task TestAsync(string workingDirectory, string configuration = DefaultConfiguration, string? coverageOutputPath = null, CancellationToken cancellationToken = default)
 	{
 		Ensure.NotNull(workingDirectory);
 		logger.WriteStepHeader("Running Tests with Coverage");
@@ -139,7 +150,7 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger) : 
 		for (int attempt = 1; attempt <= maxAttempts; attempt++)
 		{
 			exitCode = await processRunner.RunWithCallbackAsync(
-				"dotnet",
+				DotNetCli,
 				args,
 				workingDirectory,
 				logger.WriteInfo,
@@ -167,7 +178,7 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger) : 
 	}
 
 	/// <inheritdoc/>
-	public async Task PackAsync(string workingDirectory, string outputPath, string configuration = "Release", string? releaseNotesFile = null, CancellationToken cancellationToken = default)
+	public async Task PackAsync(string workingDirectory, string outputPath, string configuration = DefaultConfiguration, string? releaseNotesFile = null, CancellationToken cancellationToken = default)
 	{
 		Ensure.NotNull(workingDirectory);
 		Ensure.NotNull(outputPath);
@@ -217,7 +228,7 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger) : 
 			string args = $"pack \"{project}\" --configuration {configuration} {QuietLogger} --no-build --output \"{outputPath}\"{solutionContextArgs}{releaseNotesArg}";
 
 			int exitCode = await processRunner.RunWithCallbackAsync(
-				"dotnet",
+				DotNetCli,
 				args,
 				workingDirectory,
 				logger.WriteInfo,
@@ -247,38 +258,27 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger) : 
 	}
 
 	/// <inheritdoc/>
-	public async Task PublishAsync(
-		string workingDirectory,
-		string projectPath,
-		string outputPath,
-		string runtime,
-		string configuration = "Release",
-		bool selfContained = true,
-		bool singleFile = false,
-		CancellationToken cancellationToken = default)
+	public async Task PublishAsync(PublishOptions options, CancellationToken cancellationToken = default)
 	{
-		Ensure.NotNull(workingDirectory);
-		Ensure.NotNull(projectPath);
-		Ensure.NotNull(outputPath);
-		Ensure.NotNull(runtime);
-		Directory.CreateDirectory(outputPath);
+		Ensure.NotNull(options);
+		Directory.CreateDirectory(options.OutputPath);
 
-		string args = $"publish \"{projectPath}\" --configuration {configuration} --runtime {runtime} " +
-			$"--self-contained {selfContained.ToString().ToLowerInvariant()} --output \"{outputPath}\" " +
-			$"-p:PublishSingleFile={singleFile.ToString().ToLowerInvariant()} " +
+		string args = $"publish \"{options.ProjectPath}\" --configuration {options.Configuration} --runtime {options.Runtime} " +
+			$"--self-contained {options.SelfContained.ToString().ToLowerInvariant()} --output \"{options.OutputPath}\" " +
+			$"-p:PublishSingleFile={options.SingleFile.ToString().ToLowerInvariant()} " +
 			$"-p:PublishTrimmed=false -p:DebugType=none -p:DebugSymbols=false {QuietLogger}";
 
 		int exitCode = await processRunner.RunWithCallbackAsync(
-			"dotnet",
+			DotNetCli,
 			args,
-			workingDirectory,
+			options.WorkingDirectory,
 			logger.WriteInfo,
 			logger.WriteError,
 			cancellationToken).ConfigureAwait(false);
 
 		if (exitCode != 0)
 		{
-			throw new InvalidOperationException($"Publish failed for {projectPath} ({runtime}) with exit code {exitCode}");
+			throw new InvalidOperationException($"Publish failed for {options.ProjectPath} ({options.Runtime}) with exit code {exitCode}");
 		}
 	}
 
@@ -287,7 +287,7 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger) : 
 		string workingDirectory,
 		string projectPath,
 		string runtimeIdentifier,
-		string configuration = "Release",
+		string configuration = DefaultConfiguration,
 		bool codeSigning = false,
 		CancellationToken cancellationToken = default)
 	{
@@ -307,7 +307,7 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger) : 
 			$"-p:RuntimeIdentifier={runtimeIdentifier} -p:BuildIpa=false{signingArgs} {QuietLogger}";
 
 		int exitCode = await processRunner.RunWithCallbackAsync(
-			"dotnet",
+			DotNetCli,
 			args,
 			workingDirectory,
 			logger.WriteInfo,

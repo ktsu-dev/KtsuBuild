@@ -53,25 +53,45 @@ public class WingetService(IProcessRunner processRunner, IBuildLogger logger) : 
 		string repoName = parts[1];
 
 		// Build configuration
-		string packageId = options.PackageId ?? $"{owner}.{repoName}";
-		string artifactPattern = options.ArtifactNamePattern ?? $"{repoName}-{{version}}-{{arch}}.zip";
-		string executableName = options.ExecutableName ?? projectInfo.ExecutableName;
-		string commandAlias = options.CommandAlias ?? repoName.ToLowerInvariant();
-		string packageName = projectInfo.Name.StartsWith($"{owner}.", StringComparison.OrdinalIgnoreCase)
-			? projectInfo.Name[(owner.Length + 1)..]
-			: projectInfo.Name;
+		ManifestConfig config = BuildManifestConfig(options, projectInfo, gitHubRepo, owner, repoName);
 
-		LogManifestConfiguration(packageId, gitHubRepo, artifactPattern, executableName, commandAlias);
+		LogManifestConfiguration(config);
 
 		// Get SHA256 hashes
-		Dictionary<string, string> sha256Hashes = await GetHashesAsync(options, gitHubRepo, repoName, artifactPattern, cancellationToken).ConfigureAwait(false);
+		Dictionary<string, string> sha256Hashes = await GetHashesAsync(options, gitHubRepo, repoName, config.ArtifactNamePattern, cancellationToken).ConfigureAwait(false);
 
 		if (sha256Hashes.Count == 0)
 		{
 			return HandleNoHashes(options.RootDirectory, projectInfo);
 		}
 
-		return await GenerateManifestFilesAsync(options, projectInfo, sha256Hashes, packageId, gitHubRepo, owner, repoName, packageName, artifactPattern, executableName, commandAlias, cancellationToken).ConfigureAwait(false);
+		return await GenerateManifestFilesAsync(options, projectInfo, sha256Hashes, config, cancellationToken).ConfigureAwait(false);
+	}
+
+	/// <summary>
+	/// Builds the manifest configuration, resolving each value from the options and
+	/// falling back to what was detected in the project.
+	/// </summary>
+	private static ManifestConfig BuildManifestConfig(WingetOptions options, ProjectInfo projectInfo, string gitHubRepo, string owner, string repoName)
+	{
+		string packageName = projectInfo.Name.StartsWith($"{owner}.", StringComparison.OrdinalIgnoreCase)
+			? projectInfo.Name[(owner.Length + 1)..]
+			: projectInfo.Name;
+
+		return new ManifestConfig
+		{
+			PackageId = options.PackageId ?? $"{owner}.{repoName}",
+			Version = options.Version,
+			GitHubRepo = gitHubRepo,
+			Owner = owner,
+			RepoName = repoName,
+			Publisher = projectInfo.Publisher.Length > 0 ? projectInfo.Publisher : owner,
+			PackageName = packageName,
+			ShortDescription = projectInfo.ShortDescription.Length > 0 ? projectInfo.ShortDescription : $"A {projectInfo.Type} application",
+			ArtifactNamePattern = options.ArtifactNamePattern ?? $"{repoName}-{{version}}-{{arch}}.zip",
+			ExecutableName = options.ExecutableName ?? projectInfo.ExecutableName,
+			CommandAlias = options.CommandAlias ?? repoName.ToLowerInvariant(),
+		};
 	}
 
 	private WingetManifestResult SkipLibraryProject(string reason)
@@ -85,14 +105,14 @@ public class WingetService(IProcessRunner processRunner, IBuildLogger logger) : 
 		};
 	}
 
-	private void LogManifestConfiguration(string packageId, string gitHubRepo, string artifactPattern, string executableName, string commandAlias)
+	private void LogManifestConfiguration(ManifestConfig config)
 	{
 		logger.WriteInfo($"Configuration:");
-		logger.WriteInfo($"  Package ID: {packageId}");
-		logger.WriteInfo($"  GitHub Repo: {gitHubRepo}");
-		logger.WriteInfo($"  Artifact Pattern: {artifactPattern}");
-		logger.WriteInfo($"  Executable: {executableName}");
-		logger.WriteInfo($"  Command Alias: {commandAlias}");
+		logger.WriteInfo($"  Package ID: {config.PackageId}");
+		logger.WriteInfo($"  GitHub Repo: {config.GitHubRepo}");
+		logger.WriteInfo($"  Artifact Pattern: {config.ArtifactNamePattern}");
+		logger.WriteInfo($"  Executable: {config.ExecutableName}");
+		logger.WriteInfo($"  Command Alias: {config.CommandAlias}");
 	}
 
 	private WingetManifestResult HandleNoHashes(string rootDirectory, ProjectInfo projectInfo)
@@ -116,31 +136,9 @@ public class WingetService(IProcessRunner processRunner, IBuildLogger logger) : 
 		WingetOptions options,
 		ProjectInfo projectInfo,
 		Dictionary<string, string> sha256Hashes,
-		string packageId,
-		string gitHubRepo,
-		string owner,
-		string repoName,
-		string packageName,
-		string artifactPattern,
-		string executableName,
-		string commandAlias,
+		ManifestConfig config,
 		CancellationToken cancellationToken)
 	{
-		ManifestConfig config = new()
-		{
-			PackageId = packageId,
-			Version = options.Version,
-			GitHubRepo = gitHubRepo,
-			Owner = owner,
-			RepoName = repoName,
-			Publisher = projectInfo.Publisher.Length > 0 ? projectInfo.Publisher : owner,
-			PackageName = packageName,
-			ShortDescription = projectInfo.ShortDescription.Length > 0 ? projectInfo.ShortDescription : $"A {projectInfo.Type} application",
-			ArtifactNamePattern = artifactPattern,
-			ExecutableName = executableName,
-			CommandAlias = commandAlias,
-		};
-
 		Directory.CreateDirectory(options.OutputDirectory);
 		IReadOnlyList<string> manifestFiles = await ManifestGenerator.GenerateAsync(config, projectInfo, sha256Hashes, options.OutputDirectory, cancellationToken).ConfigureAwait(false);
 
@@ -154,7 +152,7 @@ public class WingetService(IProcessRunner processRunner, IBuildLogger logger) : 
 		{
 			Success = true,
 			ManifestFiles = manifestFiles,
-			PackageId = packageId,
+			PackageId = config.PackageId,
 		};
 	}
 

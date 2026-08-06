@@ -29,7 +29,7 @@ public class GitServiceTests
 	[TestMethod]
 	public async Task GetTagsAsync_SuccessWithTags_ReturnsTagList()
 	{
-		_processRunner.RunAsync("git", Arg.Is<string>(a => a.StartsWith("config")), Arg.Any<string>(), Arg.Any<CancellationToken>())
+		_processRunner.RunAsync("git", ArgMatch.NotNull<string>(a => a.StartsWith("config")), Arg.Any<string>(), Arg.Any<CancellationToken>())
 			.Returns(TestHelpers.SuccessResult());
 		_processRunner.RunAsync("git", "tag --list --sort=-v:refname", Arg.Any<string>(), Arg.Any<CancellationToken>())
 			.Returns(TestHelpers.SuccessResult("v2.0.0\nv1.1.0\nv1.0.0\n"));
@@ -45,7 +45,7 @@ public class GitServiceTests
 	[TestMethod]
 	public async Task GetTagsAsync_NoTags_ReturnsEmptyList()
 	{
-		_processRunner.RunAsync("git", Arg.Is<string>(a => a.StartsWith("config")), Arg.Any<string>(), Arg.Any<CancellationToken>())
+		_processRunner.RunAsync("git", ArgMatch.NotNull<string>(a => a.StartsWith("config")), Arg.Any<string>(), Arg.Any<CancellationToken>())
 			.Returns(TestHelpers.SuccessResult());
 		_processRunner.RunAsync("git", "tag --list --sort=-v:refname", Arg.Any<string>(), Arg.Any<CancellationToken>())
 			.Returns(TestHelpers.SuccessResult(""));
@@ -77,10 +77,10 @@ public class GitServiceTests
 		await _service.GetTagsAsync("/repo").ConfigureAwait(false);
 
 		// Verify 4 config commands were called for versionsort suffixes
-		await _processRunner.Received(1).RunAsync("git", Arg.Is<string>(a => a.Contains("-alpha")), Arg.Any<string>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
-		await _processRunner.Received(1).RunAsync("git", Arg.Is<string>(a => a.Contains("-beta")), Arg.Any<string>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
-		await _processRunner.Received(1).RunAsync("git", Arg.Is<string>(a => a.Contains("-rc")), Arg.Any<string>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
-		await _processRunner.Received(1).RunAsync("git", Arg.Is<string>(a => a.Contains("-pre")), Arg.Any<string>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+		await _processRunner.Received(1).RunAsync("git", ArgMatch.NotNull<string>(a => a.Contains("-alpha")), Arg.Any<string>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+		await _processRunner.Received(1).RunAsync("git", ArgMatch.NotNull<string>(a => a.Contains("-beta")), Arg.Any<string>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+		await _processRunner.Received(1).RunAsync("git", ArgMatch.NotNull<string>(a => a.Contains("-rc")), Arg.Any<string>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+		await _processRunner.Received(1).RunAsync("git", ArgMatch.NotNull<string>(a => a.Contains("-pre")), Arg.Any<string>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
 	// GetCurrentCommitHashAsync
@@ -149,7 +149,7 @@ public class GitServiceTests
 	[TestMethod]
 	public async Task GetCommitMessagesAsync_WithMessages_ReturnsParsedList()
 	{
-		_processRunner.RunAsync("git", Arg.Is<string>(a => a.StartsWith("log")), Arg.Any<string>(), Arg.Any<CancellationToken>())
+		_processRunner.RunAsync("git", ArgMatch.NotNull<string>(a => a.StartsWith("log")), Arg.Any<string>(), Arg.Any<CancellationToken>())
 			.Returns(TestHelpers.SuccessResult("Fix bug\nAdd feature\nUpdate docs\n"));
 
 		IReadOnlyList<string> messages = await _service.GetCommitMessagesAsync("/repo", "abc..def").ConfigureAwait(false);
@@ -187,7 +187,7 @@ public class GitServiceTests
 	[TestMethod]
 	public async Task GetCommitsAsync_WithCommits_ReturnsParsedCommitInfoList()
 	{
-		_processRunner.RunAsync("git", Arg.Is<string>(a => a.StartsWith("log")), Arg.Any<string>(), Arg.Any<CancellationToken>())
+		_processRunner.RunAsync("git", ArgMatch.NotNull<string>(a => a.StartsWith("log")), Arg.Any<string>(), Arg.Any<CancellationToken>())
 			.Returns(TestHelpers.SuccessResult("abc123|Fix bug|Alice\ndef456|Add feature|Bob\n"));
 
 		IReadOnlyList<CommitInfo> commits = await _service.GetCommitsAsync("/repo", "abc..def").ConfigureAwait(false);
@@ -204,7 +204,7 @@ public class GitServiceTests
 	[TestMethod]
 	public async Task GetCommitsAsync_MalformedLine_SkipsIncompleteEntries()
 	{
-		_processRunner.RunAsync("git", Arg.Is<string>(a => a.StartsWith("log")), Arg.Any<string>(), Arg.Any<CancellationToken>())
+		_processRunner.RunAsync("git", ArgMatch.NotNull<string>(a => a.StartsWith("log")), Arg.Any<string>(), Arg.Any<CancellationToken>())
 			.Returns(TestHelpers.SuccessResult("abc123|Fix bug|Alice\nbadline\ndef456|Add feature|Bob\n"));
 
 		IReadOnlyList<CommitInfo> commits = await _service.GetCommitsAsync("/repo", "abc..def").ConfigureAwait(false);
@@ -236,7 +236,7 @@ public class GitServiceTests
 		await _service.GetDiffAsync("/repo", "abc..def", "*.cs").ConfigureAwait(false);
 
 		await _processRunner.Received(1).RunAsync("git",
-			Arg.Is<string>(a => a.Contains("-- \"*.cs\"")),
+			ArgMatch.NotNull<string>(a => a.Contains("-- \"*.cs\"")),
 			Arg.Any<string>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
@@ -249,7 +249,7 @@ public class GitServiceTests
 		await _service.GetDiffAsync("/repo", "abc..def").ConfigureAwait(false);
 
 		await _processRunner.Received(1).RunAsync("git",
-			Arg.Is<string>(a => !a.Contains("--")),
+			ArgMatch.NotNull<string>(a => !a.Contains("--")),
 			Arg.Any<string>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
@@ -317,25 +317,25 @@ public class GitServiceTests
 	[TestMethod]
 	public async Task CreateAndPushTagAsync_Success_CreatesAndPushesTag()
 	{
-		_processRunner.RunAsync("git", Arg.Is<string>(a => a.StartsWith("tag")), Arg.Any<string>(), Arg.Any<CancellationToken>())
+		_processRunner.RunAsync("git", ArgMatch.NotNull<string>(a => a.StartsWith("tag")), Arg.Any<string>(), Arg.Any<CancellationToken>())
 			.Returns(TestHelpers.SuccessResult());
-		_processRunner.RunAsync("git", Arg.Is<string>(a => a.StartsWith("push")), Arg.Any<string>(), Arg.Any<CancellationToken>())
+		_processRunner.RunAsync("git", ArgMatch.NotNull<string>(a => a.StartsWith("push")), Arg.Any<string>(), Arg.Any<CancellationToken>())
 			.Returns(TestHelpers.SuccessResult());
 
 		await _service.CreateAndPushTagAsync("/repo", "v1.0.0", "abc123", "Release v1.0.0").ConfigureAwait(false);
 
 		await _processRunner.Received(1).RunAsync("git",
-			Arg.Is<string>(a => a.Contains("tag") && a.Contains("v1.0.0") && a.Contains("abc123")),
+			ArgMatch.NotNull<string>(a => a.Contains("tag") && a.Contains("v1.0.0") && a.Contains("abc123")),
 			Arg.Any<string>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 		await _processRunner.Received(1).RunAsync("git",
-			Arg.Is<string>(a => a.Contains("push origin")),
+			ArgMatch.NotNull<string>(a => a.Contains("push origin")),
 			Arg.Any<string>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
 	[TestMethod]
 	public async Task CreateAndPushTagAsync_CreateFails_ThrowsInvalidOperationException()
 	{
-		_processRunner.RunAsync("git", Arg.Is<string>(a => a.StartsWith("tag")), Arg.Any<string>(), Arg.Any<CancellationToken>())
+		_processRunner.RunAsync("git", ArgMatch.NotNull<string>(a => a.StartsWith("tag")), Arg.Any<string>(), Arg.Any<CancellationToken>())
 			.Returns(TestHelpers.FailureResult("tag error"));
 
 		await Assert.ThrowsExactlyAsync<InvalidOperationException>(
@@ -345,9 +345,9 @@ public class GitServiceTests
 	[TestMethod]
 	public async Task CreateAndPushTagAsync_PushFails_ThrowsInvalidOperationException()
 	{
-		_processRunner.RunAsync("git", Arg.Is<string>(a => a.StartsWith("tag")), Arg.Any<string>(), Arg.Any<CancellationToken>())
+		_processRunner.RunAsync("git", ArgMatch.NotNull<string>(a => a.StartsWith("tag")), Arg.Any<string>(), Arg.Any<CancellationToken>())
 			.Returns(TestHelpers.SuccessResult());
-		_processRunner.RunAsync("git", Arg.Is<string>(a => a.StartsWith("push")), Arg.Any<string>(), Arg.Any<CancellationToken>())
+		_processRunner.RunAsync("git", ArgMatch.NotNull<string>(a => a.StartsWith("push")), Arg.Any<string>(), Arg.Any<CancellationToken>())
 			.Returns(TestHelpers.FailureResult("push error"));
 
 		await Assert.ThrowsExactlyAsync<InvalidOperationException>(
@@ -365,7 +365,7 @@ public class GitServiceTests
 		await _service.StageFilesAsync("/repo", ["file1.cs", "file2.cs"]).ConfigureAwait(false);
 
 		await _processRunner.Received(1).RunAsync("git",
-			Arg.Is<string>(a => a.Contains("add") && a.Contains("file1.cs") && a.Contains("file2.cs")),
+			ArgMatch.NotNull<string>(a => a.Contains("add") && a.Contains("file1.cs") && a.Contains("file2.cs")),
 			Arg.Any<string>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
@@ -384,7 +384,7 @@ public class GitServiceTests
 	[TestMethod]
 	public async Task CommitAsync_Success_ReturnsNewCommitHash()
 	{
-		_processRunner.RunAsync("git", Arg.Is<string>(a => a.StartsWith("commit")), Arg.Any<string>(), Arg.Any<CancellationToken>())
+		_processRunner.RunAsync("git", ArgMatch.NotNull<string>(a => a.StartsWith("commit")), Arg.Any<string>(), Arg.Any<CancellationToken>())
 			.Returns(TestHelpers.SuccessResult());
 		_processRunner.RunAsync("git", "rev-parse HEAD", Arg.Any<string>(), Arg.Any<CancellationToken>())
 			.Returns(TestHelpers.SuccessResult("newcommithash"));
@@ -397,7 +397,7 @@ public class GitServiceTests
 	[TestMethod]
 	public async Task CommitAsync_Failure_ThrowsInvalidOperationException()
 	{
-		_processRunner.RunAsync("git", Arg.Is<string>(a => a.StartsWith("commit")), Arg.Any<string>(), Arg.Any<CancellationToken>())
+		_processRunner.RunAsync("git", ArgMatch.NotNull<string>(a => a.StartsWith("commit")), Arg.Any<string>(), Arg.Any<CancellationToken>())
 			.Returns(TestHelpers.FailureResult("commit error"));
 
 		await Assert.ThrowsExactlyAsync<InvalidOperationException>(
@@ -462,17 +462,17 @@ public class GitServiceTests
 		await _service.SetIdentityAsync("/repo", "Test User", "test@example.com").ConfigureAwait(false);
 
 		await _processRunner.Received(1).RunAsync("git",
-			Arg.Is<string>(a => a.Contains("user.name")),
+			ArgMatch.NotNull<string>(a => a.Contains("user.name")),
 			Arg.Any<string>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 		await _processRunner.Received(1).RunAsync("git",
-			Arg.Is<string>(a => a.Contains("user.email")),
+			ArgMatch.NotNull<string>(a => a.Contains("user.email")),
 			Arg.Any<string>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
 	[TestMethod]
 	public async Task SetIdentityAsync_NameFails_ThrowsInvalidOperationException()
 	{
-		_processRunner.RunAsync("git", Arg.Is<string>(a => a.Contains("user.name")), Arg.Any<string>(), Arg.Any<CancellationToken>())
+		_processRunner.RunAsync("git", ArgMatch.NotNull<string>(a => a.Contains("user.name")), Arg.Any<string>(), Arg.Any<CancellationToken>())
 			.Returns(TestHelpers.FailureResult("name error"));
 
 		await Assert.ThrowsExactlyAsync<InvalidOperationException>(
@@ -482,9 +482,9 @@ public class GitServiceTests
 	[TestMethod]
 	public async Task SetIdentityAsync_EmailFails_ThrowsInvalidOperationException()
 	{
-		_processRunner.RunAsync("git", Arg.Is<string>(a => a.Contains("user.name")), Arg.Any<string>(), Arg.Any<CancellationToken>())
+		_processRunner.RunAsync("git", ArgMatch.NotNull<string>(a => a.Contains("user.name")), Arg.Any<string>(), Arg.Any<CancellationToken>())
 			.Returns(TestHelpers.SuccessResult());
-		_processRunner.RunAsync("git", Arg.Is<string>(a => a.Contains("user.email")), Arg.Any<string>(), Arg.Any<CancellationToken>())
+		_processRunner.RunAsync("git", ArgMatch.NotNull<string>(a => a.Contains("user.email")), Arg.Any<string>(), Arg.Any<CancellationToken>())
 			.Returns(TestHelpers.FailureResult("email error"));
 
 		await Assert.ThrowsExactlyAsync<InvalidOperationException>(
