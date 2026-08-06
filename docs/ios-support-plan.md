@@ -84,7 +84,7 @@ build.
 The takeaway for KtsuBuild: MeltdownMonitor's `ios.yml` is exactly the kind of
 bespoke, copy-pasted workflow KtsuBuild exists to replace. The plan is to move
 each of those steps behind a KtsuBuild command so a consumer's workflow shrinks
-to "clone KtsuBuild, run `ktsubuild ios …`".
+to "install the KtsuBuild tool, run `ktsubuild ios …`".
 
 ## Gap analysis against KtsuBuild today
 
@@ -250,8 +250,10 @@ ios-build:
   steps:
     - uses: actions/checkout@v4
     - uses: actions/setup-dotnet@v4
-    - run: git clone --depth 1 https://github.com/ktsu-dev/KtsuBuild.git "${{ runner.temp }}/KtsuBuild"
-    - run: dotnet run --project "${{ runner.temp }}/KtsuBuild/KtsuBuild.CLI" -- ios build --workspace "${{ github.workspace }}" --verbose
+    - run: |
+        dotnet tool install ktsu.KtsuBuild.Tool --tool-path "${{ runner.temp }}/ktsubuild"
+        "${{ runner.temp }}/ktsubuild" >> $env:GITHUB_PATH
+    - run: ktsubuild ios build --workspace "${{ github.workspace }}" --verbose
 
 ios-release:
   needs: ios-build
@@ -264,8 +266,8 @@ ios-release:
     # … remaining signing secrets …
   steps:
     - uses: actions/checkout@v4
-    - run: dotnet run --project "${{ runner.temp }}/KtsuBuild/KtsuBuild.CLI" -- ios package --workspace "${{ github.workspace }}" --verbose
-    - run: dotnet run --project "${{ runner.temp }}/KtsuBuild/KtsuBuild.CLI" -- ios upload --workspace "${{ github.workspace }}" --verbose
+    - run: ktsubuild ios package --workspace "${{ github.workspace }}" --verbose
+    - run: ktsubuild ios upload --workspace "${{ github.workspace }}" --verbose
 ```
 
 The macOS runner requirement does not change. What changes is that the Xcode
