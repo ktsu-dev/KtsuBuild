@@ -2,7 +2,7 @@
 // All rights reserved.
 // Licensed under the MIT license.
 
-namespace KtsuBuild.CLI.Commands;
+namespace KtsuBuild.Tool.Commands;
 
 using System.CommandLine;
 using System.Runtime.InteropServices;

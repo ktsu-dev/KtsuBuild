@@ -2,12 +2,12 @@
 // All rights reserved.
 // Licensed under the MIT license.
 
-namespace KtsuBuild.CLI;
+namespace KtsuBuild.Tool;
 
 using System.CommandLine;
 using System.Runtime.InteropServices;
 using KtsuBuild.Abstractions;
-using KtsuBuild.CLI.Commands;
+using KtsuBuild.Tool.Commands;
 using KtsuBuild.Utilities;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;

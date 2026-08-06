@@ -14,7 +14,7 @@ KtsuBuild.sln
 │   ├── project.yml      # C# language server and project settings
 │   └── .gitignore       # Ignores cache directory
 ├── KtsuBuild/           # Core library (multi-targeted)
-├── KtsuBuild.CLI/       # Console application (net10.0)
+├── KtsuBuild.Tool/      # CLI, packed as a .NET tool (net10.0)
 └── KtsuBuild.Tests/     # Test project (net9.0, MSTest.Sdk)
 ```
 
@@ -33,9 +33,12 @@ Multi-targeted: net10.0, net9.0, net8.0, net7.0, net6.0, net5.0, netstandard2.0,
 | `KtsuBuild.Utilities` | Process runner, logger, environment setup |
 | `KtsuBuild.Winget` | Winget manifest generation and upload |
 
-### KtsuBuild.CLI (Console Application)
+### KtsuBuild.Tool (CLI)
 
 Uses `System.CommandLine` 2.0.3 with DI via `Microsoft.Extensions.DependencyInjection`.
+
+Built with `ktsu.Sdk.Tool`, so it packs as `ktsu.KtsuBuild.Tool` and installs as the `ktsubuild`
+command. The command name is derived from the solution name by the SDK.
 
 ### KtsuBuild.Tests
 
@@ -51,10 +54,10 @@ dotnet build
 dotnet test
 
 # Run CLI directly
-dotnet run --project KtsuBuild.CLI -- <command> [options]
+dotnet run --project KtsuBuild.Tool -- <command> [options]
 
 # Example: dry-run CI against another project
-dotnet run --project KtsuBuild.CLI -- ci --workspace /path/to/project --dry-run
+dotnet run --project KtsuBuild.Tool -- ci --workspace /path/to/project --dry-run
 ```
 
 ### Reproducing SonarCloud warnings locally

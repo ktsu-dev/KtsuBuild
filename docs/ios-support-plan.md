@@ -213,7 +213,7 @@ The signing properties carry secrets. They must never be logged or echoed.
 only as a boolean, exactly as MeltdownMonitor's `check-secrets` job is careful
 to never print the secret value.
 
-### 5. CLI surface (`KtsuBuild.CLI`)
+### 5. CLI surface (`KtsuBuild.Tool`)
 
 Add an `ios` command with subcommands, wired with the project's
 `System.CommandLine` 2.0.3 conventions (command subclass plus `SetAction` in
@@ -354,7 +354,7 @@ KtsuBuild touch points:
 - `KtsuBuild/Publishing/ReleaseService.cs` — where an iOS branch would hook in
 - `KtsuBuild/Configuration/BuildConfiguration.cs` and `BuildConfigurationProvider.cs`
 - New `KtsuBuild/Ios/IosService.cs`, `IosOptions.cs` (mirroring `Winget/`)
-- `KtsuBuild.CLI/Program.cs` and `KtsuBuild.CLI/Commands/` — the `ios` command
+- `KtsuBuild.Tool/Program.cs` and `KtsuBuild.Tool/Commands/` — the `ios` command
 - `.github/workflows/dotnet.yml` — consumer workflow guidance
 
 MeltdownMonitor reference:
