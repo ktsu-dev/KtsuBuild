@@ -14,31 +14,37 @@
 
 ## Usage
 
-### From Source (Recommended for CI/CD)
+### As a .NET Tool (Recommended)
 
-Clone and run directly with `dotnet run`:
+```bash
+dotnet tool install -g ktsu.KtsuBuild.Tool
+
+ktsubuild ci --workspace .
+ktsubuild build --workspace .
+ktsubuild version show --workspace .
+```
+
+In CI, prefer `--tool-path` over `-g`: the install is self-contained and the command does
+not depend on the runner having the global tools directory on `PATH`.
+
+```bash
+dotnet tool install ktsu.KtsuBuild.Tool --tool-path ./.ktsubuild
+./.ktsubuild/ktsubuild ci --workspace .
+```
+
+### From Source
 
 ```bash
 git clone --depth 1 https://github.com/ktsu-dev/KtsuBuild.git /tmp/KtsuBuild
 
 # Run the full CI/CD pipeline
-dotnet run --project /tmp/KtsuBuild/KtsuBuild.CLI -- ci --workspace .
+dotnet run --project /tmp/KtsuBuild/KtsuBuild.Tool -- ci --workspace .
 
 # Build only
-dotnet run --project /tmp/KtsuBuild/KtsuBuild.CLI -- build --workspace .
+dotnet run --project /tmp/KtsuBuild/KtsuBuild.Tool -- build --workspace .
 
 # Show version info
-dotnet run --project /tmp/KtsuBuild/KtsuBuild.CLI -- version show --workspace .
-```
-
-### As a Global Tool
-
-```bash
-dotnet tool install -g KtsuBuild.CLI
-
-ktsub ci
-ktsub build
-ktsub version show
+dotnet run --project /tmp/KtsuBuild/KtsuBuild.Tool -- version show --workspace .
 ```
 
 ## CLI Commands
@@ -58,7 +64,7 @@ All commands support these options:
 Run the full CI/CD pipeline: metadata update, build, test, pack, publish, and release.
 
 ```bash
-ktsub ci [options]
+ktsubuild ci [options]
 ```
 
 **Options:**
@@ -84,7 +90,7 @@ ktsub ci [options]
 Build workflow: restore, build, and test.
 
 ```bash
-ktsub build [options]
+ktsubuild build [options]
 ```
 
 ### `release`
@@ -92,7 +98,7 @@ ktsub build [options]
 Release workflow: pack, publish NuGet packages, and create GitHub release.
 
 ```bash
-ktsub release [options]
+ktsubuild release [options]
 ```
 
 **Options:**
@@ -107,7 +113,7 @@ Version management commands.
 Display current version information including last tag, calculated version, and increment reason.
 
 ```bash
-ktsub version show [options]
+ktsubuild version show [options]
 ```
 
 **Output:**
@@ -125,7 +131,7 @@ Is Prerelease: False
 Calculate and display the next version number.
 
 ```bash
-ktsub version bump [options]
+ktsubuild version bump [options]
 ```
 
 #### `version create`
@@ -133,7 +139,7 @@ ktsub version bump [options]
 Create or update the VERSION.md file with the calculated version.
 
 ```bash
-ktsub version create [options]
+ktsubuild version create [options]
 ```
 
 ### `metadata`
@@ -145,7 +151,7 @@ Metadata file management commands.
 Update all metadata files (VERSION.md, CHANGELOG.md, LICENSE.md, COPYRIGHT.md, AUTHORS.md, URL files).
 
 ```bash
-ktsub metadata update [options]
+ktsubuild metadata update [options]
 ```
 
 **Options:**
@@ -156,7 +162,7 @@ ktsub metadata update [options]
 Generate LICENSE.md and COPYRIGHT.md files from embedded templates.
 
 ```bash
-ktsub metadata license [options]
+ktsubuild metadata license [options]
 ```
 
 #### `metadata changelog`
@@ -164,7 +170,7 @@ ktsub metadata license [options]
 Generate CHANGELOG.md from git history.
 
 ```bash
-ktsub metadata changelog [options]
+ktsubuild metadata changelog [options]
 ```
 
 ### `winget`
@@ -176,7 +182,7 @@ Windows Package Manager manifest commands.
 Generate Winget manifests for a version.
 
 ```bash
-ktsub winget generate --version <version> [options]
+ktsubuild winget generate --version <version> [options]
 ```
 
 **Options:**
@@ -190,7 +196,7 @@ ktsub winget generate --version <version> [options]
 Upload manifests to a GitHub release.
 
 ```bash
-ktsub winget upload --version <version> [options]
+ktsubuild winget upload --version <version> [options]
 ```
 
 **Options:**
@@ -206,16 +212,16 @@ Use `--version-bump` to explicitly control the version increment:
 
 ```bash
 # Force a major version bump
-ktsub ci --version-bump major
+ktsubuild ci --version-bump major
 
 # Force a minor version bump
-ktsub ci --version-bump minor
+ktsubuild ci --version-bump minor
 
 # Force a patch version bump
-ktsub ci --version-bump patch
+ktsubuild ci --version-bump patch
 
 # Use automatic detection (default)
-ktsub ci --version-bump auto
+ktsubuild ci --version-bump auto
 ```
 
 This option is also available in GitHub Actions workflow_dispatch:
@@ -376,22 +382,22 @@ jobs:
 
 ```bash
 # Check what version would be released
-ktsub version show
+ktsubuild version show
 
 # Preview CI actions without making changes
-ktsub ci --dry-run
+ktsubuild ci --dry-run
 
 # Force a specific version bump
-ktsub ci --version-bump minor
+ktsubuild ci --version-bump minor
 
 # Build and test locally
-ktsub build
+ktsubuild build
 
 # Update metadata files only
-ktsub metadata update --no-commit
+ktsubuild metadata update --no-commit
 
 # Generate winget manifests
-ktsub winget generate --version 1.0.0
+ktsubuild winget generate --version 1.0.0
 ```
 
 ## Architecture
@@ -399,7 +405,7 @@ ktsub winget generate --version 1.0.0
 KtsuBuild is organized into three projects:
 
 - **KtsuBuild** - Core library with all business logic, multi-targeted across .NET 5-10 and netstandard2.0/2.1
-- **KtsuBuild.CLI** - Console application using System.CommandLine 2.0.3 with Microsoft.Extensions.DependencyInjection
+- **KtsuBuild.Tool** - CLI using System.CommandLine 2.0.3 with Microsoft.Extensions.DependencyInjection, packed as the `ktsu.KtsuBuild.Tool` .NET tool (`ktsubuild` command)
 - **KtsuBuild.Tests** - Test suite using MSTest.Sdk with NSubstitute for mocking
 
 All services implement interfaces from the `KtsuBuild.Abstractions` namespace, enabling testability and loose coupling.
