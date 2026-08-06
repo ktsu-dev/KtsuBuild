@@ -1,6 +1,6 @@
-## v2.0.0 (major)
+## v2.0.1 (patch)
 
-Changes since v1.9.0:
+Changes since v2.0.0:
 
-- [major] Distribute the CLI as a dotnet tool ([@matt-edmondson](https://github.com/matt-edmondson))
+- [patch] Run CI from the installed KtsuBuild tool instead of a source clone ([@matt-edmondson](https://github.com/matt-edmondson))
 
