@@ -317,7 +317,9 @@ Consumer projects clone KtsuBuild and invoke:
 
 ```yaml
 - name: Clone KtsuBuild
-  run: git clone --depth 1 https://github.com/ktsu-dev/KtsuBuild.git "${{ runner.temp }}/KtsuBuild"
+  run: |
+    dotnet tool install ktsu.KtsuBuild.Tool --tool-path "${{ runner.temp }}/ktsubuild"
+    "${{ runner.temp }}/ktsubuild" >> $env:GITHUB_PATH
 
 - name: Run KtsuBuild CI Pipeline
   shell: pwsh
@@ -335,7 +337,7 @@ Consumer projects clone KtsuBuild and invoke:
       $args += @("--version-bump", $versionBump)
     }
 
-    & dotnet run --project "${{ runner.temp }}/KtsuBuild/KtsuBuild.CLI" -- @args
+    & ktsubuild @args
 ```
 
 ### iOS Pull-Request Validation
@@ -352,10 +354,11 @@ ios-build:
     - uses: actions/checkout@v4
     - uses: actions/setup-dotnet@v4
     # ... select Xcode + install the pinned iOS workload ...
-    - run: git clone --depth 1 https://github.com/ktsu-dev/KtsuBuild.git "${{ runner.temp }}/KtsuBuild"
+    - run: |
+        dotnet tool install ktsu.KtsuBuild.Tool --tool-path "${{ runner.temp }}/ktsubuild"
+        "${{ runner.temp }}/ktsubuild" >> $env:GITHUB_PATH
     - run: >
-        dotnet run --project "${{ runner.temp }}/KtsuBuild/KtsuBuild.CLI" --
-        ios build --workspace "${{ github.workspace }}" --verbose
+        ktsubuild ios build --workspace "${{ github.workspace }}" --verbose
         --require-framework libSkiaSharp
 ```
 
@@ -389,13 +392,13 @@ ios-package:
   steps:
     - uses: actions/checkout@v4
     - uses: actions/setup-dotnet@v4
-    - run: git clone --depth 1 https://github.com/ktsu-dev/KtsuBuild.git "${{ runner.temp }}/KtsuBuild"
+    - run: |
+        dotnet tool install ktsu.KtsuBuild.Tool --tool-path "${{ runner.temp }}/ktsubuild"
+        "${{ runner.temp }}/ktsubuild" >> $env:GITHUB_PATH
     - run: >
-        dotnet run --project "${{ runner.temp }}/KtsuBuild/KtsuBuild.CLI" --
-        ios package --workspace "${{ github.workspace }}" --verbose
+        ktsubuild ios package --workspace "${{ github.workspace }}" --verbose
     - run: >
-        dotnet run --project "${{ runner.temp }}/KtsuBuild/KtsuBuild.CLI" --
-        ios upload --workspace "${{ github.workspace }}" --verbose
+        ktsubuild ios upload --workspace "${{ github.workspace }}" --verbose
 ```
 
 The `ios upload` step reuses the `.ipa` produced by `ios package` in the same
