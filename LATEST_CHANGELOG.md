@@ -1,6 +1,6 @@
-## v2.0.1 (patch)
+## v2.0.2 (patch)
 
-Changes since v2.0.0:
+Changes since v2.0.1:
 
-- [patch] Run CI from the installed KtsuBuild tool instead of a source clone ([@matt-edmondson](https://github.com/matt-edmondson))
+- Bump Polyfill from 11.0.1 to 11.0.2 ([@dependabot[bot]](https://github.com/dependabot[bot]))
 
