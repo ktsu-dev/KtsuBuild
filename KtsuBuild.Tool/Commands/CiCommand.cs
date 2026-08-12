@@ -1,6 +1,4 @@
-// Copyright (c) ktsu.dev
-// All rights reserved.
-// Licensed under the MIT license.
+// Copyright (c) 2023-2026 ktsu-dev contributors
 
 namespace KtsuBuild.Tool.Commands;
 
@@ -140,6 +138,7 @@ public class CiCommand : Command
 		if (versionInfo.VersionIncrement == VersionType.Skip)
 		{
 			logger.WriteInfo($"Skipping release: {versionInfo.IncrementReason}");
+			WriteStepOutputs(buildConfig, buildSkipped: true);
 			return 0;
 		}
 
@@ -176,6 +175,8 @@ public class CiCommand : Command
 		{
 			await releaseService.ExecuteReleaseAsync(buildConfig, workspace, configuration, cancellationToken).ConfigureAwait(false);
 		}
+
+		WriteStepOutputs(buildConfig, buildSkipped: false);
 
 		logger.WriteSuccess("CI/CD pipeline completed successfully!");
 		return 0;
@@ -261,6 +262,24 @@ public class CiCommand : Command
 		}
 #pragma warning restore CA1031
 	}
+
+	/// <summary>
+	/// Publishes what the pipeline decided to the GitHub Actions step outputs, so the workflow
+	/// gates its later steps on the run that actually happened rather than re-deriving the
+	/// decision from git state. A skipped run never reaches the build, which is why it reports
+	/// no release: the steps that consume build output have nothing to consume, and the jobs
+	/// that publish would be publishing a version that already shipped.
+	/// </summary>
+	/// <param name="buildConfig">The configuration the pipeline ran with.</param>
+	/// <param name="buildSkipped">Whether the run stopped before building.</param>
+	private static void WriteStepOutputs(BuildConfiguration buildConfig, bool buildSkipped) =>
+		GitHubActionsOutput.Write(
+		[
+			new("version", buildConfig.Version),
+			new("release_hash", buildConfig.ReleaseHash),
+			new("should_release", (!buildSkipped && buildConfig.ShouldRelease) ? "true" : "false"),
+			new("build_skipped", buildSkipped ? "true" : "false"),
+		]);
 
 	private static VersionType? ParseVersionBump(string versionBump) => versionBump.ToLowerInvariant() switch
 	{

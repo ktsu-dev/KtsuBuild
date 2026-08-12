@@ -4,11 +4,10 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <TargetFrameworks></TargetFrameworks>
-    <InternalsVisibleTo>KtsuBuild.Tests</InternalsVisibleTo>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Polyfill" />
+    <PackageReference Include="Polyfill" PrivateAssets="all" />
     <PackageReference Include="YamlDotNet" />
     <PackageReference Include="Microsoft.Extensions.FileSystemGlobbing" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />

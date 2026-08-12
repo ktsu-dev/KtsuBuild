@@ -1,13 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- Distributed as a .NET tool: `dotnet tool install ktsu.KtsuBuild.Tool`, invoked as `ktsubuild`.
-       ktsu.Sdk.Tool pins the single target framework, OutputType, and PackAsTool, and derives the
-       command name from the solution name. -->
   <Sdk Name="ktsu.Sdk" />
   <Sdk Name="ktsu.Sdk.Tool" />
 
   <ItemGroup>
     <ProjectReference Include="..\KtsuBuild\KtsuBuild.csproj" />
-    <PackageReference Include="Polyfill" />
+    <PackageReference Include="Polyfill" PrivateAssets="all" />
     <PackageReference Include="System.CommandLine" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
     <PackageReference Include="Microsoft.Extensions.Logging" />
