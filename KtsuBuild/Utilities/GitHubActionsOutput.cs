@@ -36,7 +36,7 @@ public static class GitHubActionsOutput
 			return;
 		}
 
-		WriteTo(path!, outputs);
+		WriteTo(path, outputs);
 	}
 
 	/// <summary>
