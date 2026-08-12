@@ -3,4 +3,5 @@
 Changes since v2.0.2:
 
 - Sync global.json ([@KtsuTools](https://github.com/KtsuTools))
+- Sync global.json ([@KtsuTools](https://github.com/KtsuTools))
 
