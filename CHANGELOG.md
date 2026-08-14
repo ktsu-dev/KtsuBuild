@@ -1,3 +1,9 @@
+## v2.1.2 (patch)
+
+Changes since v2.1.1:
+
+- Bump the ktsu group with 9 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+
 ## v2.1.1 (patch)
 
 Changes since v2.1.0:
@@ -8,9 +14,7 @@ Changes since v2.1.0:
 
 ## v2.1.1-pre.1 (prerelease)
 
-Changes since v2.1.0:
-
-- Fix nullability handling in GitHubActionsOutput.Write method ([@matt-edmondson](https://github.com/matt-edmondson))
+No significant changes detected since v2.1.1.
 
 ## v2.1.0 (minor)
 
