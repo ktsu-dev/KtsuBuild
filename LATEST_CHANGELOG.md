@@ -1,6 +1,7 @@
-## v2.1.3 (patch)
+## v2.1.4 (patch)
 
-Changes since v2.1.2:
+Changes since v2.1.3:
 
-- [patch] Run build and test when the version increment is Skip ([@matt-edmondson](https://github.com/matt-edmondson))
+- docs: scope build badge to the default branch ([@matt-edmondson](https://github.com/matt-edmondson))
+- docs: correct README, DESCRIPTION and TAGS metadata ([@matt-edmondson](https://github.com/matt-edmondson))
 
