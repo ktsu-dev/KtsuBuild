@@ -2,6 +2,14 @@
 
 > .NET build automation tool with semantic versioning, changelog generation, and multi-platform publishing.
 
+[![License](https://img.shields.io/github/license/ktsu-dev/KtsuBuild.svg?label=License&logo=nuget)](LICENSE.md)
+[![NuGet Version](https://img.shields.io/nuget/v/ktsu.KtsuBuild.Tool?label=Stable&logo=nuget)](https://nuget.org/packages/ktsu.KtsuBuild.Tool)
+[![NuGet Version](https://img.shields.io/nuget/vpre/ktsu.KtsuBuild.Tool?label=Latest&logo=nuget)](https://nuget.org/packages/ktsu.KtsuBuild.Tool)
+[![NuGet Downloads](https://img.shields.io/nuget/dt/ktsu.KtsuBuild.Tool?label=Downloads&logo=nuget)](https://nuget.org/packages/ktsu.KtsuBuild.Tool)
+[![GitHub commit activity](https://img.shields.io/github/commit-activity/m/ktsu-dev/KtsuBuild?label=Commits&logo=github)](https://github.com/ktsu-dev/KtsuBuild/commits/main)
+[![GitHub contributors](https://img.shields.io/github/contributors/ktsu-dev/KtsuBuild?label=Contributors&logo=github)](https://github.com/ktsu-dev/KtsuBuild/graphs/contributors)
+[![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/ktsu-dev/KtsuBuild/dotnet.yml?label=Build&logo=github)](https://github.com/ktsu-dev/KtsuBuild/actions)
+
 ## Features
 
 - **Semantic Versioning**: Automatic version calculation based on commit messages and public API diff analysis
