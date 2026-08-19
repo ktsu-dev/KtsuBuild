@@ -131,15 +131,18 @@ public class CiCommand : Command
 		// Parse version bump option
 		VersionType? forcedVersionType = ParseVersionBump(versionBump);
 
-		// Check for skip condition
+		// Check for skip condition. This gates the release only; build and test still run.
+		// Returning early here instead would leave a workspace whose commits all carry [skip ci]
+		// never compiled and never tested, which hollows out scheduled runs, and breaks any job
+		// that wraps the pipeline in a step pair expecting a compilation between them, such as
+		// the SonarQube scanner's begin/end.
 		VersionCalculator versionCalculator = new(gitService, logger);
 		VersionInfo versionInfo = await versionCalculator.GetVersionInfoAsync(workspace, buildConfig.ReleaseHash, forcedVersionType: forcedVersionType, cancellationToken: cancellationToken).ConfigureAwait(false);
 
-		if (versionInfo.VersionIncrement == VersionType.Skip)
+		bool skipRelease = versionInfo.VersionIncrement == VersionType.Skip;
+		if (skipRelease)
 		{
 			logger.WriteInfo($"Skipping release: {versionInfo.IncrementReason}");
-			WriteStepOutputs(buildConfig, buildSkipped: true);
-			return 0;
 		}
 
 		// Install dotnet-script if .csx files are present
@@ -171,12 +174,12 @@ public class CiCommand : Command
 		}
 
 		// Release workflow
-		if (buildConfig.ShouldRelease)
+		if (buildConfig.ShouldRelease && !skipRelease)
 		{
 			await releaseService.ExecuteReleaseAsync(buildConfig, workspace, configuration, cancellationToken).ConfigureAwait(false);
 		}
 
-		WriteStepOutputs(buildConfig, buildSkipped: false);
+		WriteStepOutputs(buildConfig, releaseSkipped: skipRelease);
 
 		logger.WriteSuccess("CI/CD pipeline completed successfully!");
 		return 0;
@@ -266,19 +269,23 @@ public class CiCommand : Command
 	/// <summary>
 	/// Publishes what the pipeline decided to the GitHub Actions step outputs, so the workflow
 	/// gates its later steps on the run that actually happened rather than re-deriving the
-	/// decision from git state. A skipped run never reaches the build, which is why it reports
-	/// no release: the steps that consume build output have nothing to consume, and the jobs
-	/// that publish would be publishing a version that already shipped.
+	/// decision from git state. A skipped release still builds and tests, so only the jobs that
+	/// publish are gated off: they would otherwise be publishing a version that already shipped.
+	/// <para>
+	/// <c>build_skipped</c> is now always false, because every run reaches the build. It stays in
+	/// the output set because consuming workflows gate the SonarQube end step on it, and that step
+	/// must run whenever a compilation happened inside the scanner's begin/end window.
+	/// </para>
 	/// </summary>
 	/// <param name="buildConfig">The configuration the pipeline ran with.</param>
-	/// <param name="buildSkipped">Whether the run stopped before building.</param>
-	private static void WriteStepOutputs(BuildConfiguration buildConfig, bool buildSkipped) =>
+	/// <param name="releaseSkipped">Whether the version increment suppressed the release.</param>
+	private static void WriteStepOutputs(BuildConfiguration buildConfig, bool releaseSkipped) =>
 		GitHubActionsOutput.Write(
 		[
 			new("version", buildConfig.Version),
 			new("release_hash", buildConfig.ReleaseHash),
-			new("should_release", (!buildSkipped && buildConfig.ShouldRelease) ? "true" : "false"),
-			new("build_skipped", buildSkipped ? "true" : "false"),
+			new("should_release", (!releaseSkipped && buildConfig.ShouldRelease) ? "true" : "false"),
+			new("build_skipped", "false"),
 		]);
 
 	private static VersionType? ParseVersionBump(string versionBump) => versionBump.ToLowerInvariant() switch
