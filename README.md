@@ -8,7 +8,7 @@
 [![NuGet Downloads](https://img.shields.io/nuget/dt/ktsu.KtsuBuild.Tool?label=Downloads&logo=nuget)](https://nuget.org/packages/ktsu.KtsuBuild.Tool)
 [![GitHub commit activity](https://img.shields.io/github/commit-activity/m/ktsu-dev/KtsuBuild?label=Commits&logo=github)](https://github.com/ktsu-dev/KtsuBuild/commits/main)
 [![GitHub contributors](https://img.shields.io/github/contributors/ktsu-dev/KtsuBuild?label=Contributors&logo=github)](https://github.com/ktsu-dev/KtsuBuild/graphs/contributors)
-[![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/ktsu-dev/KtsuBuild/dotnet.yml?label=Build&logo=github)](https://github.com/ktsu-dev/KtsuBuild/actions)
+[![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/ktsu-dev/KtsuBuild/dotnet.yml?branch=main&label=Build&logo=github)](https://github.com/ktsu-dev/KtsuBuild/actions)
 
 ## Features
 
