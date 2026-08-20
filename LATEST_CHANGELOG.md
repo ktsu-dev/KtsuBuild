@@ -1,7 +1,6 @@
-## v2.1.4 (patch)
+## v2.1.5 (patch)
 
-Changes since v2.1.3:
+Changes since v2.1.4:
 
-- docs: scope build badge to the default branch ([@matt-edmondson](https://github.com/matt-edmondson))
-- docs: correct README, DESCRIPTION and TAGS metadata ([@matt-edmondson](https://github.com/matt-edmondson))
+- Bump the ktsu group with 9 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
 
