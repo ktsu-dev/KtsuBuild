@@ -259,8 +259,20 @@ public class DotNetServiceTests
 		await _service.TestProjectAsync(project, _tempDir, "Release", "coverage").ConfigureAwait(false);
 
 		Assert.IsNotNull(captured);
-		StringAssert.Contains(captured, project);
-		StringAssert.Contains(captured, "--coverage");
+		StringAssert.Contains(captured, $"test \"{project}\" --configuration");
+		StringAssert.Contains(captured, "--coverage --coverage-output-format");
+	}
+
+	[TestMethod]
+	public async Task TestProjectAsync_EmptyProjectPath_ThrowsWithoutRunningAnyTests()
+	{
+		_processRunner.RunWithCallbackAsync("dotnet", Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
+			.Returns(0);
+
+		await Assert.ThrowsExactlyAsync<ArgumentException>(
+			() => _service.TestProjectAsync(string.Empty, _tempDir, "Release", "coverage")).ConfigureAwait(false);
+
+		await _processRunner.DidNotReceive().RunWithCallbackAsync("dotnet", Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
 	[TestMethod]
@@ -286,6 +298,8 @@ public class DotNetServiceTests
 
 		await Assert.ThrowsExactlyAsync<InvalidOperationException>(
 			() => _service.TestProjectAsync(project, _tempDir, "Release", "coverage")).ConfigureAwait(false);
+
+		await _processRunner.Received(1).RunWithCallbackAsync("dotnet", Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
 	// PackAsync

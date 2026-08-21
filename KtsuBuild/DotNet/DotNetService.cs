@@ -188,6 +188,11 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger) : 
 	{
 		Ensure.NotNull(projectPath);
 		Ensure.NotNull(workingDirectory);
+		if (string.IsNullOrWhiteSpace(projectPath))
+		{
+			throw new ArgumentException("A project path is required. An empty value would run every test project in the workspace.", nameof(projectPath));
+		}
+
 		logger.WriteStepHeader($"Running Tests with Coverage: {Path.GetFileNameWithoutExtension(projectPath)}");
 
 		await RunTestsAsync(projectPath, workingDirectory, configuration, coverageOutputPath, cancellationToken).ConfigureAwait(false);
