@@ -36,6 +36,22 @@ public interface IDotNetService
 	public Task TestAsync(string workingDirectory, string configuration = "Release", string? coverageOutputPath = null, CancellationToken cancellationToken = default);
 
 	/// <summary>
+	/// Runs a single test project with coverage.
+	/// </summary>
+	/// <param name="projectPath">The project file to test.</param>
+	/// <param name="workingDirectory">The directory to run from.</param>
+	/// <param name="configuration">The build configuration.</param>
+	/// <param name="coverageOutputPath">Where coverage output is written. Defaults to <c>coverage</c> when null.</param>
+	/// <param name="cancellationToken">A cancellation token.</param>
+	/// <returns>A task that completes when the run succeeds.</returns>
+	/// <remarks>
+	/// Scoping a run to one project also removes the condition behind the coverage collector's
+	/// exit-code-7 flake, which only appears when several test assemblies run in one invocation.
+	/// The retry is kept anyway, since the caller decides how many projects an invocation covers.
+	/// </remarks>
+	public Task TestProjectAsync(string projectPath, string workingDirectory, string configuration = "Release", string? coverageOutputPath = null, CancellationToken cancellationToken = default);
+
+	/// <summary>
 	/// Creates NuGet packages.
 	/// </summary>
 	/// <param name="workingDirectory">The working directory.</param>
@@ -100,6 +116,18 @@ public interface IDotNetService
 	/// <param name="workingDirectory">The working directory to search.</param>
 	/// <returns>A list of buildable project file paths.</returns>
 	public IReadOnlyList<string> GetBuildableProjects(string workingDirectory);
+
+	/// <summary>
+	/// Gets the test projects in a directory, each with the platform it is tied to.
+	/// </summary>
+	/// <param name="workingDirectory">The directory to search.</param>
+	/// <returns>Every test project found, whatever host it needs.</returns>
+	/// <remarks>
+	/// Deliberately not filtered by the current host, unlike <see cref="GetBuildableProjects"/>.
+	/// The caller builds a matrix that spans hosts other than the one this runs on, so it needs the
+	/// full list with each project's platform and decides which pairs are valid itself.
+	/// </remarks>
+	public IReadOnlyList<TestProjectInfo> GetTestProjects(string workingDirectory);
 
 	/// <summary>
 	/// Classifies a project by the platform its target framework(s) tie it to.

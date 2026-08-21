@@ -129,11 +129,19 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger) : 
 
 		logger.WriteInfo($"Found {testProjects.Count} test project(s)");
 
+		await RunTestsAsync(target: string.Empty, workingDirectory, configuration, coverageOutputPath, cancellationToken).ConfigureAwait(false);
+	}
+
+	// Shared by TestAsync, which tests everything the host can build, and TestProjectAsync, which
+	// tests one project. `target` is the project path, or empty to let `dotnet test` discover.
+	private async Task RunTestsAsync(string target, string workingDirectory, string configuration, string? coverageOutputPath, CancellationToken cancellationToken)
+	{
 		string resultsPath = coverageOutputPath ?? "coverage";
 		string testResultsPath = Path.Combine(resultsPath, "TestResults");
 		Directory.CreateDirectory(testResultsPath);
 
-		string args = $"test --configuration {configuration} --coverage --coverage-output-format xml " +
+		string scope = string.IsNullOrEmpty(target) ? string.Empty : $"\"{target}\" ";
+		string args = $"test {scope}--configuration {configuration} --coverage --coverage-output-format xml " +
 			$"--coverage-output \"coverage.xml\" --results-directory \"{testResultsPath}\" " +
 			$"--report-trx --report-trx-filename TestResults.trx";
 
@@ -173,6 +181,21 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger) : 
 
 		// Copy coverage file to expected location
 		CopyCoverageFile(workingDirectory, resultsPath);
+	}
+
+	/// <inheritdoc/>
+	public async Task TestProjectAsync(string projectPath, string workingDirectory, string configuration = DefaultConfiguration, string? coverageOutputPath = null, CancellationToken cancellationToken = default)
+	{
+		Ensure.NotNull(projectPath);
+		Ensure.NotNull(workingDirectory);
+		if (string.IsNullOrWhiteSpace(projectPath))
+		{
+			throw new ArgumentException("A project path is required. An empty value would run every test project in the workspace.", nameof(projectPath));
+		}
+
+		logger.WriteStepHeader($"Running Tests with Coverage: {Path.GetFileNameWithoutExtension(projectPath)}");
+
+		await RunTestsAsync(projectPath, workingDirectory, configuration, coverageOutputPath, cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc/>
@@ -410,6 +433,15 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger) : 
 	{
 		Ensure.NotNull(workingDirectory);
 		return [.. GetProjectFiles(workingDirectory).Where(CanBuildOnCurrentHost)];
+	}
+
+	/// <inheritdoc/>
+	public IReadOnlyList<TestProjectInfo> GetTestProjects(string workingDirectory)
+	{
+		Ensure.NotNull(workingDirectory);
+		return [.. GetProjectFiles(workingDirectory)
+			.Where(IsTestProject)
+			.Select(p => new TestProjectInfo(p, GetProjectPlatform(p)))];
 	}
 
 	/// <inheritdoc/>

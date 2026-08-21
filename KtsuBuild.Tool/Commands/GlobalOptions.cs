@@ -53,4 +53,13 @@ public static class GlobalOptions
 		Description = "Force a specific version bump type (auto, patch, minor, major)",
 		DefaultValueFactory = _ => "auto",
 	};
+
+	/// <summary>
+	/// Gets the no-test option.
+	/// </summary>
+	public static Option<bool> NoTest { get; } = new("--no-test")
+	{
+		Description = "Skip the test step",
+		DefaultValueFactory = _ => false,
+	};
 }

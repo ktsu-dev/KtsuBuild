@@ -2,6 +2,7 @@
 
 namespace KtsuBuild.Tests.DotNet;
 
+using System.Linq;
 using System.Runtime.InteropServices;
 using KtsuBuild.Abstractions;
 using KtsuBuild.DotNet;
@@ -243,6 +244,62 @@ public class DotNetServiceTests
 		await _processRunner.Received(3).RunWithCallbackAsync("dotnet",
 			ArgMatch.NotNull<string>(a => a.Contains("test")),
 			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+	}
+
+	// TestProjectAsync
+
+	[TestMethod]
+	public async Task TestProjectAsync_PassesTheProjectPathToDotnet()
+	{
+		string project = Path.Combine(_tempDir, "Foo.Tests", "Foo.Tests.csproj");
+		string? captured = null;
+		_processRunner.RunWithCallbackAsync("dotnet", Arg.Do<string>(a => captured = a), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
+			.Returns(0);
+
+		await _service.TestProjectAsync(project, _tempDir, "Release", "coverage").ConfigureAwait(false);
+
+		Assert.IsNotNull(captured);
+		StringAssert.Contains(captured, $"test \"{project}\" --configuration");
+		StringAssert.Contains(captured, "--coverage --coverage-output-format");
+	}
+
+	[TestMethod]
+	public async Task TestProjectAsync_EmptyProjectPath_ThrowsWithoutRunningAnyTests()
+	{
+		_processRunner.RunWithCallbackAsync("dotnet", Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
+			.Returns(0);
+
+		await Assert.ThrowsExactlyAsync<ArgumentException>(
+			() => _service.TestProjectAsync(string.Empty, _tempDir, "Release", "coverage")).ConfigureAwait(false);
+
+		await _processRunner.DidNotReceive().RunWithCallbackAsync("dotnet", Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+	}
+
+	[TestMethod]
+	public async Task TestProjectAsync_RetriesTheCoverageCollectorFlake()
+	{
+		// Exit code 7 is the coverage collector dropping its instrumentation pipe during teardown,
+		// not a test failure. A genuine failure is exit code 2 and must not be retried.
+		string project = Path.Combine(_tempDir, "Foo.Tests", "Foo.Tests.csproj");
+		_processRunner.RunWithCallbackAsync("dotnet", Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
+			.Returns(7, 0);
+
+		await _service.TestProjectAsync(project, _tempDir, "Release", "coverage").ConfigureAwait(false);
+
+		await _processRunner.Received(2).RunWithCallbackAsync("dotnet", Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+	}
+
+	[TestMethod]
+	public async Task TestProjectAsync_ThrowsOnAGenuineTestFailure()
+	{
+		string project = Path.Combine(_tempDir, "Foo.Tests", "Foo.Tests.csproj");
+		_processRunner.RunWithCallbackAsync("dotnet", Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
+			.Returns(2);
+
+		await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+			() => _service.TestProjectAsync(project, _tempDir, "Release", "coverage")).ConfigureAwait(false);
+
+		await _processRunner.Received(1).RunWithCallbackAsync("dotnet", Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
 	// PackAsync
@@ -736,6 +793,79 @@ public class DotNetServiceTests
 
 		Assert.IsTrue(buildable.Count <= all.Count);
 		Assert.IsTrue(buildable.All(all.Contains));
+	}
+
+	// GetTestProjects
+
+	[TestMethod]
+	public void GetTestProjects_ReturnsProjectsMatchingOnName()
+	{
+		string dir = Path.Combine(_tempDir, "Foo.Tests");
+		Directory.CreateDirectory(dir);
+		File.WriteAllText(Path.Combine(dir, "Foo.Tests.csproj"), "<Project><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>");
+
+		IReadOnlyList<TestProjectInfo> result = _service.GetTestProjects(_tempDir);
+
+		Assert.AreEqual(1, result.Count);
+		Assert.AreEqual(ProjectPlatform.Neutral, result[0].Platform);
+	}
+
+	[TestMethod]
+	public void GetTestProjects_ReturnsProjectsMatchingOnContentOnly()
+	{
+		// The name ends in neither .Test nor .Tests. ImGuiApp's five *.UITests projects are exactly
+		// this shape, and a name-based filter silently drops every test they contain.
+		string dir = Path.Combine(_tempDir, "Demo.UITests");
+		Directory.CreateDirectory(dir);
+		File.WriteAllText(Path.Combine(dir, "Demo.UITests.csproj"), "<Project><PropertyGroup><IsTestProject>true</IsTestProject><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>");
+
+		IReadOnlyList<TestProjectInfo> result = _service.GetTestProjects(_tempDir);
+
+		Assert.AreEqual(1, result.Count);
+		StringAssert.Contains(result[0].Project, "Demo.UITests");
+	}
+
+	[TestMethod]
+	public void GetTestProjects_ExcludesNonTestProjects()
+	{
+		string dir = Path.Combine(_tempDir, "Library");
+		Directory.CreateDirectory(dir);
+		File.WriteAllText(Path.Combine(dir, "Library.csproj"), "<Project><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>");
+
+		IReadOnlyList<TestProjectInfo> result = _service.GetTestProjects(_tempDir);
+
+		Assert.AreEqual(0, result.Count);
+	}
+
+	[TestMethod]
+	public void GetTestProjects_ReportsPlatformTiedProjectsRegardlessOfHost()
+	{
+		// Deliberately not host-filtered: the caller builds a matrix covering hosts it is not
+		// running on. Both a Windows-tied and an iOS-tied project are asserted, because either one
+		// alone stops discriminating on the host that can build it. On Windows the iOS project is
+		// the one GetBuildableProjects would drop, on macOS the Windows project is, and on Linux
+		// both are, so a regression to host filtering fails this test everywhere.
+		string winDir = Path.Combine(_tempDir, "Win.Tests");
+		Directory.CreateDirectory(winDir);
+		File.WriteAllText(Path.Combine(winDir, "Win.Tests.csproj"), "<Project><PropertyGroup><TargetFramework>net10.0-windows</TargetFramework></PropertyGroup></Project>");
+
+		string iosDir = Path.Combine(_tempDir, "Ios.Tests");
+		Directory.CreateDirectory(iosDir);
+		File.WriteAllText(Path.Combine(iosDir, "Ios.Tests.csproj"), "<Project><PropertyGroup><TargetFramework>net10.0-ios</TargetFramework></PropertyGroup></Project>");
+
+		IReadOnlyList<TestProjectInfo> result = _service.GetTestProjects(_tempDir);
+
+		Assert.AreEqual(2, result.Count);
+		Assert.AreEqual(1, result.Count(p => p.Platform == ProjectPlatform.Windows));
+		Assert.AreEqual(1, result.Count(p => p.Platform == ProjectPlatform.Ios));
+	}
+
+	[TestMethod]
+	public void GetTestProjects_ReturnsEmptyWhenThereAreNone()
+	{
+		IReadOnlyList<TestProjectInfo> result = _service.GetTestProjects(_tempDir);
+
+		Assert.AreEqual(0, result.Count);
 	}
 
 	// BuildIosAsync

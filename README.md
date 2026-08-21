@@ -101,6 +101,45 @@ Build workflow: restore, build, and test.
 ktsubuild build [options]
 ```
 
+**Options:**
+- `--no-test`: Skip the test step, running restore and build only
+
+### `test`
+
+Test project discovery and execution, for splitting a test run across several machines.
+
+#### `test list`
+
+List the workspace's test projects as a single line of JSON on stdout.
+
+```bash
+ktsubuild test list [options]
+```
+
+**Output:**
+```json
+[{"project":"tests/Foo.Tests/Foo.Tests.csproj","platform":"neutral"},{"project":"tests/Bar.Tests/Bar.Tests.csproj","platform":"windows"}]
+```
+
+`project` is a forward-slash path relative to the workspace, on every host. `platform` is `neutral`, `windows`, or `ios`. Entries are sorted by `project`.
+
+The list covers every test project regardless of the current host, unlike `build` and `ci`, which test only what the host can build. A `windows` project appears on Linux and an `ios` project appears on Windows. The caller decides which host and project pairs are valid, which is what lets one machine enumerate a matrix that other machines run.
+
+Errors are written to stdout, not stderr, so check the exit code before parsing the output. Exit code 0 means stdout holds the JSON line, and 1 means it holds an error message.
+
+#### `test run`
+
+Run one test project with coverage, instead of every test project in the workspace.
+
+```bash
+ktsubuild test run --project <path> [options]
+```
+
+**Options:**
+- `--project`: Path to the test project, relative to the workspace or absolute (required)
+
+The project isn't checked against the `test list` results. Pointing this at a project the host can't build, or at one that isn't a test project, fails during the test run rather than with a message naming the cause, so filter with `test list` first.
+
 ### `release`
 
 Release workflow: pack, publish NuGet packages, and create GitHub release.
