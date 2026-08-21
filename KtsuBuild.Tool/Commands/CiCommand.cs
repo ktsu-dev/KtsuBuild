@@ -174,7 +174,7 @@ public class CiCommand : Command
 		}
 
 		// Release workflow
-		if (buildConfig.ShouldRelease && !skipRelease)
+		if (CiReleaseDecision.ShouldExecuteRelease(buildConfig.ShouldRelease, skipRelease, suppressedByFlag: false))
 		{
 			await releaseService.ExecuteReleaseAsync(buildConfig, workspace, configuration, cancellationToken).ConfigureAwait(false);
 		}
@@ -284,7 +284,7 @@ public class CiCommand : Command
 		[
 			new("version", buildConfig.Version),
 			new("release_hash", buildConfig.ReleaseHash),
-			new("should_release", (!releaseSkipped && buildConfig.ShouldRelease) ? "true" : "false"),
+			new("should_release", CiReleaseDecision.ShouldReleaseOutput(buildConfig.ShouldRelease, releaseSkipped)),
 			new("build_skipped", "false"),
 		]);
 
