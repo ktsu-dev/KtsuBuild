@@ -36,6 +36,22 @@ public interface IDotNetService
 	public Task TestAsync(string workingDirectory, string configuration = "Release", string? coverageOutputPath = null, CancellationToken cancellationToken = default);
 
 	/// <summary>
+	/// Runs a single test project with coverage.
+	/// </summary>
+	/// <param name="projectPath">The project file to test.</param>
+	/// <param name="workingDirectory">The directory to run from.</param>
+	/// <param name="configuration">The build configuration.</param>
+	/// <param name="coverageOutputPath">Where coverage output is written. Defaults to <c>coverage</c> when null.</param>
+	/// <param name="cancellationToken">A cancellation token.</param>
+	/// <returns>A task that completes when the run succeeds.</returns>
+	/// <remarks>
+	/// Scoping a run to one project also removes the condition behind the coverage collector's
+	/// exit-code-7 flake, which only appears when several test assemblies run in one invocation.
+	/// The retry is kept anyway, since the caller decides how many projects an invocation covers.
+	/// </remarks>
+	public Task TestProjectAsync(string projectPath, string workingDirectory, string configuration = "Release", string? coverageOutputPath = null, CancellationToken cancellationToken = default);
+
+	/// <summary>
 	/// Creates NuGet packages.
 	/// </summary>
 	/// <param name="workingDirectory">The working directory.</param>

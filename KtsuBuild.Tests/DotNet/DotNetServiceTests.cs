@@ -246,6 +246,48 @@ public class DotNetServiceTests
 			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
+	// TestProjectAsync
+
+	[TestMethod]
+	public async Task TestProjectAsync_PassesTheProjectPathToDotnet()
+	{
+		string project = Path.Combine(_tempDir, "Foo.Tests", "Foo.Tests.csproj");
+		string? captured = null;
+		_processRunner.RunWithCallbackAsync("dotnet", Arg.Do<string>(a => captured = a), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
+			.Returns(0);
+
+		await _service.TestProjectAsync(project, _tempDir, "Release", "coverage").ConfigureAwait(false);
+
+		Assert.IsNotNull(captured);
+		StringAssert.Contains(captured, project);
+		StringAssert.Contains(captured, "--coverage");
+	}
+
+	[TestMethod]
+	public async Task TestProjectAsync_RetriesTheCoverageCollectorFlake()
+	{
+		// Exit code 7 is the coverage collector dropping its instrumentation pipe during teardown,
+		// not a test failure. A genuine failure is exit code 2 and must not be retried.
+		string project = Path.Combine(_tempDir, "Foo.Tests", "Foo.Tests.csproj");
+		_processRunner.RunWithCallbackAsync("dotnet", Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
+			.Returns(7, 0);
+
+		await _service.TestProjectAsync(project, _tempDir, "Release", "coverage").ConfigureAwait(false);
+
+		await _processRunner.Received(2).RunWithCallbackAsync("dotnet", Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+	}
+
+	[TestMethod]
+	public async Task TestProjectAsync_ThrowsOnAGenuineTestFailure()
+	{
+		string project = Path.Combine(_tempDir, "Foo.Tests", "Foo.Tests.csproj");
+		_processRunner.RunWithCallbackAsync("dotnet", Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
+			.Returns(2);
+
+		await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+			() => _service.TestProjectAsync(project, _tempDir, "Release", "coverage")).ConfigureAwait(false);
+	}
+
 	// PackAsync
 
 	[TestMethod]
