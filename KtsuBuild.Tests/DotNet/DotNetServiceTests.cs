@@ -2,6 +2,7 @@
 
 namespace KtsuBuild.Tests.DotNet;
 
+using System.Linq;
 using System.Runtime.InteropServices;
 using KtsuBuild.Abstractions;
 using KtsuBuild.DotNet;
@@ -765,7 +766,7 @@ public class DotNetServiceTests
 		IReadOnlyList<TestProjectInfo> result = _service.GetTestProjects(_tempDir);
 
 		Assert.AreEqual(1, result.Count);
-		Assert.IsTrue(result[0].Project.Contains("Demo.UITests", StringComparison.Ordinal));
+		StringAssert.Contains(result[0].Project, "Demo.UITests");
 	}
 
 	[TestMethod]
@@ -781,18 +782,26 @@ public class DotNetServiceTests
 	}
 
 	[TestMethod]
-	public void GetTestProjects_ReportsAWindowsProjectRegardlessOfHost()
+	public void GetTestProjects_ReportsPlatformTiedProjectsRegardlessOfHost()
 	{
 		// Deliberately not host-filtered: the caller builds a matrix covering hosts it is not
-		// running on, so it needs every test project and decides which pairs are valid itself.
-		string dir = Path.Combine(_tempDir, "Win.Tests");
-		Directory.CreateDirectory(dir);
-		File.WriteAllText(Path.Combine(dir, "Win.Tests.csproj"), "<Project><PropertyGroup><TargetFramework>net10.0-windows</TargetFramework></PropertyGroup></Project>");
+		// running on. Both a Windows-tied and an iOS-tied project are asserted, because either one
+		// alone stops discriminating on the host that can build it. On Windows the iOS project is
+		// the one GetBuildableProjects would drop, on macOS the Windows project is, and on Linux
+		// both are, so a regression to host filtering fails this test everywhere.
+		string winDir = Path.Combine(_tempDir, "Win.Tests");
+		Directory.CreateDirectory(winDir);
+		File.WriteAllText(Path.Combine(winDir, "Win.Tests.csproj"), "<Project><PropertyGroup><TargetFramework>net10.0-windows</TargetFramework></PropertyGroup></Project>");
+
+		string iosDir = Path.Combine(_tempDir, "Ios.Tests");
+		Directory.CreateDirectory(iosDir);
+		File.WriteAllText(Path.Combine(iosDir, "Ios.Tests.csproj"), "<Project><PropertyGroup><TargetFramework>net10.0-ios</TargetFramework></PropertyGroup></Project>");
 
 		IReadOnlyList<TestProjectInfo> result = _service.GetTestProjects(_tempDir);
 
-		Assert.AreEqual(1, result.Count);
-		Assert.AreEqual(ProjectPlatform.Windows, result[0].Platform);
+		Assert.AreEqual(2, result.Count);
+		Assert.AreEqual(1, result.Count(p => p.Platform == ProjectPlatform.Windows));
+		Assert.AreEqual(1, result.Count(p => p.Platform == ProjectPlatform.Ios));
 	}
 
 	[TestMethod]
