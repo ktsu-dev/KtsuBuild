@@ -1,6 +1,6 @@
-## v2.1.5 (patch)
+## v2.1.6 (patch)
 
-Changes since v2.1.4:
+Changes since v2.1.5:
 
-- Bump the ktsu group with 9 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- fix: stop forks rewriting the copyright holder [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
 
