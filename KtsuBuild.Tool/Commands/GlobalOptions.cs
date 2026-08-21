@@ -62,4 +62,13 @@ public static class GlobalOptions
 		Description = "Skip the test step",
 		DefaultValueFactory = _ => false,
 	};
+
+	/// <summary>
+	/// Gets the no-release option.
+	/// </summary>
+	public static Option<bool> NoRelease { get; } = new("--no-release")
+	{
+		Description = "Skip the release step, leaving the release to a later step or job",
+		DefaultValueFactory = _ => false,
+	};
 }
