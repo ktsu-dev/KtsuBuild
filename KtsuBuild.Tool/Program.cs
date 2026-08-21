@@ -60,15 +60,18 @@ internal sealed class Program
 	private static void AddCiCommand(RootCommand rootCommand, IProcessRunner processRunner, IBuildLogger logger)
 	{
 		CiCommand command = new();
-		Func<string, string, bool, bool, string, CancellationToken, Task<int>> handler = CiCommand.CreateHandler(processRunner, logger);
+		Func<CiCommand.CiOptions, CancellationToken, Task<int>> handler = CiCommand.CreateHandler(processRunner, logger);
 		command.SetAction(async (parseResult, ct) =>
 		{
-			string workspace = parseResult.GetValue(GlobalOptions.Workspace)!;
-			string configuration = parseResult.GetValue(GlobalOptions.Configuration)!;
-			bool verbose = parseResult.GetValue(GlobalOptions.Verbose);
-			bool dryRun = parseResult.GetValue(GlobalOptions.DryRun);
-			string versionBump = parseResult.GetValue(GlobalOptions.VersionBump)!;
-			return await handler(workspace, configuration, verbose, dryRun, versionBump, ct).ConfigureAwait(false);
+			CiCommand.CiOptions options = new(
+				Workspace: parseResult.GetValue(GlobalOptions.Workspace)!,
+				Configuration: parseResult.GetValue(GlobalOptions.Configuration)!,
+				Verbose: parseResult.GetValue(GlobalOptions.Verbose),
+				DryRun: parseResult.GetValue(GlobalOptions.DryRun),
+				VersionBump: parseResult.GetValue(GlobalOptions.VersionBump)!,
+				NoTest: parseResult.GetValue(GlobalOptions.NoTest),
+				NoRelease: parseResult.GetValue(GlobalOptions.NoRelease));
+			return await handler(options, ct).ConfigureAwait(false);
 		});
 		rootCommand.Subcommands.Add(command);
 	}

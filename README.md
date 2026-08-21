@@ -78,6 +78,8 @@ ktsubuild ci [options]
 **Options:**
 - `--dry-run`: Preview actions without executing them
 - `--version-bump`: Force a specific version bump type (auto, patch, minor, major)
+- `--no-test`: Skip the test step, for a pipeline that runs tests elsewhere
+- `--no-release`: Skip the release step, leaving the release to a later step or job
 
 **Pipeline steps:**
 
@@ -92,6 +94,16 @@ ktsubuild ci [options]
 9. Generates SHA256 hashes for all artifacts
 10. Publishes NuGet packages to configured feeds (if ShouldRelease)
 11. Creates a GitHub release with assets (if ShouldRelease)
+
+`--no-test` and `--no-release` exist so a workflow can split the pipeline across jobs without
+losing the parts that only `ci` performs: the metadata update and commit, the repository topics,
+the version gate that makes `[skip ci]` work, and the `version`, `release_hash`, `should_release`,
+and `build_skipped` step outputs. A workflow that fans tests across a matrix runs
+`ktsubuild ci --no-test --no-release` for everything around the tests, then `ktsubuild release`
+once its quality gate passes.
+
+`--no-release` stops this run from releasing. It does not change what the `should_release` output
+reports, because the job that reads that output is the one performing the release.
 
 ### `build`
 

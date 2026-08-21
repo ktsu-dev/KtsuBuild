@@ -21,6 +21,28 @@ public class CiCommand : Command
 #pragma warning restore CA1010
 {
 	/// <summary>
+	/// The inputs to a CI pipeline run. A record rather than positional parameters because four
+	/// adjacent booleans in a delegate signature can be transposed without a compiler error, and
+	/// a run that passes several of them at once cannot tell the transposition apart from correct
+	/// wiring.
+	/// </summary>
+	/// <param name="Workspace">The workspace or repository path.</param>
+	/// <param name="Configuration">The build configuration, Debug or Release.</param>
+	/// <param name="Verbose">Whether to enable verbose logging.</param>
+	/// <param name="DryRun">Whether to report what would happen without making changes.</param>
+	/// <param name="VersionBump">The forced version bump type, or <c>auto</c> to detect it.</param>
+	/// <param name="NoTest">Whether to skip the test step, for a pipeline whose tests run elsewhere.</param>
+	/// <param name="NoRelease">Whether to skip the release step, leaving it to a later step or job.</param>
+	public sealed record CiOptions(
+		string Workspace,
+		string Configuration,
+		bool Verbose,
+		bool DryRun,
+		string VersionBump,
+		bool NoTest,
+		bool NoRelease);
+
+	/// <summary>
 	/// Initializes a new instance of the <see cref="CiCommand"/> class.
 	/// </summary>
 	public CiCommand() : base("ci", "Run full CI/CD pipeline")
@@ -30,6 +52,8 @@ public class CiCommand : Command
 		Options.Add(GlobalOptions.Verbose);
 		Options.Add(GlobalOptions.DryRun);
 		Options.Add(GlobalOptions.VersionBump);
+		Options.Add(GlobalOptions.NoTest);
+		Options.Add(GlobalOptions.NoRelease);
 	}
 
 	/// <summary>
@@ -38,16 +62,16 @@ public class CiCommand : Command
 	/// <param name="processRunner">The process runner.</param>
 	/// <param name="logger">The build logger.</param>
 	/// <returns>The command handler action.</returns>
-	public static Func<string, string, bool, bool, string, CancellationToken, Task<int>> CreateHandler(
+	public static Func<CiOptions, CancellationToken, Task<int>> CreateHandler(
 		IProcessRunner processRunner,
 		IBuildLogger logger)
 	{
-		return async (workspace, configuration, verbose, dryRun, versionBump, cancellationToken) =>
+		return async (options, cancellationToken) =>
 		{
-			logger.VerboseEnabled = verbose;
+			logger.VerboseEnabled = options.Verbose;
 			BuildEnvironment.Initialize();
 
-			if (dryRun)
+			if (options.DryRun)
 			{
 				logger.WriteWarning("DRY RUN MODE - No changes will be made");
 			}
@@ -57,7 +81,7 @@ public class CiCommand : Command
 #pragma warning disable CA1031 // Top-level command handler must catch all exceptions
 			try
 			{
-				return await ExecutePipelineAsync(processRunner, logger, workspace, configuration, dryRun, versionBump, cancellationToken).ConfigureAwait(false);
+				return await ExecutePipelineAsync(processRunner, logger, options, cancellationToken).ConfigureAwait(false);
 			}
 			catch (Exception ex)
 			{
@@ -71,10 +95,7 @@ public class CiCommand : Command
 	private static async Task<int> ExecutePipelineAsync(
 		IProcessRunner processRunner,
 		IBuildLogger logger,
-		string workspace,
-		string configuration,
-		bool dryRun,
-		string versionBump,
+		CiOptions options,
 		CancellationToken cancellationToken)
 	{
 		GitService gitService = new(processRunner, logger);
@@ -86,14 +107,14 @@ public class CiCommand : Command
 		ReleaseService releaseService = new(dotNetService, nugetPublisher, gitHubService, logger);
 
 		// Create build configuration
-		BuildConfiguration buildConfig = await configProvider.CreateFromEnvironmentAsync(workspace, cancellationToken).ConfigureAwait(false);
-		buildConfig.Configuration = configuration;
+		BuildConfiguration buildConfig = await configProvider.CreateFromEnvironmentAsync(options.Workspace, cancellationToken).ConfigureAwait(false);
+		buildConfig.Configuration = options.Configuration;
 
 		logger.WriteInfo($"Is Official: {buildConfig.IsOfficial}");
 		logger.WriteInfo($"Is Main: {buildConfig.IsMain}");
 		logger.WriteInfo($"Should Release: {buildConfig.ShouldRelease}");
 
-		if (dryRun)
+		if (options.DryRun)
 		{
 			logger.WriteInfo("Would update metadata, build, test, and create release");
 			return 0;
@@ -125,11 +146,11 @@ public class CiCommand : Command
 		// Update GitHub repository topics from TAGS.md
 		if (shouldCommitMetadata)
 		{
-			await UpdateRepositoryTopicsAsync(gitHubService, logger, workspace, cancellationToken).ConfigureAwait(false);
+			await UpdateRepositoryTopicsAsync(gitHubService, logger, options.Workspace, cancellationToken).ConfigureAwait(false);
 		}
 
 		// Parse version bump option
-		VersionType? forcedVersionType = ParseVersionBump(versionBump);
+		VersionType? forcedVersionType = ParseVersionBump(options.VersionBump);
 
 		// Check for skip condition. This gates the release only; build and test still run.
 		// Returning early here instead would leave a workspace whose commits all carry [skip ci]
@@ -137,7 +158,7 @@ public class CiCommand : Command
 		// that wraps the pipeline in a step pair expecting a compilation between them, such as
 		// the SonarQube scanner's begin/end.
 		VersionCalculator versionCalculator = new(gitService, logger);
-		VersionInfo versionInfo = await versionCalculator.GetVersionInfoAsync(workspace, buildConfig.ReleaseHash, forcedVersionType: forcedVersionType, cancellationToken: cancellationToken).ConfigureAwait(false);
+		VersionInfo versionInfo = await versionCalculator.GetVersionInfoAsync(options.Workspace, buildConfig.ReleaseHash, forcedVersionType: forcedVersionType, cancellationToken: cancellationToken).ConfigureAwait(false);
 
 		bool skipRelease = versionInfo.VersionIncrement == VersionType.Skip;
 		if (skipRelease)
@@ -152,31 +173,38 @@ public class CiCommand : Command
 			await processRunner.RunWithCallbackAsync(
 				"dotnet",
 				"tool install -g dotnet-script",
-				workspace,
+				options.Workspace,
 				logger.WriteInfo,
 				logger.WriteInfo, // Ignore errors (tool may already be installed)
 				cancellationToken).ConfigureAwait(false);
 		}
 
 		// Build workflow
-		await dotNetService.RestoreAsync(workspace, cancellationToken: cancellationToken).ConfigureAwait(false);
-		await dotNetService.BuildAsync(workspace, configuration, buildConfig.BuildArgs, cancellationToken).ConfigureAwait(false);
-		await dotNetService.TestAsync(workspace, configuration, "coverage", cancellationToken).ConfigureAwait(false);
+		await dotNetService.RestoreAsync(options.Workspace, cancellationToken: cancellationToken).ConfigureAwait(false);
+		await dotNetService.BuildAsync(options.Workspace, options.Configuration, buildConfig.BuildArgs, cancellationToken).ConfigureAwait(false);
+
+		// A caller that runs the tests elsewhere, such as a workflow that fans them across a
+		// matrix, still needs everything around them: metadata, the version gate, a compilation
+		// inside the SonarQube begin and end window, and the step outputs.
+		if (!options.NoTest)
+		{
+			await dotNetService.TestAsync(options.Workspace, options.Configuration, "coverage", cancellationToken).ConfigureAwait(false);
+		}
 
 		// iOS validation: when the workspace contains an iOS head, build it unsigned
 		// for the simulator and device runtimes as part of CI, the same pull-request
 		// validation `ios build` performs. Running it automatically means a consumer
 		// with an iOS head does not need a separate invocation. iOS builds only on
 		// macOS, so on any other host the step reports the detected heads and skips.
-		if (!await ExecuteIosValidationAsync(dotNetService, logger, workspace, configuration, cancellationToken).ConfigureAwait(false))
+		if (!await ExecuteIosValidationAsync(dotNetService, logger, options.Workspace, options.Configuration, cancellationToken).ConfigureAwait(false))
 		{
 			return 1;
 		}
 
 		// Release workflow
-		if (buildConfig.ShouldRelease && !skipRelease)
+		if (CiReleaseDecision.ShouldExecuteRelease(buildConfig.ShouldRelease, skipRelease, suppressedByFlag: options.NoRelease))
 		{
-			await releaseService.ExecuteReleaseAsync(buildConfig, workspace, configuration, cancellationToken).ConfigureAwait(false);
+			await releaseService.ExecuteReleaseAsync(buildConfig, options.Workspace, options.Configuration, cancellationToken).ConfigureAwait(false);
 		}
 
 		WriteStepOutputs(buildConfig, releaseSkipped: skipRelease);
@@ -284,7 +312,7 @@ public class CiCommand : Command
 		[
 			new("version", buildConfig.Version),
 			new("release_hash", buildConfig.ReleaseHash),
-			new("should_release", (!releaseSkipped && buildConfig.ShouldRelease) ? "true" : "false"),
+			new("should_release", CiReleaseDecision.ShouldReleaseOutput(buildConfig.ShouldRelease, releaseSkipped)),
 			new("build_skipped", "false"),
 		]);
 
