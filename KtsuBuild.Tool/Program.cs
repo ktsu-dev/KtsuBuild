@@ -34,6 +34,7 @@ internal sealed class Program
 		AddBuildCommand(rootCommand, processRunner, logger);
 		AddReleaseCommand(rootCommand, processRunner, logger);
 		AddVersionCommand(rootCommand, processRunner, logger);
+		AddTestCommand(rootCommand, processRunner, logger);
 		AddMetadataCommand(rootCommand, processRunner, logger);
 		AddWingetCommand(rootCommand, processRunner, logger);
 		AddIosCommand(rootCommand, processRunner, logger);
@@ -202,6 +203,35 @@ internal sealed class Program
 		});
 
 		rootCommand.Subcommands.Add(versionCommand);
+	}
+
+	private static void AddTestCommand(RootCommand rootCommand, IProcessRunner processRunner, IBuildLogger logger)
+	{
+		TestCommand testCommand = new();
+
+		// List subcommand
+		Command listCommand = testCommand.Subcommands.First(c => c.Name == "list");
+		Func<string, bool, CancellationToken, Task<int>> listHandler = TestCommand.CreateListHandler(processRunner, logger);
+		listCommand.SetAction(async (parseResult, ct) =>
+		{
+			string workspace = parseResult.GetValue(GlobalOptions.Workspace)!;
+			bool verbose = parseResult.GetValue(GlobalOptions.Verbose);
+			return await listHandler(workspace, verbose, ct).ConfigureAwait(false);
+		});
+
+		// Run subcommand
+		Command runCommand = testCommand.Subcommands.First(c => c.Name == "run");
+		Func<string, string, string, bool, CancellationToken, Task<int>> runHandler = TestCommand.CreateRunHandler(processRunner, logger);
+		runCommand.SetAction(async (parseResult, ct) =>
+		{
+			string workspace = parseResult.GetValue(GlobalOptions.Workspace)!;
+			string configuration = parseResult.GetValue(GlobalOptions.Configuration)!;
+			string project = parseResult.GetValue(TestCommand.Project)!;
+			bool verbose = parseResult.GetValue(GlobalOptions.Verbose);
+			return await runHandler(workspace, configuration, project, verbose, ct).ConfigureAwait(false);
+		});
+
+		rootCommand.Subcommands.Add(testCommand);
 	}
 
 	private static void AddMetadataCommand(RootCommand rootCommand, IProcessRunner processRunner, IBuildLogger logger)
