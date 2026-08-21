@@ -76,13 +76,14 @@ internal sealed class Program
 	private static void AddBuildCommand(RootCommand rootCommand, IProcessRunner processRunner, IBuildLogger logger)
 	{
 		BuildCommand command = new();
-		Func<string, string, bool, CancellationToken, Task<int>> handler = BuildCommand.CreateHandler(processRunner, logger);
+		Func<string, string, bool, bool, CancellationToken, Task<int>> handler = BuildCommand.CreateHandler(processRunner, logger);
 		command.SetAction(async (parseResult, ct) =>
 		{
 			string workspace = parseResult.GetValue(GlobalOptions.Workspace)!;
 			string configuration = parseResult.GetValue(GlobalOptions.Configuration)!;
 			bool verbose = parseResult.GetValue(GlobalOptions.Verbose);
-			return await handler(workspace, configuration, verbose, ct).ConfigureAwait(false);
+			bool noTest = parseResult.GetValue(GlobalOptions.NoTest);
+			return await handler(workspace, configuration, verbose, noTest, ct).ConfigureAwait(false);
 		});
 		rootCommand.Subcommands.Add(command);
 	}

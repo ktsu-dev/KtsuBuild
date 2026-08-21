@@ -22,6 +22,7 @@ public class BuildCommand : Command
 		Options.Add(GlobalOptions.Workspace);
 		Options.Add(GlobalOptions.Configuration);
 		Options.Add(GlobalOptions.Verbose);
+		Options.Add(GlobalOptions.NoTest);
 	}
 
 	/// <summary>
@@ -30,11 +31,11 @@ public class BuildCommand : Command
 	/// <param name="processRunner">The process runner.</param>
 	/// <param name="logger">The build logger.</param>
 	/// <returns>The command handler action.</returns>
-	public static Func<string, string, bool, CancellationToken, Task<int>> CreateHandler(
+	public static Func<string, string, bool, bool, CancellationToken, Task<int>> CreateHandler(
 		IProcessRunner processRunner,
 		IBuildLogger logger)
 	{
-		return async (workspace, configuration, verbose, cancellationToken) =>
+		return async (workspace, configuration, verbose, noTest, cancellationToken) =>
 		{
 			logger.VerboseEnabled = verbose;
 			BuildEnvironment.Initialize();
@@ -62,7 +63,11 @@ public class BuildCommand : Command
 
 				await dotNetService.RestoreAsync(workspace, cancellationToken: cancellationToken).ConfigureAwait(false);
 				await dotNetService.BuildAsync(workspace, configuration, buildArgs, cancellationToken).ConfigureAwait(false);
-				await dotNetService.TestAsync(workspace, configuration, "coverage", cancellationToken).ConfigureAwait(false);
+
+				if (!noTest)
+				{
+					await dotNetService.TestAsync(workspace, configuration, "coverage", cancellationToken).ConfigureAwait(false);
+				}
 
 				logger.WriteSuccess("Build workflow completed successfully!");
 				return 0;
