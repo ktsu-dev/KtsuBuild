@@ -102,6 +102,18 @@ public interface IDotNetService
 	public IReadOnlyList<string> GetBuildableProjects(string workingDirectory);
 
 	/// <summary>
+	/// Gets the test projects in a directory, each with the platform it is tied to.
+	/// </summary>
+	/// <param name="workingDirectory">The directory to search.</param>
+	/// <returns>Every test project found, whatever host it needs.</returns>
+	/// <remarks>
+	/// Deliberately not filtered by the current host, unlike <see cref="GetBuildableProjects"/>.
+	/// The caller builds a matrix that spans hosts other than the one this runs on, so it needs the
+	/// full list with each project's platform and decides which pairs are valid itself.
+	/// </remarks>
+	public IReadOnlyList<TestProjectInfo> GetTestProjects(string workingDirectory);
+
+	/// <summary>
 	/// Classifies a project by the platform its target framework(s) tie it to.
 	/// </summary>
 	/// <param name="projectPath">Path to the project file.</param>

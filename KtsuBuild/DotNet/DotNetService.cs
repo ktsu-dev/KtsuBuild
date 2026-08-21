@@ -413,6 +413,15 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger) : 
 	}
 
 	/// <inheritdoc/>
+	public IReadOnlyList<TestProjectInfo> GetTestProjects(string workingDirectory)
+	{
+		Ensure.NotNull(workingDirectory);
+		return [.. GetProjectFiles(workingDirectory)
+			.Where(IsTestProject)
+			.Select(p => new TestProjectInfo(p, GetProjectPlatform(p)))];
+	}
+
+	/// <inheritdoc/>
 	public ProjectPlatform GetProjectPlatform(string projectPath)
 	{
 		Ensure.NotNull(projectPath);

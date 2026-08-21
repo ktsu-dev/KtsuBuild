@@ -738,6 +738,71 @@ public class DotNetServiceTests
 		Assert.IsTrue(buildable.All(all.Contains));
 	}
 
+	// GetTestProjects
+
+	[TestMethod]
+	public void GetTestProjects_ReturnsProjectsMatchingOnName()
+	{
+		string dir = Path.Combine(_tempDir, "Foo.Tests");
+		Directory.CreateDirectory(dir);
+		File.WriteAllText(Path.Combine(dir, "Foo.Tests.csproj"), "<Project><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>");
+
+		IReadOnlyList<TestProjectInfo> result = _service.GetTestProjects(_tempDir);
+
+		Assert.AreEqual(1, result.Count);
+		Assert.AreEqual(ProjectPlatform.Neutral, result[0].Platform);
+	}
+
+	[TestMethod]
+	public void GetTestProjects_ReturnsProjectsMatchingOnContentOnly()
+	{
+		// The name ends in neither .Test nor .Tests. ImGuiApp's five *.UITests projects are exactly
+		// this shape, and a name-based filter silently drops every test they contain.
+		string dir = Path.Combine(_tempDir, "Demo.UITests");
+		Directory.CreateDirectory(dir);
+		File.WriteAllText(Path.Combine(dir, "Demo.UITests.csproj"), "<Project><PropertyGroup><IsTestProject>true</IsTestProject><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>");
+
+		IReadOnlyList<TestProjectInfo> result = _service.GetTestProjects(_tempDir);
+
+		Assert.AreEqual(1, result.Count);
+		Assert.IsTrue(result[0].Project.Contains("Demo.UITests", StringComparison.Ordinal));
+	}
+
+	[TestMethod]
+	public void GetTestProjects_ExcludesNonTestProjects()
+	{
+		string dir = Path.Combine(_tempDir, "Library");
+		Directory.CreateDirectory(dir);
+		File.WriteAllText(Path.Combine(dir, "Library.csproj"), "<Project><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>");
+
+		IReadOnlyList<TestProjectInfo> result = _service.GetTestProjects(_tempDir);
+
+		Assert.AreEqual(0, result.Count);
+	}
+
+	[TestMethod]
+	public void GetTestProjects_ReportsAWindowsProjectRegardlessOfHost()
+	{
+		// Deliberately not host-filtered: the caller builds a matrix covering hosts it is not
+		// running on, so it needs every test project and decides which pairs are valid itself.
+		string dir = Path.Combine(_tempDir, "Win.Tests");
+		Directory.CreateDirectory(dir);
+		File.WriteAllText(Path.Combine(dir, "Win.Tests.csproj"), "<Project><PropertyGroup><TargetFramework>net10.0-windows</TargetFramework></PropertyGroup></Project>");
+
+		IReadOnlyList<TestProjectInfo> result = _service.GetTestProjects(_tempDir);
+
+		Assert.AreEqual(1, result.Count);
+		Assert.AreEqual(ProjectPlatform.Windows, result[0].Platform);
+	}
+
+	[TestMethod]
+	public void GetTestProjects_ReturnsEmptyWhenThereAreNone()
+	{
+		IReadOnlyList<TestProjectInfo> result = _service.GetTestProjects(_tempDir);
+
+		Assert.AreEqual(0, result.Count);
+	}
+
 	// BuildIosAsync
 
 	[TestMethod]
