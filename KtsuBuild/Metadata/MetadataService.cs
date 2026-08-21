@@ -39,9 +39,21 @@ public class MetadataService(IGitService gitService, IBuildLogger logger) : IMet
 			// Write version file
 			await WriteVersionFileAsync(version, config.WorkspacePath, lineEnding, cancellationToken).ConfigureAwait(false);
 
-			// Write license files
-			logger.WriteInfo("Generating license...");
-			await WriteLicenseFilesAsync(config.ServerUrl, config.GitHubOwner, config.GitHubRepo, config.WorkspacePath, lineEnding, cancellationToken).ConfigureAwait(false);
+			// Write license files. Only an official checkout may do this. The owner is read from
+			// wherever the repository happens to live, so a fork regenerating these renames the
+			// copyright holder to itself; the SDK then derives the required file header from
+			// COPYRIGHT.md and every source file in the repository fails against a header the fork
+			// has no business asserting. A fork is barred from committing metadata anyway, so there
+			// is nothing for it to regenerate towards.
+			if (config.IsOfficial)
+			{
+				logger.WriteInfo("Generating license...");
+				await WriteLicenseFilesAsync(config.ServerUrl, config.GitHubOwner, config.GitHubRepo, config.WorkspacePath, lineEnding, cancellationToken).ConfigureAwait(false);
+			}
+			else
+			{
+				logger.WriteInfo("Skipping license generation (not official)");
+			}
 
 			// Write authors file
 			if (options.Authors.Count > 0)

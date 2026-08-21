@@ -3,6 +3,7 @@
 namespace KtsuBuild.Tests.Metadata;
 
 using KtsuBuild.Abstractions;
+using KtsuBuild.Configuration;
 using KtsuBuild.Git;
 using KtsuBuild.Metadata;
 using KtsuBuild.Tests.Mocks;
@@ -175,6 +176,51 @@ public class MetadataServiceTests
 
 		string content = await File.ReadAllTextAsync(Path.Combine(_tempDir, "PROJECT_URL.url")).ConfigureAwait(false);
 		Assert.IsTrue(content.Contains("https://github.com/testowner/testrepo"), "PROJECT_URL.url should contain repo URL");
+	}
+
+	// UpdateAllAsync license regeneration
+
+	private static MetadataUpdateOptions ForkOptions(string workspacePath, bool isOfficial) => new()
+	{
+		BuildConfiguration = new BuildConfiguration
+		{
+			WorkspacePath = workspacePath,
+			ServerUrl = "https://github.com",
+			GitHubOwner = isOfficial ? "ktsu-dev" : "forkowner",
+			GitHubRepo = isOfficial ? "ktsu-dev/testrepo" : "forkowner/testrepo",
+			ExpectedOwner = "ktsu-dev",
+			IsOfficial = isOfficial,
+		},
+		CommitChanges = false,
+	};
+
+	/// <summary>
+	/// A fork is already forbidden from committing metadata, but it was still rewriting COPYRIGHT.md
+	/// in the working tree, renaming the copyright holder to the fork owner. The SDK derives the
+	/// required file header from that file, so every source file in the repository then failed
+	/// IDE0073 against a header naming an owner the fork had no business asserting.
+	/// </summary>
+	[TestMethod]
+	public async Task UpdateAllAsync_LeavesLicenseFilesAloneWhenNotOfficial()
+	{
+		string copyrightPath = Path.Combine(_tempDir, "COPYRIGHT.md");
+		await File.WriteAllTextAsync(copyrightPath, "Copyright (c) 2023-2026 ktsu-dev contributors").ConfigureAwait(false);
+
+		MetadataUpdateResult result = await _service.UpdateAllAsync(ForkOptions(_tempDir, isOfficial: false)).ConfigureAwait(false);
+
+		Assert.IsTrue(result.Success, result.Error);
+		string copyright = await File.ReadAllTextAsync(copyrightPath).ConfigureAwait(false);
+		StringAssert.Contains(copyright, "ktsu-dev contributors", "A fork must not rewrite the copyright holder.");
+	}
+
+	[TestMethod]
+	public async Task UpdateAllAsync_WritesLicenseFilesWhenOfficial()
+	{
+		MetadataUpdateResult result = await _service.UpdateAllAsync(ForkOptions(_tempDir, isOfficial: true)).ConfigureAwait(false);
+
+		Assert.IsTrue(result.Success, result.Error);
+		string copyright = await File.ReadAllTextAsync(Path.Combine(_tempDir, "COPYRIGHT.md")).ConfigureAwait(false);
+		StringAssert.Contains(copyright, "ktsu-dev contributors", "An official build still regenerates the copyright.");
 	}
 
 	/// <summary>
