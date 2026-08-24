@@ -54,17 +54,26 @@ public class ReleaseCommand : Command
 				PipelineContext context = await pipeline.PrepareAsync(workspace, configuration, cancellationToken).ConfigureAwait(false);
 				BuildConfiguration buildConfig = context.Configuration;
 
-				// A standalone release runs no metadata stage, so nothing else moves the release
-				// hash onto a later commit the way ci's metadata commit does. It targets the
-				// commit this run was given. Assigning it explicitly, rather than trusting that
-				// preparation already populated it, keeps this correct even if preparation's
-				// default ever changes, and it must happen before resolving the version because
-				// that stage analyzes the commit range up to this hash.
+				if (!buildConfig.ShouldRelease)
+				{
+					logger.WriteWarning("Not a release build (not on main, is tagged, or not official repo)");
+					logger.WriteInfo($"Is Main: {buildConfig.IsMain}, Is Tagged: {buildConfig.IsTagged}, Is Official: {buildConfig.IsOfficial}");
+					return 0;
+				}
+
+				if (dryRun)
+				{
+					logger.WriteInfo("Would pack, publish NuGet packages, and create GitHub release");
+					return 0;
+				}
+
+				// ReleaseHash already equals GitSha at this point (BuildConfigurationProvider seeds
+				// it from GITHUB_SHA, falling back to the current commit), so this restates an
+				// invariant the provider already establishes rather than changing it. It is
+				// restated here because resolving the version below reads it to pick the commit
+				// range, and this is the one caller with no metadata stage to set it later.
 				buildConfig.ReleaseHash = buildConfig.GitSha;
 
-				// Resolved before the ShouldRelease check, not after, so a run that cannot
-				// publish still reports what it would have published. That is what makes the run
-				// against a scratch repository useful as a check on its own.
 				await pipeline.ResolveVersionAsync(context, "auto", cancellationToken).ConfigureAwait(false);
 
 				// Resolving deliberately leaves Configuration.Version alone, because in ci it is
@@ -78,19 +87,6 @@ public class ReleaseCommand : Command
 				}
 
 				buildConfig.Version = context.VersionInfo.Version;
-
-				if (!buildConfig.ShouldRelease)
-				{
-					logger.WriteWarning("Not a release build (not on main, is tagged, or not official repo)");
-					logger.WriteInfo($"Is Main: {buildConfig.IsMain}, Is Tagged: {buildConfig.IsTagged}, Is Official: {buildConfig.IsOfficial}");
-					return 0;
-				}
-
-				if (dryRun)
-				{
-					logger.WriteInfo("Would pack, publish NuGet packages, and create GitHub release");
-					return 0;
-				}
 
 				// The version gate is how [skip ci] and a run with no meaningful changes suppress
 				// a release. A standalone release must honor it the same way ci does, so a run
