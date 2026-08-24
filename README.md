@@ -163,6 +163,10 @@ ktsubuild release [options]
 **Options:**
 - `--dry-run`: Preview actions without executing them
 
+`release` resolves the version the same way `ci` does, from the repository's tags and commit
+history, and publishes against the current commit. It also honors the version gate, so a run whose
+commits all carry `[skip ci]` publishes nothing.
+
 ### `version`
 
 Version management commands.

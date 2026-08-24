@@ -5,9 +5,7 @@ namespace KtsuBuild.Tool.Commands;
 using System.CommandLine;
 using KtsuBuild.Abstractions;
 using KtsuBuild.Configuration;
-using KtsuBuild.DotNet;
-using KtsuBuild.Git;
-using KtsuBuild.Publishing;
+using KtsuBuild.Pipeline;
 
 /// <summary>
 /// Release command that runs pack, publish, and release.
@@ -48,18 +46,38 @@ public class ReleaseCommand : Command
 
 			logger.WriteStepHeader("Starting Release Workflow");
 
-			GitService gitService = new(processRunner, logger);
-			GitHubService gitHubService = new(processRunner, gitService, logger);
-			BuildConfigurationProvider configProvider = new(gitService, gitHubService);
-			DotNetService dotNetService = new(processRunner, logger);
-			NuGetPublisher nugetPublisher = new(processRunner, logger);
-			ReleaseService releaseService = new(dotNetService, nugetPublisher, gitHubService, logger);
+			PipelineService pipeline = new(processRunner, logger);
 
 #pragma warning disable CA1031 // Top-level command handler must catch all exceptions
 			try
 			{
-				BuildConfiguration buildConfig = await configProvider.CreateFromEnvironmentAsync(workspace, cancellationToken).ConfigureAwait(false);
-				buildConfig.Configuration = configuration;
+				PipelineContext context = await pipeline.PrepareAsync(workspace, configuration, cancellationToken).ConfigureAwait(false);
+				BuildConfiguration buildConfig = context.Configuration;
+
+				// A standalone release runs no metadata stage, so nothing else moves the release
+				// hash onto a later commit the way ci's metadata commit does. It targets the
+				// commit this run was given. Assigning it explicitly, rather than trusting that
+				// preparation already populated it, keeps this correct even if preparation's
+				// default ever changes, and it must happen before resolving the version because
+				// that stage analyzes the commit range up to this hash.
+				buildConfig.ReleaseHash = buildConfig.GitSha;
+
+				// Resolved before the ShouldRelease check, not after, so a run that cannot
+				// publish still reports what it would have published. That is what makes the run
+				// against a scratch repository useful as a check on its own.
+				await pipeline.ResolveVersionAsync(context, "auto", cancellationToken).ConfigureAwait(false);
+
+				// Resolving deliberately leaves Configuration.Version alone, because in ci it is
+				// assigned from the metadata result instead. A standalone release has no metadata
+				// result, so this is the one caller that must assign it here. Falling back to
+				// anything else would risk publishing under an unresolved placeholder, which is
+				// the defect this command exists to fix.
+				if (context.VersionInfo is null)
+				{
+					throw new InvalidOperationException("Version resolution did not produce a version to release.");
+				}
+
+				buildConfig.Version = context.VersionInfo.Version;
 
 				if (!buildConfig.ShouldRelease)
 				{
@@ -74,7 +92,13 @@ public class ReleaseCommand : Command
 					return 0;
 				}
 
-				await releaseService.ExecuteReleaseAsync(buildConfig, workspace, configuration, cancellationToken).ConfigureAwait(false);
+				// The version gate is how [skip ci] and a run with no meaningful changes suppress
+				// a release. A standalone release must honor it the same way ci does, so a run
+				// whose commits all carry the skip marker does not publish here either.
+				if (CiReleaseDecision.ShouldExecuteRelease(buildConfig.ShouldRelease, context.ReleaseSuppressedByVersionGate, suppressedByFlag: false))
+				{
+					await pipeline.ReleaseAsync(context, cancellationToken).ConfigureAwait(false);
+				}
 
 				logger.WriteSuccess("Release workflow completed successfully!");
 				return 0;
