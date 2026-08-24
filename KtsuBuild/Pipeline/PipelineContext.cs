@@ -33,6 +33,25 @@ public sealed class PipelineContext
 	public VersionInfo? VersionInfo { get; set; }
 
 	/// <summary>
+	/// Gets or sets a value indicating whether a stage has deliberately established the version this
+	/// run publishes.
+	/// </summary>
+	/// <remarks>
+	/// A fresh configuration carries the placeholder version <see cref="BuildConfigurationProvider"/>
+	/// seeds, and publishing that placeholder is the defect this whole change exists to remove. The
+	/// flag records that a stage chose the version on purpose. It deliberately says nothing about
+	/// which value was chosen, because a genuinely new repository's first release can legitimately be
+	/// the same string the placeholder uses, so a guard on the value would refuse a correct release
+	/// and still pass a wrong one whose placeholder happened to differ.
+	/// <para>
+	/// <see cref="PipelineService.UpdateMetadataAsync"/> sets it, because that is where <c>ci</c> gets
+	/// its version. A caller with no metadata stage calls
+	/// <see cref="PipelineService.ApplyResolvedVersion"/> instead. Releasing without either throws.
+	/// </para>
+	/// </remarks>
+	public bool VersionEstablished { get; set; }
+
+	/// <summary>
 	/// Gets or sets a value indicating whether the version increment suppressed the release.
 	/// </summary>
 	/// <remarks>

@@ -4,7 +4,6 @@ namespace KtsuBuild.Tool.Commands;
 
 using System.CommandLine;
 using KtsuBuild.Abstractions;
-using KtsuBuild.Configuration;
 using KtsuBuild.Metadata;
 using KtsuBuild.Pipeline;
 using KtsuBuild.Utilities;
@@ -140,11 +139,9 @@ public class CiCommand : Command
 			return 1;
 		}
 
-		// Release workflow
-		if (CiReleaseDecision.ShouldExecuteRelease(context.Configuration.ShouldRelease, context.ReleaseSuppressedByVersionGate, suppressedByFlag: options.NoRelease))
-		{
-			await pipeline.ReleaseAsync(context, cancellationToken).ConfigureAwait(false);
-		}
+		// Release workflow. The gate and the release live together in the service, so this command
+		// and a standalone `release` cannot drift apart on when a release happens.
+		await pipeline.ReleaseIfPermittedAsync(context, suppressedByFlag: options.NoRelease, cancellationToken).ConfigureAwait(false);
 
 		pipeline.WriteStepOutputs(context);
 

@@ -136,12 +136,48 @@ public sealed class PipelineService
 	}
 
 	/// <summary>
+	/// Applies the resolved version to the configuration, establishing the version this run
+	/// publishes.
+	/// </summary>
+	/// <remarks>
+	/// This is how a caller with no metadata stage answers the question <c>ci</c> answers from the
+	/// metadata result. Every publishing path has to answer it somehow, because
+	/// <see cref="ReleaseIfPermittedAsync"/> refuses to release a version nobody chose.
+	/// <para>
+	/// <c>ci</c> does not call this, and must not. Its version comes from the metadata result, which
+	/// is the version the same stage wrote to <c>VERSION.md</c> and the one the packages carry. A
+	/// forced <c>--version-bump major</c> makes the difference concrete: the analysis reports the
+	/// bumped version while <c>VERSION.md</c> still holds what metadata wrote, so assigning the
+	/// analyzed version over it would tag a release the packages do not match.
+	/// </para>
+	/// </remarks>
+	/// <param name="context">The context this run was prepared with, with its version already resolved.</param>
+	/// <exception cref="InvalidOperationException">The version has not been resolved yet.</exception>
+	public void ApplyResolvedVersion(PipelineContext context)
+	{
+		Ensure.NotNull(context);
+
+		if (context.VersionInfo is null)
+		{
+			throw new InvalidOperationException("Version resolution has not run, so there is no version to apply. Call ResolveVersionAsync first.");
+		}
+
+		context.Configuration.Version = context.VersionInfo.Version;
+		context.VersionEstablished = true;
+		// Worded as the version this run would publish rather than as a release announcement,
+		// because the version gate is checked after this and may still suppress the release.
+		_logger.WriteInfo($"Using resolved version {context.VersionInfo.Version}");
+	}
+
+	/// <summary>
 	/// Regenerates the metadata files, commits them when the run is official and on main, and
 	/// updates the repository topics from <c>TAGS.md</c>.
 	/// </summary>
 	/// <remarks>
 	/// The version and release hash on the configuration are taken from the metadata result,
-	/// because the metadata commit is a new commit and it is the one a release is cut against.
+	/// because the metadata commit is a new commit and it is the one a release is cut against. That
+	/// assignment is what establishes the version for <c>ci</c>, so this stage marks the context
+	/// accordingly and a later release is permitted.
 	/// <para>
 	/// The result is returned rather than turned into an exception so that a caller reports a
 	/// metadata failure in its own words. Throwing would put a catch-all handler's wording in
@@ -177,6 +213,7 @@ public sealed class PipelineService
 
 		buildConfig.Version = metadataResult.Version;
 		buildConfig.ReleaseHash = metadataResult.ReleaseHash;
+		context.VersionEstablished = true;
 
 		// Update GitHub repository topics from TAGS.md
 		if (shouldCommitMetadata)
@@ -194,9 +231,19 @@ public sealed class PipelineService
 	/// </summary>
 	/// <remarks>
 	/// The <c>.csx</c> check is made here, once, rather than read off a configuration, so that a
-	/// caller with no git repository and no GitHub token can still run this stage, and so this is
-	/// the only place that decides the build argument. Nothing else derives it any more: neither
-	/// <c>ci</c> nor <c>build</c> carries a build arguments value of its own.
+	/// caller with no git repository and no GitHub token can still run this stage, and so this is the
+	/// only live copy of the rule. Neither <c>ci</c> nor <c>build</c> carries a build arguments value
+	/// of its own. <see cref="BuildConfigurationProvider"/> still derives the same argument into
+	/// <c>BuildConfiguration.BuildArgs</c>, but nothing in production reads that property any more, so
+	/// that copy is dead and slated for removal in its own change.
+	/// <para>
+	/// Taking no build arguments parameter is the point of the signature, and it is the signature
+	/// rather than any test that forecloses the defect. A caller that can pass its own separately
+	/// computed value is how the rule came to exist in three places at once. No test guards that,
+	/// because reintroducing an optional parameter with a default leaves both call sites and both
+	/// tests compiling and passing unchanged, so the guarantee is the compiler's alone. Anyone
+	/// restoring that parameter is reopening the defect.
+	/// </para>
 	/// </remarks>
 	/// <param name="workspace">The workspace or repository path.</param>
 	/// <param name="configuration">The build configuration, Debug or Release.</param>
@@ -298,13 +345,52 @@ public sealed class PipelineService
 	}
 
 	/// <summary>
-	/// Packs, publishes and tags the release the context describes.
+	/// Packs, publishes and tags the release when the configuration permits it and nothing
+	/// suppresses it, and does nothing otherwise.
 	/// </summary>
-	/// <param name="context">The context this run was prepared with.</param>
+	/// <remarks>
+	/// The gate and the release live together here so that no caller writes the pair itself. It was
+	/// written twice, in <c>ci</c> and in <c>release</c>, differing only in whether a flag suppressed
+	/// the run, and a third copy that forgot the gate would publish a version the version gate had
+	/// already ruled out.
+	/// <para>
+	/// A run that gets past the gate must have established its version, through
+	/// <see cref="UpdateMetadataAsync"/> or <see cref="ApplyResolvedVersion"/>. Otherwise the
+	/// configuration still holds the placeholder <see cref="BuildConfigurationProvider"/> seeds, and
+	/// publishing it is the production defect this class exists to prevent. The check is on whether a
+	/// version was established rather than on its value, because a new repository's first release can
+	/// legitimately be that same value.
+	/// </para>
+	/// </remarks>
+	/// <param name="context">The context this run was prepared with, with its version established.</param>
+	/// <param name="suppressedByFlag">Whether the caller asked this run not to release, leaving it to a later step or job.</param>
 	/// <param name="cancellationToken">A cancellation token.</param>
-	public async Task ReleaseAsync(PipelineContext context, CancellationToken cancellationToken)
+	/// <exception cref="InvalidOperationException">A release is warranted and no stage established the version.</exception>
+	public async Task ReleaseIfPermittedAsync(PipelineContext context, bool suppressedByFlag, CancellationToken cancellationToken)
 	{
 		Ensure.NotNull(context);
+
+		if (!CiReleaseDecision.ShouldExecuteRelease(context.Configuration.ShouldRelease, context.ReleaseSuppressedByVersionGate, suppressedByFlag))
+		{
+			return;
+		}
+
+		await ReleaseAsync(context, cancellationToken).ConfigureAwait(false);
+	}
+
+	/// <summary>
+	/// Packs, publishes and tags the release the context describes.
+	/// </summary>
+	/// <remarks>
+	/// Private so the version guard cannot be stepped around. Every caller reaches a release through
+	/// <see cref="ReleaseIfPermittedAsync"/>.
+	/// </remarks>
+	private async Task ReleaseAsync(PipelineContext context, CancellationToken cancellationToken)
+	{
+		if (!context.VersionEstablished)
+		{
+			throw new InvalidOperationException("No stage established the version for this run, so there is nothing safe to publish. Run the metadata stage, or resolve the version and call ApplyResolvedVersion, before releasing.");
+		}
 
 		BuildConfiguration buildConfig = context.Configuration;
 		await _releaseService.ExecuteReleaseAsync(buildConfig, buildConfig.WorkspacePath, buildConfig.Configuration, cancellationToken).ConfigureAwait(false);

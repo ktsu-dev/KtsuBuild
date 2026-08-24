@@ -21,9 +21,15 @@ public class PipelineServiceTests
 	/// </summary>
 	private const string PlaceholderVersion = "1.0.0-pre.0";
 
+	// The commit git reports as HEAD, which is deliberately NOT the hash the run is seeded with.
+	// GITHUB_SHA used to carry this same value, which left the absence assertion in
+	// ResolveVersionLeavesTheConfigurationVersionAndHashAlone unable to fail: an implementation that
+	// re-derived the release hash from the repository would land on the value it started with. The
+	// two are separate values here so that reaching into git for a hash is observable.
 	private const string HeadCommit = "1111111111111111111111111111111111111111";
 	private const string FirstCommit = "2222222222222222222222222222222222222222";
 	private const string TagCommit = "3333333333333333333333333333333333333333";
+	private const string SeededSha = "4444444444444444444444444444444444444444";
 
 	private static readonly string[] EnvironmentVariables =
 	[
@@ -61,7 +67,7 @@ public class PipelineServiceTests
 		}
 
 		Environment.SetEnvironmentVariable("GITHUB_REF", "refs/heads/main");
-		Environment.SetEnvironmentVariable("GITHUB_SHA", HeadCommit);
+		Environment.SetEnvironmentVariable("GITHUB_SHA", SeededSha);
 		Environment.SetEnvironmentVariable("GITHUB_REPOSITORY", "ktsu-dev/TestRepo");
 
 		_tempDir = TestHelpers.CreateTempDir("Pipeline");
@@ -123,11 +129,17 @@ public class PipelineServiceTests
 	{
 		PipelineContext context = await _pipeline.PrepareAsync(_tempDir, "Release", CancellationToken.None).ConfigureAwait(false);
 		string releaseHashBefore = context.Configuration.ReleaseHash;
+		Assert.AreEqual(SeededSha, releaseHashBefore);
 
 		await _pipeline.ResolveVersionAsync(context, "auto", CancellationToken.None).ConfigureAwait(false);
 
 		Assert.AreEqual(PlaceholderVersion, context.Configuration.Version);
 		Assert.AreEqual(releaseHashBefore, context.Configuration.ReleaseHash);
+
+		// Named separately so the clause discriminates rather than restating the line above. The
+		// tempting wrong implementation moves the hash onto whatever git reports for HEAD, and the
+		// fixture keeps those two values apart so that move is visible.
+		Assert.AreNotEqual(HeadCommit, context.Configuration.ReleaseHash);
 	}
 
 	[TestMethod]
@@ -237,6 +249,70 @@ public class PipelineServiceTests
 			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
+	// The rule this branch exists to establish. Nothing in the service used to require that anyone
+	// had chosen a version, so a caller that prepared a run and then released published the
+	// placeholder, which is the production defect exactly. The guard is about whether a version was
+	// established on purpose rather than about its value, because a genuinely new repository's first
+	// release can legitimately be the placeholder string.
+	[TestMethod]
+	public async Task ReleaseIfPermittedThrowsAndPublishesNothingWhenNoStageEstablishedTheVersion()
+	{
+		PipelineContext context = await ResolveAsync("auto").ConfigureAwait(false);
+
+		// Without these the guard would not be what stopped the release, and the test would pass
+		// against an unguarded service.
+		Assert.IsTrue(context.Configuration.ShouldRelease);
+		Assert.IsFalse(context.ReleaseSuppressedByVersionGate);
+		Assert.IsFalse(context.VersionEstablished);
+		Assert.AreEqual(PlaceholderVersion, context.Configuration.Version);
+
+		InvalidOperationException failure = await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+			() => _pipeline.ReleaseIfPermittedAsync(context, suppressedByFlag: false, CancellationToken.None)).ConfigureAwait(false);
+
+		StringAssert.Contains(failure.Message, "version");
+		await AssertNoTagWasCreatedAsync().ConfigureAwait(false);
+	}
+
+	// The counterpart, so the guard is shown to permit a release rather than only to refuse one.
+	[TestMethod]
+	public async Task ApplyResolvedVersionEstablishesTheResolvedVersion()
+	{
+		PipelineContext context = await ResolveAsync("auto").ConfigureAwait(false);
+
+		_pipeline.ApplyResolvedVersion(context);
+
+		Assert.IsTrue(context.VersionEstablished);
+		Assert.AreEqual("3.10.1", context.Configuration.Version);
+		Assert.AreNotEqual(PlaceholderVersion, context.Configuration.Version);
+	}
+
+	// The guard fires only where a release would otherwise happen. A suppressed run publishes
+	// nothing, so it has nothing to establish and must not fail.
+	[TestMethod]
+	public async Task ReleaseIfPermittedIsSilentWhenTheVersionGateSuppressedTheRelease()
+	{
+		_commitMessages = "[bot][skip ci] Update Metadata";
+
+		PipelineContext context = await ResolveAsync("auto").ConfigureAwait(false);
+		Assert.IsTrue(context.ReleaseSuppressedByVersionGate);
+		Assert.IsFalse(context.VersionEstablished);
+
+		await _pipeline.ReleaseIfPermittedAsync(context, suppressedByFlag: false, CancellationToken.None).ConfigureAwait(false);
+
+		await AssertNoTagWasCreatedAsync().ConfigureAwait(false);
+	}
+
+	/// <summary>
+	/// Asserts that nothing reached the point where a release cuts its tag, which is the first
+	/// observable act of publishing.
+	/// </summary>
+	private async Task AssertNoTagWasCreatedAsync() =>
+		await _processRunner.DidNotReceive().RunAsync(
+			"git",
+			ArgMatch.NotNull<string>(a => a.StartsWith("tag -a", StringComparison.Ordinal)),
+			Arg.Any<string?>(),
+			Arg.Any<CancellationToken>()).ConfigureAwait(false);
+
 	/// <summary>
 	/// Runs the two stages a caller needs before it knows what version it would publish.
 	/// </summary>
@@ -265,6 +341,11 @@ public class PipelineServiceTests
 			if (arguments == "tag --list --sort=-v:refname")
 			{
 				return TestHelpers.SuccessResult(_tagList);
+			}
+
+			if (arguments == "rev-parse HEAD")
+			{
+				return TestHelpers.SuccessResult(HeadCommit);
 			}
 
 			if (arguments == "rev-list HEAD")

@@ -67,34 +67,20 @@ public class ReleaseCommand : Command
 					return 0;
 				}
 
-				// ReleaseHash already equals GitSha at this point (BuildConfigurationProvider seeds
-				// it from GITHUB_SHA, falling back to the current commit), so this restates an
-				// invariant the provider already establishes rather than changing it. It is
-				// restated here because resolving the version below reads it to pick the commit
-				// range, and this is the one caller with no metadata stage to set it later.
-				buildConfig.ReleaseHash = buildConfig.GitSha;
-
 				await pipeline.ResolveVersionAsync(context, "auto", cancellationToken).ConfigureAwait(false);
 
 				// Resolving deliberately leaves Configuration.Version alone, because in ci it is
 				// assigned from the metadata result instead. A standalone release has no metadata
-				// result, so this is the one caller that must assign it here. Falling back to
-				// anything else would risk publishing under an unresolved placeholder, which is
-				// the defect this command exists to fix.
-				if (context.VersionInfo is null)
-				{
-					throw new InvalidOperationException("Version resolution did not produce a version to release.");
-				}
-
-				buildConfig.Version = context.VersionInfo.Version;
+				// result, so this is the caller that establishes the version itself. Without this
+				// line the service refuses to publish rather than shipping the placeholder, which
+				// is the defect this command exists to fix.
+				pipeline.ApplyResolvedVersion(context);
 
 				// The version gate is how [skip ci] and a run with no meaningful changes suppress
-				// a release. A standalone release must honor it the same way ci does, so a run
-				// whose commits all carry the skip marker does not publish here either.
-				if (CiReleaseDecision.ShouldExecuteRelease(buildConfig.ShouldRelease, context.ReleaseSuppressedByVersionGate, suppressedByFlag: false))
-				{
-					await pipeline.ReleaseAsync(context, cancellationToken).ConfigureAwait(false);
-				}
+				// a release. A standalone release honors it the same way ci does, so a run whose
+				// commits all carry the skip marker does not publish here either. Nothing is
+				// suppressed by a flag, because this command has no --no-release.
+				await pipeline.ReleaseIfPermittedAsync(context, suppressedByFlag: false, cancellationToken).ConfigureAwait(false);
 
 				logger.WriteSuccess("Release workflow completed successfully!");
 				return 0;

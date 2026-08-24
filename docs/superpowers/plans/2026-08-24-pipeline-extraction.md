@@ -69,16 +69,48 @@ This is the load-bearing task. Nothing observable may change.
 
 **Interfaces:**
 - Consumes: nothing from earlier tasks.
-- Produces, all in namespace `KtsuBuild.Pipeline`, and Tasks 2 and 3 call these exact names:
-  - `PipelineContext` with settable properties `BuildConfiguration Configuration`, `VersionInfo VersionInfo`, and `bool ReleaseSuppressedByVersionGate`.
+- Produces, all in namespace `KtsuBuild.Pipeline`. This is the interface as it ended up, which
+  differs from what this plan first specified. Three corrections were made under execution, each
+  recorded as a ruling in the ledger, and they are folded in here so a reader of the plan meets
+  the shape that actually shipped:
+  - `PipelineContext` with settable properties `BuildConfiguration Configuration`,
+    `VersionInfo? VersionInfo`, `bool VersionEstablished`, and `bool ReleaseSuppressedByVersionGate`.
+    `VersionInfo` is nullable because preparation cannot fill it and any non-null default would
+    seed a plausible wrong version, which is the defect shape this plan exists to remove.
   - `PipelineService(IProcessRunner processRunner, IBuildLogger logger)`.
-  - `Task<PipelineContext> PrepareAsync(string workspace, string configuration, string versionBump, CancellationToken cancellationToken)`
-  - `Task UpdateMetadataAsync(PipelineContext context, CancellationToken cancellationToken)`
-  - `Task RestoreAndBuildAsync(string workspace, string configuration, string? buildArgs, CancellationToken cancellationToken)`
+  - `Task<PipelineContext> PrepareAsync(string workspace, string configuration, CancellationToken cancellationToken)`
+  - `Task ResolveVersionAsync(PipelineContext context, string versionBump, CancellationToken cancellationToken)`
+  - `void ApplyResolvedVersion(PipelineContext context)`
+  - `Task<MetadataUpdateResult> UpdateMetadataAsync(PipelineContext context, CancellationToken cancellationToken)`
+  - `Task RestoreAndBuildAsync(string workspace, string configuration, CancellationToken cancellationToken)`
   - `Task RunTestsAsync(string workspace, string configuration, CancellationToken cancellationToken)`
   - `Task<bool> ValidateIosAsync(string workspace, string configuration, CancellationToken cancellationToken)`
-  - `Task ReleaseAsync(PipelineContext context, CancellationToken cancellationToken)`
+  - `Task ReleaseIfPermittedAsync(PipelineContext context, bool suppressedByFlag, CancellationToken cancellationToken)`
   - `void WriteStepOutputs(PipelineContext context)`
+
+  The three corrections, and why each one is not cosmetic:
+
+  - **Version resolution is its own stage.** `PrepareAsync` was specified to create the
+    configuration and resolve the version together, which forces resolution ahead of the metadata
+    commit. `ci` does the opposite, and the difference is real rather than cosmetic, because the
+    range analyzed determines the gate and the metadata commit falls inside it. So `PrepareAsync`
+    creates the configuration only, and `ResolveVersionAsync` performs the analysis and the gate
+    decision without touching `Configuration.Version`. `ci` runs Prepare, UpdateMetadata,
+    ResolveVersion in that order, matching the original call for call.
+  - **Applying the resolved version is explicit.** `ResolveVersionAsync` reports the version and
+    does not assign it, because `ci` takes its version from the metadata result, which is also what
+    `VERSION.md` and the packages carry. A caller with no metadata stage calls
+    `ApplyResolvedVersion` to establish it. Either path sets `VersionEstablished`, and a release
+    with the flag unset throws. The guard is deliberately about whether a version was chosen rather
+    than about its value, because a genuinely new repository's first release can legitimately be
+    the placeholder string.
+  - **The gate and the release are one call.** `ReleaseAsync` is private. Callers reach a release
+    through `ReleaseIfPermittedAsync`, which applies `CiReleaseDecision.ShouldExecuteRelease` and
+    then releases, so the pair is written once instead of once per command.
+  - **`RestoreAndBuildAsync` takes no build arguments.** It derives the `-maxCpuCount:1` argument
+    from the same `.csx` scan that decides whether to install dotnet-script. A parameter would let
+    a caller pass a separately computed value, which is how that one rule came to exist in three
+    places at once.
 
 - [ ] **Step 1: Read the whole method being moved**
 
