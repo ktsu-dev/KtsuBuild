@@ -206,6 +206,37 @@ public class PipelineServiceTests
 		Assert.IsTrue(result);
 	}
 
+	// RestoreAndBuildAsync derives the build argument from the same .csx scan that decides
+	// whether to install dotnet-script, rather than reading it off a configuration. This pins
+	// both directions of that rule so ci and build, which now both call this method with no
+	// build arguments parameter of their own, keep getting the argument dotnet-script needs.
+	[TestMethod]
+	public async Task RestoreAndBuildIncludesTheSingleCoreArgumentWhenTheWorkspaceHasCsxFiles()
+	{
+		_processRunner.RunWithCallbackAsync("dotnet", Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
+			.Returns(0);
+		await File.WriteAllTextAsync(Path.Combine(_tempDir, "tool.csx"), "// script\n").ConfigureAwait(false);
+
+		await _pipeline.RestoreAndBuildAsync(_tempDir, "Release", CancellationToken.None).ConfigureAwait(false);
+
+		await _processRunner.Received(1).RunWithCallbackAsync("dotnet",
+			ArgMatch.NotNull<string>(a => a.Contains("build ", StringComparison.Ordinal) && a.EndsWith("-maxCpuCount:1", StringComparison.Ordinal)),
+			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+	}
+
+	[TestMethod]
+	public async Task RestoreAndBuildOmitsTheSingleCoreArgumentWhenTheWorkspaceHasNoCsxFiles()
+	{
+		_processRunner.RunWithCallbackAsync("dotnet", Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
+			.Returns(0);
+
+		await _pipeline.RestoreAndBuildAsync(_tempDir, "Release", CancellationToken.None).ConfigureAwait(false);
+
+		await _processRunner.Received(1).RunWithCallbackAsync("dotnet",
+			ArgMatch.NotNull<string>(a => a.Contains("build ", StringComparison.Ordinal) && !a.Contains("-maxCpuCount:1", StringComparison.Ordinal)),
+			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+	}
+
 	/// <summary>
 	/// Runs the two stages a caller needs before it knows what version it would publish.
 	/// </summary>

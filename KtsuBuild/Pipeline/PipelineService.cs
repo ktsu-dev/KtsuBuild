@@ -189,23 +189,25 @@ public sealed class PipelineService
 
 	/// <summary>
 	/// Restores and builds the workspace, installing dotnet-script first when the workspace
-	/// contains any <c>.csx</c> files.
+	/// contains any <c>.csx</c> files, and building with the single core argument dotnet-script
+	/// needs in that case.
 	/// </summary>
 	/// <remarks>
-	/// The <c>.csx</c> check is made here rather than read off a configuration so that a caller
-	/// with no git repository and no GitHub token can still run this stage. It is the same test
-	/// <see cref="BuildConfigurationProvider"/> makes, over the same directory.
+	/// The <c>.csx</c> check is made here, once, rather than read off a configuration, so that a
+	/// caller with no git repository and no GitHub token can still run this stage, and so this is
+	/// the only place that decides the build argument. Nothing else derives it any more: neither
+	/// <c>ci</c> nor <c>build</c> carries a build arguments value of its own.
 	/// </remarks>
 	/// <param name="workspace">The workspace or repository path.</param>
 	/// <param name="configuration">The build configuration, Debug or Release.</param>
-	/// <param name="buildArgs">Additional arguments to pass to the build, or null for none.</param>
 	/// <param name="cancellationToken">A cancellation token.</param>
-	public async Task RestoreAndBuildAsync(string workspace, string configuration, string? buildArgs, CancellationToken cancellationToken)
+	public async Task RestoreAndBuildAsync(string workspace, string configuration, CancellationToken cancellationToken)
 	{
 		Ensure.NotNull(workspace);
 		Ensure.NotNull(configuration);
 
-		// Install dotnet-script if .csx files are present
+		// Install dotnet-script if .csx files are present, and build single core in that case.
+		string? buildArgs = null;
 		if (Directory.GetFiles(workspace, "*.csx", SearchOption.AllDirectories).Length > 0)
 		{
 			_logger.WriteInfo("Installing dotnet-script tool...");
@@ -216,6 +218,7 @@ public sealed class PipelineService
 				_logger.WriteInfo,
 				_logger.WriteInfo, // Ignore errors (tool may already be installed)
 				cancellationToken).ConfigureAwait(false);
+			buildArgs = "-maxCpuCount:1";
 		}
 
 		// Build workflow

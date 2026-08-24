@@ -120,7 +120,7 @@ public class CiCommand : Command
 		// commit, so the version gate is decided about the commit the release is cut against.
 		await pipeline.ResolveVersionAsync(context, options.VersionBump, cancellationToken).ConfigureAwait(false);
 
-		await pipeline.RestoreAndBuildAsync(options.Workspace, options.Configuration, context.Configuration.BuildArgs, cancellationToken).ConfigureAwait(false);
+		await pipeline.RestoreAndBuildAsync(options.Workspace, options.Configuration, cancellationToken).ConfigureAwait(false);
 
 		// A caller that runs the tests elsewhere, such as a workflow that fans them across a
 		// matrix, still needs everything around them: metadata, the version gate, a compilation
