@@ -5,6 +5,7 @@ namespace KtsuBuild.Tool.Commands;
 using System.CommandLine;
 using KtsuBuild.Abstractions;
 using KtsuBuild.Configuration;
+using KtsuBuild.Metadata;
 using KtsuBuild.Pipeline;
 using KtsuBuild.Utilities;
 
@@ -100,7 +101,7 @@ public class CiCommand : Command
 	{
 		PipelineService pipeline = new(processRunner, logger);
 
-		PipelineContext context = await pipeline.PrepareAsync(options.Workspace, options.Configuration, options.VersionBump, cancellationToken).ConfigureAwait(false);
+		PipelineContext context = await pipeline.PrepareAsync(options.Workspace, options.Configuration, cancellationToken).ConfigureAwait(false);
 
 		if (options.DryRun)
 		{
@@ -108,7 +109,16 @@ public class CiCommand : Command
 			return 0;
 		}
 
-		await pipeline.UpdateMetadataAsync(context, cancellationToken).ConfigureAwait(false);
+		MetadataUpdateResult metadataResult = await pipeline.UpdateMetadataAsync(context, cancellationToken).ConfigureAwait(false);
+		if (!metadataResult.Success)
+		{
+			logger.WriteError($"Metadata update failed: {metadataResult.Error}");
+			return 1;
+		}
+
+		// After the metadata stage rather than before it. The release hash now names the metadata
+		// commit, so the version gate is decided about the commit the release is cut against.
+		await pipeline.ResolveVersionAsync(context, options.VersionBump, cancellationToken).ConfigureAwait(false);
 
 		await pipeline.RestoreAndBuildAsync(options.Workspace, options.Configuration, context.Configuration.BuildArgs, cancellationToken).ConfigureAwait(false);
 

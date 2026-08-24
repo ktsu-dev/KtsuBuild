@@ -20,9 +20,17 @@ public sealed class PipelineContext
 	public required BuildConfiguration Configuration { get; set; }
 
 	/// <summary>
-	/// Gets or sets the version information resolved for this run.
+	/// Gets or sets the version information resolved for this run, or <see langword="null"/> until
+	/// it has been resolved.
 	/// </summary>
-	public required VersionInfo VersionInfo { get; set; }
+	/// <remarks>
+	/// Preparation deliberately leaves this null. Resolving the version is a separate stage because
+	/// <c>ci</c> resolves it against the metadata commit, which does not exist yet when a run is
+	/// prepared. Null rather than a default instance so a caller that skips the resolving stage
+	/// fails loudly instead of reading a version nobody chose, which is the shape of the defect
+	/// this whole change exists to remove.
+	/// </remarks>
+	public VersionInfo? VersionInfo { get; set; }
 
 	/// <summary>
 	/// Gets or sets a value indicating whether the version increment suppressed the release.

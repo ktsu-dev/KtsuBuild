@@ -59,23 +59,21 @@ public sealed class PipelineService
 	}
 
 	/// <summary>
-	/// Builds the configuration for a run and resolves the version it would produce.
+	/// Builds the configuration for a run from the environment and reports what it decided.
 	/// </summary>
 	/// <remarks>
-	/// Resolving the version here is what closes the placeholder defect. Every caller that prepares
-	/// a run gets a real version whether or not it goes on to update metadata, so no caller can
-	/// publish under the <c>1.0.0-pre.0</c> seed by forgetting a step.
+	/// Preparation does no version work. Resolving the version is <see cref="ResolveVersionAsync"/>,
+	/// a separate stage because <c>ci</c> resolves against the metadata commit, which does not exist
+	/// yet at this point. A caller that publishes runs both.
 	/// </remarks>
 	/// <param name="workspace">The workspace or repository path.</param>
 	/// <param name="configuration">The build configuration, Debug or Release.</param>
-	/// <param name="versionBump">The forced version bump type, or anything else to detect it.</param>
 	/// <param name="cancellationToken">A cancellation token.</param>
-	/// <returns>The prepared context.</returns>
-	public async Task<PipelineContext> PrepareAsync(string workspace, string configuration, string versionBump, CancellationToken cancellationToken)
+	/// <returns>The prepared context, with no version resolved yet.</returns>
+	public async Task<PipelineContext> PrepareAsync(string workspace, string configuration, CancellationToken cancellationToken)
 	{
 		Ensure.NotNull(workspace);
 		Ensure.NotNull(configuration);
-		Ensure.NotNull(versionBump);
 
 		BuildConfiguration buildConfig = await _configProvider.CreateFromEnvironmentAsync(workspace, cancellationToken).ConfigureAwait(false);
 		buildConfig.Configuration = configuration;
@@ -84,34 +82,57 @@ public sealed class PipelineService
 		_logger.WriteInfo($"Is Main: {buildConfig.IsMain}");
 		_logger.WriteInfo($"Should Release: {buildConfig.ShouldRelease}");
 
+		return new PipelineContext
+		{
+			Configuration = buildConfig,
+		};
+	}
+
+	/// <summary>
+	/// Resolves the version this run would produce and decides whether the version gate suppresses
+	/// the release.
+	/// </summary>
+	/// <remarks>
+	/// The analysis runs against <c>Configuration.ReleaseHash</c>, which is why this is a stage of
+	/// its own rather than part of preparation. In <c>ci</c> the metadata stage has already moved
+	/// that hash onto the metadata commit, so the range analyzed here includes it, and the answer
+	/// is about the commit the release is cut against rather than the one the run started on.
+	/// <para>
+	/// Nothing here writes <c>Configuration.Version</c> or <c>Configuration.ReleaseHash</c>. In
+	/// <c>ci</c> both come from the metadata result. A caller that publishes without a metadata
+	/// commit sets <c>Configuration.Version</c> from <see cref="PipelineContext.VersionInfo"/>
+	/// itself.
+	/// </para>
+	/// </remarks>
+	/// <param name="context">The context this run was prepared with.</param>
+	/// <param name="versionBump">The forced version bump type, or anything else to detect it.</param>
+	/// <param name="cancellationToken">A cancellation token.</param>
+	public async Task ResolveVersionAsync(PipelineContext context, string versionBump, CancellationToken cancellationToken)
+	{
+		Ensure.NotNull(context);
+		Ensure.NotNull(versionBump);
+
+		BuildConfiguration buildConfig = context.Configuration;
+
+		// Parse version bump option
 		VersionType? forcedVersionType = ParseVersionBump(versionBump);
-
-		// The release hash already names the commit this run is against. The provider seeds it
-		// from GITHUB_SHA, falling back to the current commit, and it is deliberately not re-read
-		// from HEAD here: a pull request run is checked out at a merge commit that GITHUB_SHA
-		// names and HEAD does not.
-		VersionCalculator versionCalculator = new(_gitService, _logger);
-		VersionInfo versionInfo = await versionCalculator.GetVersionInfoAsync(workspace, buildConfig.ReleaseHash, forcedVersionType: forcedVersionType, cancellationToken: cancellationToken).ConfigureAwait(false);
-
-		buildConfig.Version = versionInfo.Version;
 
 		// Check for skip condition. This gates the release only; build and test still run.
 		// Returning early here instead would leave a workspace whose commits all carry [skip ci]
 		// never compiled and never tested, which hollows out scheduled runs, and breaks any job
 		// that wraps the pipeline in a step pair expecting a compilation between them, such as
 		// the SonarQube scanner's begin/end.
+		VersionCalculator versionCalculator = new(_gitService, _logger);
+		VersionInfo versionInfo = await versionCalculator.GetVersionInfoAsync(buildConfig.WorkspacePath, buildConfig.ReleaseHash, forcedVersionType: forcedVersionType, cancellationToken: cancellationToken).ConfigureAwait(false);
+
 		bool skipRelease = versionInfo.VersionIncrement == VersionType.Skip;
 		if (skipRelease)
 		{
 			_logger.WriteInfo($"Skipping release: {versionInfo.IncrementReason}");
 		}
 
-		return new PipelineContext
-		{
-			Configuration = buildConfig,
-			VersionInfo = versionInfo,
-			ReleaseSuppressedByVersionGate = skipRelease,
-		};
+		context.VersionInfo = versionInfo;
+		context.ReleaseSuppressedByVersionGate = skipRelease;
 	}
 
 	/// <summary>
@@ -119,14 +140,18 @@ public sealed class PipelineService
 	/// updates the repository topics from <c>TAGS.md</c>.
 	/// </summary>
 	/// <remarks>
-	/// The version and release hash on the context are overwritten from the metadata result. That
-	/// is not redundant with <see cref="PrepareAsync"/>: the metadata commit is a new commit, and
-	/// it is the one a release is cut against.
+	/// The version and release hash on the configuration are taken from the metadata result,
+	/// because the metadata commit is a new commit and it is the one a release is cut against.
+	/// <para>
+	/// The result is returned rather than turned into an exception so that a caller reports a
+	/// metadata failure in its own words. Throwing would put a catch-all handler's wording in
+	/// front of the message, which anything reading the log can see.
+	/// </para>
 	/// </remarks>
 	/// <param name="context">The context this run was prepared with.</param>
 	/// <param name="cancellationToken">A cancellation token.</param>
-	/// <exception cref="InvalidOperationException">The metadata update failed.</exception>
-	public async Task UpdateMetadataAsync(PipelineContext context, CancellationToken cancellationToken)
+	/// <returns>The metadata result, carrying its error message when the update failed.</returns>
+	public async Task<MetadataUpdateResult> UpdateMetadataAsync(PipelineContext context, CancellationToken cancellationToken)
 	{
 		Ensure.NotNull(context);
 
@@ -147,7 +172,7 @@ public sealed class PipelineService
 
 		if (!metadataResult.Success)
 		{
-			throw new InvalidOperationException($"Metadata update failed: {metadataResult.Error}");
+			return metadataResult;
 		}
 
 		buildConfig.Version = metadataResult.Version;
@@ -158,6 +183,8 @@ public sealed class PipelineService
 		{
 			await UpdateRepositoryTopicsAsync(buildConfig.WorkspacePath, cancellationToken).ConfigureAwait(false);
 		}
+
+		return metadataResult;
 	}
 
 	/// <summary>

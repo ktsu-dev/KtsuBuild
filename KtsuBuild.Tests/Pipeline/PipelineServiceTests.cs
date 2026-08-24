@@ -89,44 +89,75 @@ public class PipelineServiceTests
 	}
 
 	// The defect this refactor exists to remove. BuildConfigurationProvider seeds Version with
-	// "1.0.0-pre.0", and a caller that forgets to overwrite it publishes a real release under a
-	// version nobody chose. Preparation now owns that, so no caller can forget.
+	// "1.0.0-pre.0", and a caller that publishes without asking what the version should be ships a
+	// real release under a version nobody chose. Resolving is now a stage of its own, and this is
+	// what it has to produce.
 	[TestMethod]
-	public async Task PrepareResolvesTheVersionRatherThanLeavingThePlaceholder()
+	public async Task ResolveVersionProducesTheResolvedVersionRatherThanThePlaceholder()
 	{
-		PipelineContext context = await _pipeline.PrepareAsync(_tempDir, "Release", "auto", CancellationToken.None).ConfigureAwait(false);
+		PipelineContext context = await _pipeline.PrepareAsync(_tempDir, "Release", CancellationToken.None).ConfigureAwait(false);
+		await _pipeline.ResolveVersionAsync(context, "auto", CancellationToken.None).ConfigureAwait(false);
 
+		Assert.IsNotNull(context.VersionInfo);
 		Assert.AreEqual("3.10.1", context.VersionInfo.Version);
-		Assert.AreEqual(context.VersionInfo.Version, context.Configuration.Version);
-		Assert.AreNotEqual(PlaceholderVersion, context.Configuration.Version);
+		Assert.AreNotEqual(PlaceholderVersion, context.VersionInfo.Version);
+	}
+
+	// The two stages are separate because ci resolves against the metadata commit, which does not
+	// exist when a run is prepared. That makes the split easy to get wrong, so pin it: preparation
+	// leaves the version unresolved, and leaves it visibly unresolved rather than defaulted.
+	[TestMethod]
+	public async Task PrepareDoesNoVersionWork()
+	{
+		PipelineContext context = await _pipeline.PrepareAsync(_tempDir, "Release", CancellationToken.None).ConfigureAwait(false);
+
+		Assert.IsNull(context.VersionInfo);
+		Assert.AreEqual(PlaceholderVersion, context.Configuration.Version);
+		Assert.IsFalse(context.ReleaseSuppressedByVersionGate);
+	}
+
+	// Resolving reports what the version should be. It does not write it onto the configuration,
+	// because in ci the configuration's version comes from the metadata result instead.
+	[TestMethod]
+	public async Task ResolveVersionLeavesTheConfigurationVersionAndHashAlone()
+	{
+		PipelineContext context = await _pipeline.PrepareAsync(_tempDir, "Release", CancellationToken.None).ConfigureAwait(false);
+		string releaseHashBefore = context.Configuration.ReleaseHash;
+
+		await _pipeline.ResolveVersionAsync(context, "auto", CancellationToken.None).ConfigureAwait(false);
+
+		Assert.AreEqual(PlaceholderVersion, context.Configuration.Version);
+		Assert.AreEqual(releaseHashBefore, context.Configuration.ReleaseHash);
 	}
 
 	[TestMethod]
 	public async Task PrepareCarriesTheConfigurationNameOntoTheBuildConfiguration()
 	{
-		PipelineContext context = await _pipeline.PrepareAsync(_tempDir, "Debug", "auto", CancellationToken.None).ConfigureAwait(false);
+		PipelineContext context = await _pipeline.PrepareAsync(_tempDir, "Debug", CancellationToken.None).ConfigureAwait(false);
 
 		Assert.AreEqual("Debug", context.Configuration.Configuration);
 	}
 
 	[TestMethod]
-	public async Task PrepareSuppressesTheReleaseWhenEveryCommitCarriesSkipCi()
+	public async Task ResolveVersionSuppressesTheReleaseWhenEveryCommitCarriesSkipCi()
 	{
 		_commitMessages = "[bot][skip ci] Update Metadata\nchore: tidy [skip ci]";
 
-		PipelineContext context = await _pipeline.PrepareAsync(_tempDir, "Release", "auto", CancellationToken.None).ConfigureAwait(false);
+		PipelineContext context = await ResolveAsync("auto").ConfigureAwait(false);
 
+		Assert.IsNotNull(context.VersionInfo);
 		Assert.AreEqual(VersionType.Skip, context.VersionInfo.VersionIncrement);
 		Assert.IsTrue(context.ReleaseSuppressedByVersionGate);
 	}
 
 	[TestMethod]
-	public async Task PrepareSuppressesTheReleaseWhenTheRangeHoldsNoCommits()
+	public async Task ResolveVersionSuppressesTheReleaseWhenTheRangeHoldsNoCommits()
 	{
 		_commitMessages = string.Empty;
 
-		PipelineContext context = await _pipeline.PrepareAsync(_tempDir, "Release", "auto", CancellationToken.None).ConfigureAwait(false);
+		PipelineContext context = await ResolveAsync("auto").ConfigureAwait(false);
 
+		Assert.IsNotNull(context.VersionInfo);
 		Assert.AreEqual(VersionType.Skip, context.VersionInfo.VersionIncrement);
 		Assert.IsTrue(context.ReleaseSuppressedByVersionGate);
 	}
@@ -135,33 +166,36 @@ public class PipelineServiceTests
 	[DataRow("major", VersionType.Major, "4.0.0")]
 	[DataRow("minor", VersionType.Minor, "3.11.0")]
 	[DataRow("patch", VersionType.Patch, "3.10.1")]
-	public async Task PrepareForwardsTheForcedVersionBumpToTheCalculator(string versionBump, VersionType expectedIncrement, string expectedVersion)
+	public async Task ResolveVersionForwardsTheForcedVersionBumpToTheCalculator(string versionBump, VersionType expectedIncrement, string expectedVersion)
 	{
-		PipelineContext context = await _pipeline.PrepareAsync(_tempDir, "Release", versionBump, CancellationToken.None).ConfigureAwait(false);
+		PipelineContext context = await ResolveAsync(versionBump).ConfigureAwait(false);
 
+		Assert.IsNotNull(context.VersionInfo);
 		Assert.AreEqual(expectedIncrement, context.VersionInfo.VersionIncrement);
-		Assert.AreEqual(expectedVersion, context.Configuration.Version);
+		Assert.AreEqual(expectedVersion, context.VersionInfo.Version);
 		Assert.IsFalse(context.ReleaseSuppressedByVersionGate);
 	}
 
 	[TestMethod]
-	public async Task PrepareLeavesTheReleaseUnsuppressedForAnOrdinaryIncrement()
+	public async Task ResolveVersionLeavesTheReleaseUnsuppressedForAnOrdinaryIncrement()
 	{
-		PipelineContext context = await _pipeline.PrepareAsync(_tempDir, "Release", "auto", CancellationToken.None).ConfigureAwait(false);
+		PipelineContext context = await ResolveAsync("auto").ConfigureAwait(false);
 
+		Assert.IsNotNull(context.VersionInfo);
 		Assert.AreEqual(VersionType.Patch, context.VersionInfo.VersionIncrement);
 		Assert.IsFalse(context.ReleaseSuppressedByVersionGate);
 	}
 
 	[TestMethod]
-	public async Task PrepareStartsFromTheInitialVersionWhenNoTagsExist()
+	public async Task ResolveVersionStartsFromTheInitialVersionWhenNoTagsExist()
 	{
 		_tagList = string.Empty;
 
-		PipelineContext context = await _pipeline.PrepareAsync(_tempDir, "Release", "auto", CancellationToken.None).ConfigureAwait(false);
+		PipelineContext context = await ResolveAsync("auto").ConfigureAwait(false);
 
+		Assert.IsNotNull(context.VersionInfo);
 		Assert.IsTrue(context.VersionInfo.UsingFallbackTag);
-		Assert.AreNotEqual(PlaceholderVersion, context.Configuration.Version);
+		Assert.AreNotEqual(PlaceholderVersion, context.VersionInfo.Version);
 	}
 
 	[TestMethod]
@@ -173,8 +207,18 @@ public class PipelineServiceTests
 	}
 
 	/// <summary>
-	/// Answers the git and gh commands the pipeline runs, so a preparation runs end to end without
-	/// a repository on disk.
+	/// Runs the two stages a caller needs before it knows what version it would publish.
+	/// </summary>
+	private async Task<PipelineContext> ResolveAsync(string versionBump)
+	{
+		PipelineContext context = await _pipeline.PrepareAsync(_tempDir, "Release", CancellationToken.None).ConfigureAwait(false);
+		await _pipeline.ResolveVersionAsync(context, versionBump, CancellationToken.None).ConfigureAwait(false);
+		return context;
+	}
+
+	/// <summary>
+	/// Answers the git and gh commands the pipeline runs, so the stages run end to end without a
+	/// repository on disk.
 	/// </summary>
 	private ProcessResult Respond(string fileName, string arguments)
 	{
