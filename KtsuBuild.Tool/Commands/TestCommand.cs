@@ -25,6 +25,15 @@ public class TestCommand : Command
 	};
 
 	/// <summary>
+	/// Gets the option that skips building before the test run.
+	/// </summary>
+	public static Option<bool> NoBuild { get; } = new("--no-build")
+	{
+		Description = "Skip building before running the tests, for a caller that has already built this project",
+		DefaultValueFactory = _ => false,
+	};
+
+	/// <summary>
 	/// Initializes a new instance of the <see cref="TestCommand"/> class.
 	/// </summary>
 	public TestCommand() : base("test", "Test project discovery and execution")
@@ -79,11 +88,11 @@ public class TestCommand : Command
 	/// <param name="processRunner">The process runner.</param>
 	/// <param name="logger">The build logger.</param>
 	/// <returns>The command handler action.</returns>
-	public static Func<string, string, string, bool, CancellationToken, Task<int>> CreateRunHandler(
+	public static Func<string, string, string, bool, bool, CancellationToken, Task<int>> CreateRunHandler(
 		IProcessRunner processRunner,
 		IBuildLogger logger)
 	{
-		return async (workspace, configuration, project, verbose, cancellationToken) =>
+		return async (workspace, configuration, project, noBuild, verbose, cancellationToken) =>
 		{
 			logger.VerboseEnabled = verbose;
 			BuildEnvironment.Initialize();
@@ -93,7 +102,7 @@ public class TestCommand : Command
 			try
 			{
 				string projectPath = Path.IsPathRooted(project) ? project : Path.Combine(workspace, project);
-				await dotNetService.TestProjectAsync(projectPath, workspace, configuration, "coverage", cancellationToken).ConfigureAwait(false);
+				await dotNetService.TestProjectAsync(projectPath, workspace, configuration, "coverage", noBuild, cancellationToken).ConfigureAwait(false);
 				logger.WriteSuccess("Test run completed successfully!");
 				return 0;
 			}
@@ -127,6 +136,7 @@ public class TestCommand : Command
 			Options.Add(GlobalOptions.Configuration);
 			Options.Add(GlobalOptions.Verbose);
 			Options.Add(Project);
+			Options.Add(NoBuild);
 		}
 	}
 }

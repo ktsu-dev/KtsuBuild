@@ -42,14 +42,25 @@ public interface IDotNetService
 	/// <param name="workingDirectory">The directory to run from.</param>
 	/// <param name="configuration">The build configuration.</param>
 	/// <param name="coverageOutputPath">Where coverage output is written. Defaults to <c>coverage</c> when null.</param>
+	/// <param name="noBuild">Whether to skip building before running the tests.</param>
 	/// <param name="cancellationToken">A cancellation token.</param>
 	/// <returns>A task that completes when the run succeeds.</returns>
 	/// <remarks>
+	/// <para>
 	/// Scoping a run to one project also removes the condition behind the coverage collector's
 	/// exit-code-7 flake, which only appears when several test assemblies run in one invocation.
 	/// The retry is kept anyway, since the caller decides how many projects an invocation covers.
+	/// </para>
+	/// <para>
+	/// Setting <paramref name="noBuild"/> passes <c>--no-build</c> to <c>dotnet test</c>, which reads
+	/// <c>obj/project.assets.json</c> for absolute paths into the build output. The caller must have
+	/// already built the project for <paramref name="configuration"/>, and the outputs must still be
+	/// present in the same <paramref name="workingDirectory"/> the build used. This option exists so a
+	/// caller that builds once and tests several projects from that build can skip the redundant
+	/// per-project rebuild.
+	/// </para>
 	/// </remarks>
-	public Task TestProjectAsync(string projectPath, string workingDirectory, string configuration = "Release", string? coverageOutputPath = null, CancellationToken cancellationToken = default);
+	public Task TestProjectAsync(string projectPath, string workingDirectory, string configuration = "Release", string? coverageOutputPath = null, bool noBuild = false, CancellationToken cancellationToken = default);
 
 	/// <summary>
 	/// Creates NuGet packages.

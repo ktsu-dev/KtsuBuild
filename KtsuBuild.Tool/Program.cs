@@ -225,14 +225,15 @@ internal sealed class Program
 
 		// Run subcommand
 		Command runCommand = testCommand.Subcommands.First(c => c.Name == "run");
-		Func<string, string, string, bool, CancellationToken, Task<int>> runHandler = TestCommand.CreateRunHandler(processRunner, logger);
+		Func<string, string, string, bool, bool, CancellationToken, Task<int>> runHandler = TestCommand.CreateRunHandler(processRunner, logger);
 		runCommand.SetAction(async (parseResult, ct) =>
 		{
 			string workspace = parseResult.GetValue(GlobalOptions.Workspace)!;
 			string configuration = parseResult.GetValue(GlobalOptions.Configuration)!;
 			string project = parseResult.GetValue(TestCommand.Project)!;
+			bool noBuild = parseResult.GetValue(TestCommand.NoBuild);
 			bool verbose = parseResult.GetValue(GlobalOptions.Verbose);
-			return await runHandler(workspace, configuration, project, verbose, ct).ConfigureAwait(false);
+			return await runHandler(workspace, configuration, project, noBuild, verbose, ct).ConfigureAwait(false);
 		});
 
 		rootCommand.Subcommands.Add(testCommand);
