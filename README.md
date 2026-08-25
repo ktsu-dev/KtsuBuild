@@ -159,6 +159,31 @@ guarantee what the flag asserts: the project must already be built for the confi
 tested, in the same workspace path. `dotnet test --no-build` reads `obj/project.assets.json`, and
 that file holds absolute paths, so output moved between machines or paths will not resolve.
 
+#### `test all`
+
+Restore, build, and test every test project the host can build, pinned to the host's runtime
+identifier.
+
+```bash
+ktsubuild test all [options]
+```
+
+Projects the host cannot build are skipped and named, with the reason, before anything is built. A
+project that fails does not stop the ones after it: the run continues and reports every failing
+project at the end, so one run tells you everything that is broken rather than the first thing.
+
+The runtime pin is the point. Without it, a test project's output carries the native assets for
+every runtime identifier its packages ship, which for a repository using the ImGui packages is
+sixteen of them, Android included. Measured on ImGuiApp, the smallest test project's output went
+from 115 MB to 39 MB with the pin, and its tests passed either way. That copying is what makes a
+test run slow, and it costs most on Windows, where file writes are several times slower than on
+Linux.
+
+This is for testing, not for shipping. `release` still publishes for every runtime it names, and
+`build` stays runtime-agnostic, because a solution build cannot take a runtime identifier at all.
+Passing one fails with `NETSDK1134`, which is why the pin is applied per project here rather than
+handed to a solution build.
+
 ### `release`
 
 Release workflow: pack, publish NuGet packages, and create GitHub release.

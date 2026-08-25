@@ -43,6 +43,7 @@ public interface IDotNetService
 	/// <param name="configuration">The build configuration.</param>
 	/// <param name="coverageOutputPath">Where coverage output is written. Defaults to <c>coverage</c> when null.</param>
 	/// <param name="noBuild">Whether to skip building before running the tests.</param>
+	/// <param name="hostRuntimeOnly">Whether to pin the build to the host runtime instead of every runtime identifier the project's packages ship.</param>
 	/// <param name="cancellationToken">A cancellation token.</param>
 	/// <returns>A task that completes when the run succeeds.</returns>
 	/// <remarks>
@@ -59,8 +60,18 @@ public interface IDotNetService
 	/// caller that builds once and tests several projects from that build can skip the redundant
 	/// per-project rebuild.
 	/// </para>
+	/// <para>
+	/// Setting <paramref name="hostRuntimeOnly"/> passes the current process's runtime identifier as
+	/// <c>-p:RuntimeIdentifier</c> together with <c>-p:SelfContained=false</c>, always as a pair.
+	/// A runtime identifier alone would make the build self-contained, which copies the whole
+	/// framework into the output and makes the size problem worse rather than better. With both
+	/// properties set, the build's output moves to a runtime-specific directory and copies only the
+	/// host's native assets instead of the natives for every runtime identifier the project's
+	/// packages ship. This defaults to <see langword="false"/> so callers stay runtime-agnostic
+	/// unless they opt in.
+	/// </para>
 	/// </remarks>
-	public Task TestProjectAsync(string projectPath, string workingDirectory, string configuration = "Release", string? coverageOutputPath = null, bool noBuild = false, CancellationToken cancellationToken = default);
+	public Task TestProjectAsync(string projectPath, string workingDirectory, string configuration = "Release", string? coverageOutputPath = null, bool noBuild = false, bool hostRuntimeOnly = false, CancellationToken cancellationToken = default);
 
 	/// <summary>
 	/// Creates NuGet packages.
