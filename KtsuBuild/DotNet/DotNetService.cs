@@ -129,12 +129,12 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger) : 
 
 		logger.WriteInfo($"Found {testProjects.Count} test project(s)");
 
-		await RunTestsAsync(target: string.Empty, workingDirectory, configuration, coverageOutputPath, cancellationToken).ConfigureAwait(false);
+		await RunTestsAsync(target: string.Empty, workingDirectory, configuration, coverageOutputPath, noBuild: false, cancellationToken).ConfigureAwait(false);
 	}
 
 	// Shared by TestAsync, which tests everything the host can build, and TestProjectAsync, which
 	// tests one project. `target` is the project path, or empty to let `dotnet test` discover.
-	private async Task RunTestsAsync(string target, string workingDirectory, string configuration, string? coverageOutputPath, CancellationToken cancellationToken)
+	private async Task RunTestsAsync(string target, string workingDirectory, string configuration, string? coverageOutputPath, bool noBuild, CancellationToken cancellationToken)
 	{
 		string resultsPath = coverageOutputPath ?? "coverage";
 		string testResultsPath = Path.Combine(resultsPath, "TestResults");
@@ -144,6 +144,10 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger) : 
 		string args = $"test {scope}--configuration {configuration} --coverage --coverage-output-format xml " +
 			$"--coverage-output \"coverage.xml\" --results-directory \"{testResultsPath}\" " +
 			$"--report-trx --report-trx-filename TestResults.trx";
+		if (noBuild)
+		{
+			args += " --no-build";
+		}
 
 		// The Microsoft.CodeCoverage collector intermittently drops its instrumentation IPC pipe during
 		// teardown when several test assemblies run, which Microsoft.Testing.Platform surfaces as exit
@@ -184,7 +188,7 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger) : 
 	}
 
 	/// <inheritdoc/>
-	public async Task TestProjectAsync(string projectPath, string workingDirectory, string configuration = DefaultConfiguration, string? coverageOutputPath = null, CancellationToken cancellationToken = default)
+	public async Task TestProjectAsync(string projectPath, string workingDirectory, string configuration = DefaultConfiguration, string? coverageOutputPath = null, bool noBuild = false, CancellationToken cancellationToken = default)
 	{
 		Ensure.NotNull(projectPath);
 		Ensure.NotNull(workingDirectory);
@@ -195,7 +199,7 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger) : 
 
 		logger.WriteStepHeader($"Running Tests with Coverage: {Path.GetFileNameWithoutExtension(projectPath)}");
 
-		await RunTestsAsync(projectPath, workingDirectory, configuration, coverageOutputPath, cancellationToken).ConfigureAwait(false);
+		await RunTestsAsync(projectPath, workingDirectory, configuration, coverageOutputPath, noBuild, cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc/>

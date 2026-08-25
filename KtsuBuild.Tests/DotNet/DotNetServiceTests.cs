@@ -302,6 +302,37 @@ public class DotNetServiceTests
 		await _processRunner.Received(1).RunWithCallbackAsync("dotnet", Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
+	[TestMethod]
+	public async Task TestProjectAsyncAddsNoBuildWhenAsked()
+	{
+		string captured = await CaptureTestProjectArgsAsync(noBuild: true).ConfigureAwait(false);
+
+		StringAssert.Contains(captured, "--no-build");
+	}
+
+	// The default must stay a building run. A caller that forgets the option and silently skips
+	// the build would test whatever happened to be in bin from a previous run.
+	[TestMethod]
+	public async Task TestProjectAsyncOmitsNoBuildByDefault()
+	{
+		string captured = await CaptureTestProjectArgsAsync(noBuild: false).ConfigureAwait(false);
+
+		Assert.IsFalse(captured.Contains("--no-build", StringComparison.Ordinal), captured);
+	}
+
+	private async Task<string> CaptureTestProjectArgsAsync(bool noBuild)
+	{
+		string project = Path.Combine(_tempDir, "Foo.Tests", "Foo.Tests.csproj");
+		string? captured = null;
+		_processRunner.RunWithCallbackAsync("dotnet", Arg.Do<string>(a => captured = a), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
+			.Returns(0);
+
+		await _service.TestProjectAsync(project, _tempDir, "Release", "coverage", noBuild).ConfigureAwait(false);
+
+		Assert.IsNotNull(captured);
+		return captured;
+	}
+
 	// PackAsync
 
 	[TestMethod]

@@ -149,8 +149,15 @@ ktsubuild test run --project <path> [options]
 
 **Options:**
 - `--project`: Path to the test project, relative to the workspace or absolute (required)
+- `--no-build`: Skip building before running the tests, for a caller that has already built this project
 
 The project isn't checked against the `test list` results. Pointing this at a project the host can't build, or at one that isn't a test project, fails during the test run rather than with a message naming the cause, so filter with `test list` first.
+
+`--no-build` exists so a CI matrix can build once per platform and reuse that output across every
+test cell on the same platform, instead of rebuilding the same tree in each cell. The caller has to
+guarantee what the flag asserts: the project must already be built for the configuration being
+tested, in the same workspace path. `dotnet test --no-build` reads `obj/project.assets.json`, and
+that file holds absolute paths, so output moved between machines or paths will not resolve.
 
 ### `release`
 
@@ -166,6 +173,11 @@ ktsubuild release [options]
 `release` resolves the version the same way `ci` does, from the repository's tags and commit
 history, and publishes against the current commit. It also honors the version gate, so a run whose
 commits all carry `[skip ci]` publishes nothing.
+
+Targeting the current commit matters in a split pipeline. When `ci --no-test --no-release` runs
+first, it commits the updated metadata, so the current commit is the one whose VERSION.md carries
+the version being published. Targeting the commit that triggered the run instead would tag a tree
+that predates the bump.
 
 ### `version`
 
