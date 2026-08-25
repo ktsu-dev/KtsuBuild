@@ -167,7 +167,7 @@ public class TestCommand : Command
 				foreach (TestProjectInfo project in skipped)
 				{
 					string relativePath = Path.GetRelativePath(workspace, project.Project).Replace(Path.DirectorySeparatorChar, '/');
-					logger.WriteWarning($"Skipping {relativePath}: platform is {project.Platform}, which this host cannot build.");
+					logger.WriteWarning($"Skipping {relativePath}: platform is {DescribePlatform(project.Platform)}, which this host cannot build.");
 				}
 
 				logger.WriteInfo($"Running {toRun.Count} test project(s), skipping {skipped.Count}.");
@@ -213,6 +213,19 @@ public class TestCommand : Command
 #pragma warning restore CA1031
 		};
 	}
+
+	/// <summary>
+	/// Names a platform the way a reader expects to see it, rather than as the enum spells it.
+	/// </summary>
+	/// <param name="platform">The platform to describe.</param>
+	/// <returns>A display name for the platform.</returns>
+	private static string DescribePlatform(ProjectPlatform platform) => platform switch
+	{
+		ProjectPlatform.Ios => "iOS",
+		ProjectPlatform.Windows => "Windows",
+		ProjectPlatform.Neutral => "neutral",
+		_ => platform.ToString(),
+	};
 
 #pragma warning disable CA1010
 	private sealed class ListCommand : Command
