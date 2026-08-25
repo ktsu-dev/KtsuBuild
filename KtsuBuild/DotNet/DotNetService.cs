@@ -129,12 +129,14 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger) : 
 
 		logger.WriteInfo($"Found {testProjects.Count} test project(s)");
 
-		await RunTestsAsync(target: string.Empty, workingDirectory, configuration, coverageOutputPath, noBuild: false, cancellationToken).ConfigureAwait(false);
+		await RunTestsAsync(target: string.Empty, workingDirectory, configuration, coverageOutputPath, noBuild: false, hostRuntimeOnly: false, cancellationToken).ConfigureAwait(false);
 	}
 
 	// Shared by TestAsync, which tests everything the host can build, and TestProjectAsync, which
 	// tests one project. `target` is the project path, or empty to let `dotnet test` discover.
-	private async Task RunTestsAsync(string target, string workingDirectory, string configuration, string? coverageOutputPath, bool noBuild, CancellationToken cancellationToken)
+	// `hostRuntimeOnly` is only ever true from TestProjectAsync: TestAsync builds and tests the whole
+	// workspace at once and must stay runtime-agnostic, so it always passes false.
+	private async Task RunTestsAsync(string target, string workingDirectory, string configuration, string? coverageOutputPath, bool noBuild, bool hostRuntimeOnly, CancellationToken cancellationToken)
 	{
 		string resultsPath = coverageOutputPath ?? "coverage";
 		string testResultsPath = Path.Combine(resultsPath, "TestResults");
@@ -152,6 +154,14 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger) : 
 		if (noBuild)
 		{
 			args += " --no-build";
+		}
+
+		// A test run needs only the host's native assets. Setting the runtime identifier alone would
+		// make the build self-contained and copy the whole framework into the output, so the two
+		// properties are always set together, never one without the other.
+		if (hostRuntimeOnly)
+		{
+			args += $" -p:RuntimeIdentifier={RuntimeInformation.RuntimeIdentifier} -p:SelfContained=false";
 		}
 
 		// The Microsoft.CodeCoverage collector intermittently drops its instrumentation IPC pipe during
@@ -193,7 +203,7 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger) : 
 	}
 
 	/// <inheritdoc/>
-	public async Task TestProjectAsync(string projectPath, string workingDirectory, string configuration = DefaultConfiguration, string? coverageOutputPath = null, bool noBuild = false, CancellationToken cancellationToken = default)
+	public async Task TestProjectAsync(string projectPath, string workingDirectory, string configuration = DefaultConfiguration, string? coverageOutputPath = null, bool noBuild = false, bool hostRuntimeOnly = false, CancellationToken cancellationToken = default)
 	{
 		Ensure.NotNull(projectPath);
 		Ensure.NotNull(workingDirectory);
@@ -204,7 +214,7 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger) : 
 
 		logger.WriteStepHeader($"Running Tests with Coverage: {Path.GetFileNameWithoutExtension(projectPath)}");
 
-		await RunTestsAsync(projectPath, workingDirectory, configuration, coverageOutputPath, noBuild, cancellationToken).ConfigureAwait(false);
+		await RunTestsAsync(projectPath, workingDirectory, configuration, coverageOutputPath, noBuild, hostRuntimeOnly, cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc/>

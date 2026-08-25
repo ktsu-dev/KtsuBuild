@@ -102,7 +102,7 @@ public class TestCommand : Command
 			try
 			{
 				string projectPath = Path.IsPathRooted(project) ? project : Path.Combine(workspace, project);
-				await dotNetService.TestProjectAsync(projectPath, workspace, configuration, "coverage", noBuild, cancellationToken).ConfigureAwait(false);
+				await dotNetService.TestProjectAsync(projectPath, workspace, configuration, "coverage", noBuild, cancellationToken: cancellationToken).ConfigureAwait(false);
 				logger.WriteSuccess("Test run completed successfully!");
 				return 0;
 			}

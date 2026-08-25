@@ -340,6 +340,29 @@ public class DotNetServiceTests
 		Assert.IsFalse(captured.Contains("test \"", StringComparison.Ordinal), captured);
 	}
 
+	// A test run needs the host's native assets and nothing else. Without the pin, every project's
+	// output carries natives for all sixteen runtime identifiers the packages ship, which measured
+	// 115 MB for the smallest test project in ImGuiApp against 39 MB pinned.
+	[TestMethod]
+	public async Task TestProjectAsyncPinsTheHostRuntimeWhenAsked()
+	{
+		string captured = await CaptureTestProjectArgsAsync(hostRuntimeOnly: true).ConfigureAwait(false);
+
+		StringAssert.Contains(captured, $"-p:RuntimeIdentifier={RuntimeInformation.RuntimeIdentifier}");
+		StringAssert.Contains(captured, "-p:SelfContained=false");
+	}
+
+	// The default must stay runtime-agnostic. Pinning by default would change what every existing
+	// caller produces, including the whole-workspace run that `ci` depends on.
+	[TestMethod]
+	public async Task TestProjectAsyncIsRuntimeAgnosticByDefault()
+	{
+		string captured = await CaptureTestProjectArgsAsync(hostRuntimeOnly: false).ConfigureAwait(false);
+
+		Assert.IsFalse(captured.Contains("RuntimeIdentifier", StringComparison.Ordinal), captured);
+		Assert.IsFalse(captured.Contains("SelfContained", StringComparison.Ordinal), captured);
+	}
+
 	// The whole-workspace run must not gain a selector, because it deliberately tests everything
 	// the host can build and `dotnet test` defaults to the current directory for that.
 	[TestMethod]
@@ -359,14 +382,14 @@ public class DotNetServiceTests
 		Assert.IsFalse(captured.Contains("--project", StringComparison.Ordinal), captured);
 	}
 
-	private async Task<string> CaptureTestProjectArgsAsync(bool noBuild)
+	private async Task<string> CaptureTestProjectArgsAsync(bool noBuild = false, bool hostRuntimeOnly = false)
 	{
 		string project = Path.Combine(_tempDir, "Foo.Tests", "Foo.Tests.csproj");
 		string? captured = null;
 		_processRunner.RunWithCallbackAsync("dotnet", Arg.Do<string>(a => captured = a), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
 			.Returns(0);
 
-		await _service.TestProjectAsync(project, _tempDir, "Release", "coverage", noBuild).ConfigureAwait(false);
+		await _service.TestProjectAsync(project, _tempDir, "Release", "coverage", noBuild, hostRuntimeOnly).ConfigureAwait(false);
 
 		Assert.IsNotNull(captured);
 		return captured;
