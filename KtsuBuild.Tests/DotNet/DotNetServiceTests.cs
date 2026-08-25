@@ -382,6 +382,54 @@ public class DotNetServiceTests
 		Assert.IsFalse(captured.Contains("--project", StringComparison.Ordinal), captured);
 	}
 
+	// KtsuHostRuntimeOnly is what `test all` sets to ask ktsu.Sdk for a per-project runtime identifier
+	// on the whole-workspace run. This is the property test all switched to after the per-project loop
+	// it replaced measured slower than an unpinned single invocation.
+	[TestMethod]
+	public async Task TestAsyncSetsKtsuHostRuntimeOnlyWhenAsked()
+	{
+		string captured = await CaptureTestArgsAsync(hostRuntimeOnly: true).ConfigureAwait(false);
+
+		StringAssert.Contains(captured, "-p:KtsuHostRuntimeOnly=true");
+	}
+
+	// The default must stay exactly what every existing caller, including `ci`, already produces.
+	[TestMethod]
+	public async Task TestAsyncOmitsKtsuHostRuntimeOnlyByDefault()
+	{
+		string captured = await CaptureTestArgsAsync(hostRuntimeOnly: false).ConfigureAwait(false);
+
+		Assert.IsFalse(captured.Contains("KtsuHostRuntimeOnly", StringComparison.Ordinal), captured);
+	}
+
+	// This is the failure mode the whole design exists to avoid. A workspace-wide run must never pass
+	// -p:RuntimeIdentifier: MSBuild rejects a global runtime identifier on a solution build with
+	// NETSDK1134 ("Building a solution with a specific RuntimeIdentifier is not supported"), whether or
+	// not the host runtime pin is requested.
+	[TestMethod]
+	public async Task TestAsyncNeverPassesRuntimeIdentifier()
+	{
+		string captured = await CaptureTestArgsAsync(hostRuntimeOnly: true).ConfigureAwait(false);
+
+		Assert.IsFalse(captured.Contains("RuntimeIdentifier", StringComparison.Ordinal), captured);
+	}
+
+	private async Task<string> CaptureTestArgsAsync(bool hostRuntimeOnly)
+	{
+		Directory.CreateDirectory(Path.Combine(_tempDir, "Foo.Tests"));
+		await File.WriteAllTextAsync(
+			Path.Combine(_tempDir, "Foo.Tests", "Foo.Tests.csproj"),
+			"<Project><PropertyGroup><IsTestProject>true</IsTestProject><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>").ConfigureAwait(false);
+		string? captured = null;
+		_processRunner.RunWithCallbackAsync("dotnet", Arg.Do<string>(a => captured = a), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
+			.Returns(0);
+
+		await _service.TestAsync(_tempDir, "Release", "coverage", hostRuntimeOnly).ConfigureAwait(false);
+
+		Assert.IsNotNull(captured);
+		return captured;
+	}
+
 	private async Task<string> CaptureTestProjectArgsAsync(bool noBuild = false, bool hostRuntimeOnly = false)
 	{
 		string project = Path.Combine(_tempDir, "Foo.Tests", "Foo.Tests.csproj");

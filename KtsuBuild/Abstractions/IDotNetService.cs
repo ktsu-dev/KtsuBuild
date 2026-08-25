@@ -32,8 +32,18 @@ public interface IDotNetService
 	/// <param name="workingDirectory">The working directory.</param>
 	/// <param name="configuration">The build configuration.</param>
 	/// <param name="coverageOutputPath">Path for coverage output.</param>
+	/// <param name="hostRuntimeOnly">Whether to ask ktsu.Sdk to pin every project's build to the host runtime.</param>
 	/// <param name="cancellationToken">A cancellation token.</param>
-	public Task TestAsync(string workingDirectory, string configuration = "Release", string? coverageOutputPath = null, CancellationToken cancellationToken = default);
+	/// <remarks>
+	/// Setting <paramref name="hostRuntimeOnly"/> passes <c>-p:KtsuHostRuntimeOnly=true</c>, an opt-in
+	/// property ktsu.Sdk reads to give each project its own runtime identifier. A workspace-wide run
+	/// cannot pass <c>-p:RuntimeIdentifier</c> directly: MSBuild rejects a global runtime identifier on
+	/// a solution build with NETSDK1134 ("Building a solution with a specific RuntimeIdentifier is not
+	/// supported"). Repositories built with an older Sdk that does not know the property simply ignore
+	/// it, so this defaults to <see langword="false"/> and is safe to set unconditionally once callers
+	/// opt in.
+	/// </remarks>
+	public Task TestAsync(string workingDirectory, string configuration = "Release", string? coverageOutputPath = null, bool hostRuntimeOnly = false, CancellationToken cancellationToken = default);
 
 	/// <summary>
 	/// Runs a single test project with coverage.

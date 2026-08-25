@@ -161,28 +161,37 @@ that file holds absolute paths, so output moved between machines or paths will n
 
 #### `test all`
 
-Restore, build, and test every test project the host can build, pinned to the host's runtime
-identifier.
+Restore, build, and test every test project the host can build, in one `dotnet test` invocation
+across the workspace.
 
 ```bash
 ktsubuild test all [options]
 ```
 
-Projects the host cannot build are skipped and named, with the reason, before anything is built. A
-project that fails does not stop the ones after it: the run continues and reports every failing
-project at the end, so one run tells you everything that is broken rather than the first thing.
+Projects the host cannot build are skipped and named, with the reason, before anything is built.
+The single invocation reports every project's results itself, so there is nothing left for this
+command to accumulate: a failure in one project shows up in that one report rather than stopping
+the projects around it.
 
-The runtime pin is the point. Without it, a test project's output carries the native assets for
-every runtime identifier its packages ship, which for a repository using the ImGui packages is
-sixteen of them, Android included. Measured on ImGuiApp, the smallest test project's output went
-from 115 MB to 39 MB with the pin, and its tests passed either way. That copying is what makes a
-test run slow, and it costs most on Windows, where file writes are several times slower than on
-Linux.
+The invocation asks `ktsu.Sdk` to pin every project's build to the host runtime by setting
+`-p:KtsuHostRuntimeOnly=true`, an opt-in property the Sdk turns into a per-project runtime
+identifier. A workspace-wide run cannot take a runtime identifier directly: passing
+`-p:RuntimeIdentifier` on a solution build fails with `NETSDK1134`, which is why the property
+exists instead of the identifier itself. On a repository whose Sdk version does not know the
+property, the flag is inert and the run is runtime-agnostic, exactly as it always was.
+
+The pin is the point once it applies. Without it, a test project's output carries the native
+assets for every runtime identifier its packages ship, which for a repository using the ImGui
+packages is sixteen of them, Android included. Measured on ImGuiApp, the smallest test project's
+output went from 115 MB to 39 MB with the pin, and its tests passed either way. That copying is
+what makes a test run slow, and it costs most on Windows, where file writes are several times
+slower than on Linux. An earlier version of `test all` paid for the pin by running `dotnet test`
+once per project, which cost more in repeated test host startups than the copying it saved
+(measured on ImGuiApp: 21.4 minutes against 22.5 unpinned on Windows, 12.7 against 8.0 on Ubuntu),
+which is why the pin now rides a single invocation instead of a loop.
 
 This is for testing, not for shipping. `release` still publishes for every runtime it names, and
 `build` stays runtime-agnostic, because a solution build cannot take a runtime identifier at all.
-Passing one fails with `NETSDK1134`, which is why the pin is applied per project here rather than
-handed to a solution build.
 
 ### `release`
 

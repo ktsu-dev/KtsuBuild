@@ -133,7 +133,7 @@ public class TestCommand : Command
 			BuildEnvironment.Initialize();
 			DotNetService dotNetService = new(processRunner, logger);
 
-#pragma warning disable CA1031 // Top-level command handler must catch all exceptions, including per-project failures below
+#pragma warning disable CA1031 // Top-level command handler must catch all exceptions
 			try
 			{
 				IReadOnlyList<TestProjectInfo> allProjects = dotNetService.GetTestProjects(workspace);
@@ -178,29 +178,18 @@ public class TestCommand : Command
 					return 0;
 				}
 
-				List<string> failedProjects = [];
-				foreach (TestProjectInfo project in toRun)
-				{
-					string relativePath = Path.GetRelativePath(workspace, project.Project).Replace(Path.DirectorySeparatorChar, '/');
-					logger.WriteStepHeader($"Testing {relativePath}");
-					try
-					{
-						await dotNetService.TestProjectAsync(project.Project, workspace, configuration, "coverage", noBuild: false, hostRuntimeOnly: true, cancellationToken).ConfigureAwait(false);
-					}
-					catch (Exception ex)
-					{
-						// A failing project must not stop the ones after it: collect the failure and continue,
-						// so one run reports every project that failed rather than only the first.
-						logger.WriteError($"{relativePath} failed: {ex.Message}");
-						failedProjects.Add(relativePath);
-					}
-				}
-
-				if (failedProjects.Count > 0)
-				{
-					logger.WriteError($"{failedProjects.Count} of {toRun.Count} test project(s) failed: {string.Join(", ", failedProjects)}");
-					return 1;
-				}
+				// A single dotnet test invocation across the workspace, not a loop over TestProjectAsync.
+				// The per-project loop this replaced paid for the host runtime pin with one test host
+				// startup per project and still measured slower than an unpinned single invocation
+				// (ImGuiApp's Windows job: 21.4 minutes pinned per-project against 22.5 unpinned). Passing
+				// hostRuntimeOnly here sets -p:KtsuHostRuntimeOnly=true, which ktsu.Sdk (when it knows the
+				// property) turns into a per-project runtime identifier, legal on a workspace-wide run
+				// where a single global RuntimeIdentifier is not.
+				//
+				// There is no per-project failure list to accumulate anymore: one invocation tests every
+				// project in toRun and reports all of their results itself, so there is nothing left for
+				// this command to collect project by project.
+				await dotNetService.TestAsync(workspace, configuration, "coverage", hostRuntimeOnly: true, cancellationToken).ConfigureAwait(false);
 
 				logger.WriteSuccess($"All {toRun.Count} test project(s) passed!");
 				return 0;

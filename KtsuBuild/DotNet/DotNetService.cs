@@ -114,7 +114,7 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger) : 
 	}
 
 	/// <inheritdoc/>
-	public async Task TestAsync(string workingDirectory, string configuration = DefaultConfiguration, string? coverageOutputPath = null, CancellationToken cancellationToken = default)
+	public async Task TestAsync(string workingDirectory, string configuration = DefaultConfiguration, string? coverageOutputPath = null, bool hostRuntimeOnly = false, CancellationToken cancellationToken = default)
 	{
 		Ensure.NotNull(workingDirectory);
 		logger.WriteStepHeader("Running Tests with Coverage");
@@ -129,14 +129,18 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger) : 
 
 		logger.WriteInfo($"Found {testProjects.Count} test project(s)");
 
-		await RunTestsAsync(target: string.Empty, workingDirectory, configuration, coverageOutputPath, noBuild: false, hostRuntimeOnly: false, cancellationToken).ConfigureAwait(false);
+		await RunTestsAsync(target: string.Empty, workingDirectory, configuration, coverageOutputPath, noBuild: false, runtimeIdentifierPin: false, ktsuHostRuntimeOnly: hostRuntimeOnly, cancellationToken).ConfigureAwait(false);
 	}
 
-	// Shared by TestAsync, which tests everything the host can build, and TestProjectAsync, which
-	// tests one project. `target` is the project path, or empty to let `dotnet test` discover.
-	// `hostRuntimeOnly` is only ever true from TestProjectAsync: TestAsync builds and tests the whole
-	// workspace at once and must stay runtime-agnostic, so it always passes false.
-	private async Task RunTestsAsync(string target, string workingDirectory, string configuration, string? coverageOutputPath, bool noBuild, bool hostRuntimeOnly, CancellationToken cancellationToken)
+	// Shared by TestAsync, which tests everything the host can build in one invocation, and
+	// TestProjectAsync, which tests one project. `target` is the project path, or empty to let
+	// `dotnet test` discover. The two runtime options are deliberately separate and mutually
+	// exclusive in practice: `runtimeIdentifierPin` is only ever true from TestProjectAsync, where a
+	// single project makes a global `RuntimeIdentifier` property legal. `ktsuHostRuntimeOnly` is only
+	// ever true from TestAsync, where the run spans the whole workspace and a global
+	// `RuntimeIdentifier` would fail with NETSDK1134, so pinning goes through the Sdk's opt-in
+	// property instead. See the property's own comment below for why the two cannot be swapped.
+	private async Task RunTestsAsync(string target, string workingDirectory, string configuration, string? coverageOutputPath, bool noBuild, bool runtimeIdentifierPin, bool ktsuHostRuntimeOnly, CancellationToken cancellationToken)
 	{
 		string resultsPath = coverageOutputPath ?? "coverage";
 		string testResultsPath = Path.Combine(resultsPath, "TestResults");
@@ -159,9 +163,22 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger) : 
 		// A test run needs only the host's native assets. Setting the runtime identifier alone would
 		// make the build self-contained and copy the whole framework into the output, so the two
 		// properties are always set together, never one without the other.
-		if (hostRuntimeOnly)
+		if (runtimeIdentifierPin)
 		{
 			args += $" -p:RuntimeIdentifier={RuntimeInformation.RuntimeIdentifier} -p:SelfContained=false";
+		}
+
+		// Do not pass -p:RuntimeIdentifier here. This branch runs across the whole workspace, and
+		// MSBuild rejects a global RuntimeIdentifier on a solution build with NETSDK1134 ("Building a
+		// solution with a specific RuntimeIdentifier is not supported"). KtsuHostRuntimeOnly is the
+		// property ktsu.Sdk added instead: it gives each project its own runtime identifier, which is
+		// legal, rather than passing one identifier as a global property to every project at once,
+		// which is not. This is the whole reason test all stopped looping over TestProjectAsync one
+		// project at a time (that per-project loop paid for the pin with fourteen test host startups
+		// and still ran slower than an unpinned single invocation).
+		if (ktsuHostRuntimeOnly)
+		{
+			args += " -p:KtsuHostRuntimeOnly=true";
 		}
 
 		// The Microsoft.CodeCoverage collector intermittently drops its instrumentation IPC pipe during
@@ -214,7 +231,7 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger) : 
 
 		logger.WriteStepHeader($"Running Tests with Coverage: {Path.GetFileNameWithoutExtension(projectPath)}");
 
-		await RunTestsAsync(projectPath, workingDirectory, configuration, coverageOutputPath, noBuild, hostRuntimeOnly, cancellationToken).ConfigureAwait(false);
+		await RunTestsAsync(projectPath, workingDirectory, configuration, coverageOutputPath, noBuild, runtimeIdentifierPin: hostRuntimeOnly, ktsuHostRuntimeOnly: false, cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc/>
