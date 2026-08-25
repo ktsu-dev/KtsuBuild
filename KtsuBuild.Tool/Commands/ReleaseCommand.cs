@@ -5,6 +5,7 @@ namespace KtsuBuild.Tool.Commands;
 using System.CommandLine;
 using KtsuBuild.Abstractions;
 using KtsuBuild.Configuration;
+using KtsuBuild.Git;
 using KtsuBuild.Pipeline;
 
 /// <summary>
@@ -66,6 +67,16 @@ public class ReleaseCommand : Command
 					logger.WriteInfo("Would pack, publish NuGet packages, and create GitHub release");
 					return 0;
 				}
+
+				// `ci` releases the metadata commit, because UpdateMetadataAsync overwrites this before
+				// resolution runs. A standalone release has no metadata stage, so it would otherwise
+				// target GITHUB_SHA, the commit that triggered the run, which in a split pipeline is the
+				// commit before the metadata commit. The tag would then point at a tree whose VERSION.md
+				// predates the version being published. Setting it here, before resolution, gives this
+				// path the same relationship between the release target and the analysis boundary that
+				// `ci` has.
+				GitService gitService = new(processRunner, logger);
+				buildConfig.ReleaseHash = await gitService.GetCurrentCommitHashAsync(buildConfig.WorkspacePath, cancellationToken).ConfigureAwait(false);
 
 				await pipeline.ResolveVersionAsync(context, "auto", cancellationToken).ConfigureAwait(false);
 
