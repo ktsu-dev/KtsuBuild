@@ -236,6 +236,17 @@ internal sealed class Program
 			return await runHandler(workspace, configuration, project, noBuild, verbose, ct).ConfigureAwait(false);
 		});
 
+		// All subcommand
+		Command allCommand = testCommand.Subcommands.First(c => c.Name == "all");
+		Func<string, string, bool, CancellationToken, Task<int>> allHandler = TestCommand.CreateAllHandler(processRunner, logger);
+		allCommand.SetAction(async (parseResult, ct) =>
+		{
+			string workspace = parseResult.GetValue(GlobalOptions.Workspace)!;
+			string configuration = parseResult.GetValue(GlobalOptions.Configuration)!;
+			bool verbose = parseResult.GetValue(GlobalOptions.Verbose);
+			return await allHandler(workspace, configuration, verbose, ct).ConfigureAwait(false);
+		});
+
 		rootCommand.Subcommands.Add(testCommand);
 	}
 
