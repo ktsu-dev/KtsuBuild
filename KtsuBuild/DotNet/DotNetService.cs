@@ -140,7 +140,12 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger) : 
 		string testResultsPath = Path.Combine(resultsPath, "TestResults");
 		Directory.CreateDirectory(testResultsPath);
 
-		string scope = string.IsNullOrEmpty(target) ? string.Empty : $"\"{target}\" ";
+		// `--project`, not a positional path. `dotnet test` silently ignores a positional path it
+		// cannot resolve and falls back to testing the current directory, so a mistyped or
+		// unresolved path runs the whole solution and reports "total: 0" with an error per
+		// assembly, which reads as a test failure rather than as a bad argument. `--project`
+		// fails loudly instead. An empty target is the whole-workspace case and passes neither.
+		string scope = string.IsNullOrEmpty(target) ? string.Empty : $"--project \"{target}\" ";
 		string args = $"test {scope}--configuration {configuration} --coverage --coverage-output-format xml " +
 			$"--coverage-output \"coverage.xml\" --results-directory \"{testResultsPath}\" " +
 			$"--report-trx --report-trx-filename TestResults.trx";
