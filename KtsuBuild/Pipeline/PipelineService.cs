@@ -284,7 +284,7 @@ public sealed class PipelineService
 		Ensure.NotNull(workspace);
 		Ensure.NotNull(configuration);
 
-		await _dotNetService.TestAsync(workspace, configuration, "coverage", cancellationToken).ConfigureAwait(false);
+		await _dotNetService.TestAsync(workspace, configuration, "coverage", cancellationToken: cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <summary>
