@@ -259,7 +259,7 @@ public class DotNetServiceTests
 		await _service.TestProjectAsync(project, _tempDir, "Release", "coverage").ConfigureAwait(false);
 
 		Assert.IsNotNull(captured);
-		StringAssert.Contains(captured, $"test \"{project}\" --configuration");
+		StringAssert.Contains(captured, $"test --project \"{project}\" --configuration");
 		StringAssert.Contains(captured, "--coverage --coverage-output-format");
 	}
 
@@ -318,6 +318,45 @@ public class DotNetServiceTests
 		string captured = await CaptureTestProjectArgsAsync(noBuild: false).ConfigureAwait(false);
 
 		Assert.IsFalse(captured.Contains("--no-build", StringComparison.Ordinal), captured);
+	}
+
+	// `dotnet test` silently ignores a positional path it cannot resolve and falls back to the
+	// current directory, so a scoped run would quietly test the whole solution and report zero
+	// tests with one error per assembly. `--project` rejects a bad path instead. This was not
+	// hypothetical: it failed 13 of 14 projects in CI while passing locally.
+	[TestMethod]
+	public async Task TestProjectAsyncSelectsTheProjectWithTheProjectOption()
+	{
+		string captured = await CaptureTestProjectArgsAsync(noBuild: false).ConfigureAwait(false);
+
+		StringAssert.Contains(captured, "--project ");
+	}
+
+	[TestMethod]
+	public async Task TestProjectAsyncDoesNotPassThePathPositionally()
+	{
+		string captured = await CaptureTestProjectArgsAsync(noBuild: false).ConfigureAwait(false);
+
+		Assert.IsFalse(captured.Contains("test \"", StringComparison.Ordinal), captured);
+	}
+
+	// The whole-workspace run must not gain a selector, because it deliberately tests everything
+	// the host can build and `dotnet test` defaults to the current directory for that.
+	[TestMethod]
+	public async Task TestAsyncPassesNoProjectSelector()
+	{
+		Directory.CreateDirectory(Path.Combine(_tempDir, "Foo.Tests"));
+		await File.WriteAllTextAsync(
+			Path.Combine(_tempDir, "Foo.Tests", "Foo.Tests.csproj"),
+			"<Project><PropertyGroup><IsTestProject>true</IsTestProject><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>").ConfigureAwait(false);
+		string? captured = null;
+		_processRunner.RunWithCallbackAsync("dotnet", Arg.Do<string>(a => captured = a), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
+			.Returns(0);
+
+		await _service.TestAsync(_tempDir, "Release", "coverage").ConfigureAwait(false);
+
+		Assert.IsNotNull(captured);
+		Assert.IsFalse(captured.Contains("--project", StringComparison.Ordinal), captured);
 	}
 
 	private async Task<string> CaptureTestProjectArgsAsync(bool noBuild)
