@@ -1,6 +1,6 @@
-## v2.8.1 (patch)
+## v2.8.2 (patch)
 
-Changes since v2.8.0:
+Changes since v2.8.1:
 
-- fix: report an --exclude that matched nothing at information level [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
+- ci: adopt the unified dotnet workflow [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
 
