@@ -1,4 +1,4 @@
-// Copyright (c) 2023-2026 ktsu-dev contributors
+﻿// Copyright (c) 2023-2026 ktsu-dev contributors
 
 namespace KtsuBuild.Publishing;
 
@@ -26,8 +26,8 @@ public class GitHubService(IProcessRunner processRunner, IGitService gitService,
 		// Set GitHub token
 		Environment.SetEnvironmentVariable("GH_TOKEN", options.GithubToken);
 
-		// Configure git identity
-		await gitService.SetIdentityAsync(options.WorkingDirectory, "Github Actions", "actions@users.noreply.github.com", cancellationToken).ConfigureAwait(false);
+		// Configure git identity, without disturbing one the repository or the developer already has
+		await gitService.EnsureIdentityAsync(options.WorkingDirectory, "Github Actions", "actions@users.noreply.github.com", cancellationToken).ConfigureAwait(false);
 
 		// Create and push tag
 		string tagName = $"v{options.Version}";

@@ -1,4 +1,4 @@
-// Copyright (c) 2023-2026 ktsu-dev contributors
+﻿// Copyright (c) 2023-2026 ktsu-dev contributors
 
 namespace KtsuBuild.Tests.Metadata;
 
@@ -278,5 +278,8 @@ public class MetadataServiceTests
 
 		public Task SetIdentityAsync(string workingDirectory, string name, string email, CancellationToken cancellationToken = default)
 			=> Task.CompletedTask;
+
+		public Task<bool> EnsureIdentityAsync(string workingDirectory, string fallbackName, string fallbackEmail, CancellationToken cancellationToken = default)
+			=> Task.FromResult(false);
 	}
 }

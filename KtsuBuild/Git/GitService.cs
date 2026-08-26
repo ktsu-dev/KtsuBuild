@@ -1,4 +1,4 @@
-// Copyright (c) 2023-2026 ktsu-dev contributors
+﻿// Copyright (c) 2023-2026 ktsu-dev contributors
 
 namespace KtsuBuild.Git;
 
@@ -235,18 +235,64 @@ public class GitService(IProcessRunner processRunner, IBuildLogger logger) : IGi
 		Ensure.NotNull(workingDirectory);
 		Ensure.NotNull(name);
 		Ensure.NotNull(email);
-		logger.WriteInfo($"Configuring git user: {name} <{email}>");
+		logger.WriteInfo($"Configuring git user for this repository: {name} <{email}>");
 
-		ProcessResult nameResult = await processRunner.RunAsync("git", $"config --global user.name \"{name}\"", workingDirectory, cancellationToken).ConfigureAwait(false);
+		// --local, never --global. A CI runner's config is throwaway, so the scope made no
+		// difference there, but `release` and `ci` are documented as runnable by hand, and --global
+		// rewrote the developer's machine-wide identity so that every later commit in every
+		// repository on that machine was authored by the build. --local is correct in CI too,
+		// because the runner's checkout belongs to one job.
+		ProcessResult nameResult = await processRunner.RunAsync("git", $"config --local user.name \"{name}\"", workingDirectory, cancellationToken).ConfigureAwait(false);
 		if (!nameResult.Success)
 		{
 			throw new InvalidOperationException($"Failed to set git user name: {nameResult.StandardError}");
 		}
 
-		ProcessResult emailResult = await processRunner.RunAsync("git", $"config --global user.email \"{email}\"", workingDirectory, cancellationToken).ConfigureAwait(false);
+		ProcessResult emailResult = await processRunner.RunAsync("git", $"config --local user.email \"{email}\"", workingDirectory, cancellationToken).ConfigureAwait(false);
 		if (!emailResult.Success)
 		{
 			throw new InvalidOperationException($"Failed to set git user email: {emailResult.StandardError}");
 		}
+	}
+
+	/// <inheritdoc/>
+	public async Task<bool> EnsureIdentityAsync(string workingDirectory, string fallbackName, string fallbackEmail, CancellationToken cancellationToken = default)
+	{
+		Ensure.NotNull(workingDirectory);
+		Ensure.NotNull(fallbackName);
+		Ensure.NotNull(fallbackEmail);
+
+		// Scopeless reads, so an identity from any level counts: the repository's own config, the
+		// developer's global config, or a system one. Whatever git would already attribute the
+		// commit to is left in place, and only a checkout with nothing to attribute it to is written.
+		string? existingName = await ReadConfigAsync(workingDirectory, "user.name", cancellationToken).ConfigureAwait(false);
+		string? existingEmail = await ReadConfigAsync(workingDirectory, "user.email", cancellationToken).ConfigureAwait(false);
+
+		if (existingName is not null && existingEmail is not null)
+		{
+			logger.WriteInfo($"Using the configured git user: {existingName} <{existingEmail}>");
+			return false;
+		}
+
+		await SetIdentityAsync(workingDirectory, fallbackName, fallbackEmail, cancellationToken).ConfigureAwait(false);
+		return true;
+	}
+
+	/// <summary>
+	/// Reads a git config value, returning null when it is unset or empty.
+	/// </summary>
+	/// <param name="workingDirectory">The repository directory.</param>
+	/// <param name="key">The config key to read.</param>
+	/// <param name="cancellationToken">A cancellation token.</param>
+	/// <returns>The trimmed value, or null when the key resolves to nothing.</returns>
+	/// <remarks>
+	/// An unset key makes git exit with code 1 and no output, which is an answer rather than a
+	/// failure, so the exit code is read as "no value" instead of being thrown on.
+	/// </remarks>
+	private async Task<string?> ReadConfigAsync(string workingDirectory, string key, CancellationToken cancellationToken)
+	{
+		ProcessResult result = await processRunner.RunAsync("git", $"config --get {key}", workingDirectory, cancellationToken).ConfigureAwait(false);
+		string value = result.StandardOutput?.Trim() ?? string.Empty;
+		return result.Success && value.Length > 0 ? value : null;
 	}
 }

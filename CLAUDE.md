@@ -429,3 +429,4 @@ The `.serena/cache/` directory contains language server caches and is excluded f
 - **Multi-targeting warnings**: Lower TFMs (net5.0, net6.0, net7.0) produce warnings from newer packages — these are expected
 - **Shared static options**: `GlobalOptions` instances can only have one parent command in System.CommandLine
 - **Version bump override**: When `--version-bump` is specified, it completely overrides commit tag detection and auto-detection
+- **Git identity scope**: `GitService.SetIdentityAsync` writes `--local`, never `--global`. `release` and `ci` are documented as runnable by hand, and a global write rewrote the developer's machine-wide identity so every later commit in every repository on that machine was authored by the build. Prefer `EnsureIdentityAsync`, which writes the build's identity only when the repository has none of its own, so a local run commits as the developer

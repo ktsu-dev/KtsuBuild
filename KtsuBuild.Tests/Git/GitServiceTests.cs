@@ -1,4 +1,4 @@
-// Copyright (c) 2023-2026 ktsu-dev contributors
+﻿// Copyright (c) 2023-2026 ktsu-dev contributors
 
 namespace KtsuBuild.Tests.Git;
 
@@ -487,5 +487,120 @@ public class GitServiceTests
 
 		await Assert.ThrowsExactlyAsync<InvalidOperationException>(
 			() => _service.SetIdentityAsync("/repo", "Test", "test@example.com")).ConfigureAwait(false);
+	}
+
+	// The scope is the whole point of these two. --global rewrote the machine-wide identity of
+	// anyone who ran `release` or `ci` by hand, so every later commit in every repository on that
+	// machine was authored by the build until they noticed and undid it.
+	[TestMethod]
+	public async Task SetIdentityAsync_WritesToTheRepositoryConfigOnly()
+	{
+		_processRunner.RunAsync("git", Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+			.Returns(TestHelpers.SuccessResult());
+
+		await _service.SetIdentityAsync("/repo", "Test User", "test@example.com").ConfigureAwait(false);
+
+		await _processRunner.Received(1).RunAsync("git",
+			ArgMatch.NotNull<string>(a => a.Contains("--local") && a.Contains("user.name")),
+			Arg.Any<string>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+		await _processRunner.Received(1).RunAsync("git",
+			ArgMatch.NotNull<string>(a => a.Contains("--local") && a.Contains("user.email")),
+			Arg.Any<string>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+	}
+
+	[TestMethod]
+	public async Task SetIdentityAsync_NeverWritesTheMachineWideConfig()
+	{
+		_processRunner.RunAsync("git", Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+			.Returns(TestHelpers.SuccessResult());
+
+		await _service.SetIdentityAsync("/repo", "Test User", "test@example.com").ConfigureAwait(false);
+
+		await _processRunner.DidNotReceive().RunAsync("git",
+			ArgMatch.NotNull<string>(a => a.Contains("--global")),
+			Arg.Any<string>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+	}
+
+	// EnsureIdentityAsync
+
+	[TestMethod]
+	public async Task EnsureIdentityAsync_IdentityAlreadyResolves_KeepsIt()
+	{
+		_processRunner.RunAsync("git", "config --get user.name", Arg.Any<string>(), Arg.Any<CancellationToken>())
+			.Returns(TestHelpers.SuccessResult("Real Developer\n"));
+		_processRunner.RunAsync("git", "config --get user.email", Arg.Any<string>(), Arg.Any<CancellationToken>())
+			.Returns(TestHelpers.SuccessResult("dev@example.com\n"));
+
+		bool wrote = await _service.EnsureIdentityAsync("/repo", "Github Actions", "actions@users.noreply.github.com").ConfigureAwait(false);
+
+		Assert.IsFalse(wrote);
+		await _processRunner.DidNotReceive().RunAsync("git",
+			ArgMatch.NotNull<string>(a => a.Contains("user.name \"")),
+			Arg.Any<string>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+	}
+
+	[TestMethod]
+	public async Task EnsureIdentityAsync_NoIdentity_WritesTheFallbackLocally()
+	{
+		_processRunner.RunAsync("git", "config --get user.name", Arg.Any<string>(), Arg.Any<CancellationToken>())
+			.Returns(TestHelpers.FailureResult(""));
+		_processRunner.RunAsync("git", "config --get user.email", Arg.Any<string>(), Arg.Any<CancellationToken>())
+			.Returns(TestHelpers.FailureResult(""));
+		_processRunner.RunAsync("git", ArgMatch.NotNull<string>(a => a.Contains("--local")), Arg.Any<string>(), Arg.Any<CancellationToken>())
+			.Returns(TestHelpers.SuccessResult());
+
+		bool wrote = await _service.EnsureIdentityAsync("/repo", "Github Actions", "actions@users.noreply.github.com").ConfigureAwait(false);
+
+		Assert.IsTrue(wrote);
+		await _processRunner.Received(1).RunAsync("git",
+			ArgMatch.NotNull<string>(a => a.Contains("--local") && a.Contains("user.name \"Github Actions\"")),
+			Arg.Any<string>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+	}
+
+	// git exits 0 with an empty line for a key that is set to the empty string, which is not an
+	// identity git can attribute a commit to, so it has to count as absent rather than as present.
+	[TestMethod]
+	public async Task EnsureIdentityAsync_EmptyConfiguredValue_WritesTheFallback()
+	{
+		_processRunner.RunAsync("git", "config --get user.name", Arg.Any<string>(), Arg.Any<CancellationToken>())
+			.Returns(TestHelpers.SuccessResult("\n"));
+		_processRunner.RunAsync("git", "config --get user.email", Arg.Any<string>(), Arg.Any<CancellationToken>())
+			.Returns(TestHelpers.SuccessResult("dev@example.com\n"));
+		_processRunner.RunAsync("git", ArgMatch.NotNull<string>(a => a.Contains("--local")), Arg.Any<string>(), Arg.Any<CancellationToken>())
+			.Returns(TestHelpers.SuccessResult());
+
+		bool wrote = await _service.EnsureIdentityAsync("/repo", "Github Actions", "actions@users.noreply.github.com").ConfigureAwait(false);
+
+		Assert.IsTrue(wrote);
+	}
+
+	[TestMethod]
+	public async Task EnsureIdentityAsync_NameSetButEmailMissing_WritesTheFallback()
+	{
+		_processRunner.RunAsync("git", "config --get user.name", Arg.Any<string>(), Arg.Any<CancellationToken>())
+			.Returns(TestHelpers.SuccessResult("Real Developer\n"));
+		_processRunner.RunAsync("git", "config --get user.email", Arg.Any<string>(), Arg.Any<CancellationToken>())
+			.Returns(TestHelpers.FailureResult(""));
+		_processRunner.RunAsync("git", ArgMatch.NotNull<string>(a => a.Contains("--local")), Arg.Any<string>(), Arg.Any<CancellationToken>())
+			.Returns(TestHelpers.SuccessResult());
+
+		bool wrote = await _service.EnsureIdentityAsync("/repo", "Github Actions", "actions@users.noreply.github.com").ConfigureAwait(false);
+
+		Assert.IsTrue(wrote);
+	}
+
+	[TestMethod]
+	public async Task EnsureIdentityAsync_ReadsConfigWithoutAScope()
+	{
+		_processRunner.RunAsync("git", ArgMatch.NotNull<string>(a => a.StartsWith("config --get")), Arg.Any<string>(), Arg.Any<CancellationToken>())
+			.Returns(TestHelpers.SuccessResult("Real Developer\n"));
+
+		await _service.EnsureIdentityAsync("/repo", "Github Actions", "actions@users.noreply.github.com").ConfigureAwait(false);
+
+		// A scoped read would miss the developer's global identity and overwrite it with the
+		// build's, which is the defect this method exists to prevent.
+		await _processRunner.DidNotReceive().RunAsync("git",
+			ArgMatch.NotNull<string>(a => a.Contains("--get") && (a.Contains("--global") || a.Contains("--local"))),
+			Arg.Any<string>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 }
