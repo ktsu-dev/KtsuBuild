@@ -1,4 +1,6 @@
-## v2.7.0
+## v2.8.0 (minor)
 
-No significant changes detected since v2.7.0.
+Changes since v2.7.0:
+
+- feat: add --exclude to test all [minor] ([@matt-edmondson](https://github.com/matt-edmondson))
 
