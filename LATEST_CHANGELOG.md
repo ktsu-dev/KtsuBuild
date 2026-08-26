@@ -1,6 +1,6 @@
-## v2.8.0 (minor)
+## v2.8.1 (patch)
 
-Changes since v2.7.0:
+Changes since v2.8.0:
 
-- feat: add --exclude to test all [minor] ([@matt-edmondson](https://github.com/matt-edmondson))
+- fix: report an --exclude that matched nothing at information level [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
 
