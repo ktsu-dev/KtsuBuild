@@ -233,9 +233,14 @@ public class TestCommand : Command
 							logger.WriteInfo($"Excluding {project.Replace('\\', '/')} from the test run.");
 						}
 
+						// Reported, but not as a warning. One workflow file is shared across every
+						// repository, so it passes the same patterns everywhere and matching nothing
+						// is the ordinary case for a repository that has no such projects yet. A
+						// warning on every run of most repositories is the kind of noise that trains
+						// people to stop reading warnings.
 						if (excludedProjects.Count == 0)
 						{
-							logger.WriteWarning($"--exclude matched no projects in {Path.GetFileName(solution)}. Patterns: {string.Join(", ", exclude)}");
+							logger.WriteInfo($"--exclude matched no projects in {Path.GetFileName(solution)}. Patterns: {string.Join(", ", exclude)}");
 						}
 					}
 				}

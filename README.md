@@ -211,7 +211,9 @@ works whichever platform wrote the solution. `**` crosses directory separators a
 
 Every excluded project is named in the log and the closing summary counts only what ran, because a
 project silently dropped from a run is indistinguishable from a run that passed. A pattern matching
-nothing is reported as a warning rather than left to look like it worked.
+nothing is reported too, at information level rather than as a warning, because one workflow file
+shared across every repository passes the same patterns everywhere and matching nothing is the
+ordinary case for a repository that has no such projects yet.
 
 Use this when a suite is worth running on one platform but not on all of them. ImGuiApp excludes
 its UI suites on Windows: they are the entire cost of that job, and what they exercise is a managed
