@@ -81,6 +81,36 @@ A clean run means a clean Sonar run in CI. The opt-in lives in
 and silences the ones CI's quality profile does not report). Nothing imports these
 automatically, so normal builds, the CI pipeline, and packaging are unaffected.
 
+### Test and coverage output
+
+A test run writes everything under the coverage output directory, `coverage` by default,
+resolved against the workspace rather than the process directory:
+
+| Path | What it is |
+|------|-----------|
+| `coverage/coverage.xml` | One report for the whole run, merged across every test project |
+| `coverage/TestResults/<guid>.xml` | One coverage report per test project, as the test platform named it |
+| `coverage/TestResults/<Project>_<tfm>_<arch>.trx` | One test result file per test project |
+
+`coverage/TestResults` is emptied at the start of every run, so a report an earlier run left
+behind is never merged into a later one.
+
+Neither the coverage filename nor the TRX filename is passed to `dotnet test`. One invocation
+runs every test project and hands each the same arguments, so a fixed name made every project
+overwrite the one before it, and what survived was a single project's coverage and a single
+project's test results standing in for the whole repository. What the scanner then reported
+depended on which project finished last.
+
+Merging uses `dotnet-coverage`, installed on demand into a directory under the system temp path
+and invoked by absolute path, because a tool installed mid-run is not necessarily on the PATH the
+process inherited. `DotNetService` takes that directory as an optional constructor argument. A run
+with one test project copies its single report and installs nothing. A merge that fails throws:
+falling back to one project's report is the defect this replaced.
+
+These paths are what consumers point SonarCloud at, so changing them is a breaking change for
+`sonar.cs.vscoveragexml.reportsPaths` (`coverage/**/coverage.xml`) and
+`sonar.cs.vstest.reportsPaths` (`coverage/**/*.trx`).
+
 ## CLI Command Tree
 
 ```
