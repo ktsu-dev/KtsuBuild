@@ -1,4 +1,4 @@
-// Copyright (c) 2023-2026 ktsu-dev contributors
+﻿// Copyright (c) 2023-2026 ktsu-dev contributors
 
 namespace KtsuBuild.Abstractions;
 
@@ -147,11 +147,31 @@ public interface IGitService
 	public Task<bool> HasStagedChangesAsync(string workingDirectory, CancellationToken cancellationToken = default);
 
 	/// <summary>
-	/// Sets the git user identity for commits.
+	/// Sets the git user identity for commits in this repository only.
 	/// </summary>
 	/// <param name="workingDirectory">The repository directory.</param>
 	/// <param name="name">The user name.</param>
 	/// <param name="email">The user email.</param>
 	/// <param name="cancellationToken">A cancellation token.</param>
+	/// <remarks>
+	/// The identity is written to the repository's own config, never to the machine-wide one, so a
+	/// run outside CI cannot change how any other repository on the machine attributes its commits.
+	/// Prefer <see cref="EnsureIdentityAsync"/> when the caller only needs commits to be attributable.
+	/// </remarks>
 	public Task SetIdentityAsync(string workingDirectory, string name, string email, CancellationToken cancellationToken = default);
+
+	/// <summary>
+	/// Sets a fallback git identity for this repository only when no identity already resolves for it.
+	/// </summary>
+	/// <param name="workingDirectory">The repository directory.</param>
+	/// <param name="fallbackName">The user name to use when no identity resolves.</param>
+	/// <param name="fallbackEmail">The user email to use when no identity resolves.</param>
+	/// <param name="cancellationToken">A cancellation token.</param>
+	/// <returns>True when the fallback identity was written, false when an existing identity was kept.</returns>
+	/// <remarks>
+	/// A CI checkout normally has no identity of its own, so the fallback applies and the commit is
+	/// attributed to the build. A developer's machine does have one, so it is left alone and the
+	/// commit is attributed to them.
+	/// </remarks>
+	public Task<bool> EnsureIdentityAsync(string workingDirectory, string fallbackName, string fallbackEmail, CancellationToken cancellationToken = default);
 }
