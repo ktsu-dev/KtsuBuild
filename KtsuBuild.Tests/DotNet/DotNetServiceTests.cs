@@ -16,13 +16,20 @@ public class DotNetServiceTests
 	private IProcessRunner _processRunner = null!;
 	private DotNetService _service = null!;
 	private string _tempDir = null!;
+	private string _toolsDir = null!;
+	private string? _mergeArguments;
 
 	[TestInitialize]
 	public void Setup()
 	{
 		_processRunner = Substitute.For<IProcessRunner>();
-		_service = new DotNetService(_processRunner, new MockBuildLogger());
 		_tempDir = TestHelpers.CreateTempDir("DotNetSvc");
+
+		// Helper tools go to a directory this run owns, so a tool already installed on the machine
+		// cannot make the install path look as though it had run when it had not.
+		_toolsDir = Path.Combine(_tempDir, "tools");
+		_service = new DotNetService(_processRunner, new MockBuildLogger(), _toolsDir);
+		_mergeArguments = null;
 	}
 
 	[TestCleanup]
@@ -1212,4 +1219,164 @@ public class DotNetServiceTests
 	[TestMethod]
 	public void BundleContainsNativeLibrary_NonexistentBundle_ReturnsFalse() =>
 		Assert.IsFalse(DotNetService.BundleContainsNativeLibrary(Path.Combine(_tempDir, "nope.app"), "libSkiaSharp"));
+
+	// Coverage collection
+	//
+	// One `dotnet test` invocation runs every test project and hands each the same arguments. A
+	// fixed --coverage-output or --report-trx-filename therefore had every project overwrite the
+	// project before it, leaving one project's coverage and one project's test results standing in
+	// for the whole repository. What the scanner reported then depended on which project finished
+	// last, and moved between runs of the same commit.
+
+	[TestMethod]
+	public async Task TestProjectAsync_DoesNotName_TheCoverageFile()
+	{
+		string captured = await CaptureTestProjectArgsAsync().ConfigureAwait(false);
+
+		// --coverage-output-format shares this prefix and is still wanted, so the quote is what
+		// separates the format option from the filename option.
+		Assert.IsFalse(captured.Contains("--coverage-output \"", StringComparison.Ordinal), captured);
+	}
+
+	[TestMethod]
+	public async Task TestProjectAsync_DoesNotName_TheTrxFile()
+	{
+		string captured = await CaptureTestProjectArgsAsync().ConfigureAwait(false);
+
+		StringAssert.Contains(captured, "--report-trx");
+		Assert.IsFalse(captured.Contains("--report-trx-filename", StringComparison.Ordinal), captured);
+	}
+
+	[TestMethod]
+	public async Task TestAsync_OneReport_CopiesItAndInstallsNothing()
+	{
+		ArrangeWorkspaceWithTestProject();
+		StubTestRunProducing("a1b2.xml");
+
+		await _service.TestAsync(_tempDir, "Release", "coverage").ConfigureAwait(false);
+
+		Assert.IsTrue(File.Exists(Path.Combine(_tempDir, "coverage", "coverage.xml")));
+		await _processRunner.DidNotReceive().RunWithCallbackAsync("dotnet",
+			ArgMatch.NotNull<string>(a => a.Contains("tool install")),
+			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+	}
+
+	[TestMethod]
+	public async Task TestAsync_SeveralReports_MergesEveryOneOfThem()
+	{
+		ArrangeWorkspaceWithTestProject();
+		StubTestRunProducing("a1b2.xml", "c3d4.xml", "e5f6.xml");
+		StubCoverageMergeTool(exitCode: 0);
+
+		await _service.TestAsync(_tempDir, "Release", "coverage").ConfigureAwait(false);
+
+		Assert.IsNotNull(_mergeArguments, "The merge tool was never invoked.");
+		StringAssert.Contains(_mergeArguments, "a1b2.xml");
+		StringAssert.Contains(_mergeArguments, "c3d4.xml");
+		StringAssert.Contains(_mergeArguments, "e5f6.xml");
+		StringAssert.Contains(_mergeArguments, Path.Combine(_tempDir, "coverage", "coverage.xml"));
+	}
+
+	// Falling back to one project's report is exactly the defect this replaced: it reported a
+	// plausible-looking number that was wrong, and gated releases on it.
+	[TestMethod]
+	public async Task TestAsync_MergeFails_ThrowsRatherThanReportingOneProject()
+	{
+		ArrangeWorkspaceWithTestProject();
+		StubTestRunProducing("a1b2.xml", "c3d4.xml");
+		StubCoverageMergeTool(exitCode: 1);
+
+		await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+			() => _service.TestAsync(_tempDir, "Release", "coverage")).ConfigureAwait(false);
+	}
+
+	[TestMethod]
+	public async Task TestAsync_IgnoresXmlThatIsNotACoverageReport()
+	{
+		ArrangeWorkspaceWithTestProject();
+		StubTestRunProducing("a1b2.xml");
+		WriteResultsFile("notes.xml", "<?xml version=\"1.0\"?><scratch />");
+
+		await _service.TestAsync(_tempDir, "Release", "coverage").ConfigureAwait(false);
+
+		// One report left after the filter, so the merge tool is never needed.
+		await _processRunner.DidNotReceive().RunWithCallbackAsync("dotnet",
+			ArgMatch.NotNull<string>(a => a.Contains("tool install")),
+			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+	}
+
+	// A report an earlier run left behind describes code this run did not execute, and merging it in
+	// would credit coverage to tests that never ran.
+	[TestMethod]
+	public async Task TestAsync_DiscardsReportsFromAnEarlierRun()
+	{
+		ArrangeWorkspaceWithTestProject();
+		WriteResultsFile("stale.xml", "<?xml version=\"1.0\"?><results><modules /></results>");
+		StubTestRunProducing("a1b2.xml");
+
+		await _service.TestAsync(_tempDir, "Release", "coverage").ConfigureAwait(false);
+
+		Assert.IsFalse(File.Exists(Path.Combine(_tempDir, "coverage", "TestResults", "stale.xml")));
+		await _processRunner.DidNotReceive().RunWithCallbackAsync("dotnet",
+			ArgMatch.NotNull<string>(a => a.Contains("tool install")),
+			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+	}
+
+	private void ArrangeWorkspaceWithTestProject()
+	{
+		Directory.CreateDirectory(Path.Combine(_tempDir, "Foo.Tests"));
+		File.WriteAllText(
+			Path.Combine(_tempDir, "Foo.Tests", "Foo.Tests.csproj"),
+			"<Project><PropertyGroup><IsTestProject>true</IsTestProject><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>");
+	}
+
+	private void WriteResultsFile(string name, string content)
+	{
+		string dir = Path.Combine(_tempDir, "coverage", "TestResults");
+		Directory.CreateDirectory(dir);
+		File.WriteAllText(Path.Combine(dir, name), content);
+	}
+
+	/// <summary>
+	/// Makes the stubbed test run write the reports the real test platform would have written.
+	/// </summary>
+	/// <param name="reportNames">The report file names to produce, one per test project.</param>
+	private void StubTestRunProducing(params string[] reportNames)
+	{
+		_processRunner.RunWithCallbackAsync("dotnet",
+			ArgMatch.NotNull<string>(a => a.StartsWith("test", StringComparison.Ordinal)),
+			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
+			.Returns(_ =>
+			{
+				foreach (string name in reportNames)
+				{
+					WriteResultsFile(name, "<?xml version=\"1.0\"?><results><modules /></results>");
+				}
+
+				return 0;
+			});
+	}
+
+	/// <summary>
+	/// Stands in for installing and running the merge tool, and records the arguments it was given.
+	/// </summary>
+	/// <param name="exitCode">The exit code the merge should report.</param>
+	private void StubCoverageMergeTool(int exitCode)
+	{
+		string executable = Path.Combine(_toolsDir, OperatingSystem.IsWindows() ? "dotnet-coverage.exe" : "dotnet-coverage");
+
+		_processRunner.RunWithCallbackAsync("dotnet",
+			ArgMatch.NotNull<string>(a => a.Contains("tool install")),
+			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
+			.Returns(_ =>
+			{
+				Directory.CreateDirectory(_toolsDir);
+				File.WriteAllText(executable, "stand-in for the installed tool");
+				return 0;
+			});
+
+		_processRunner.RunWithCallbackAsync(executable, Arg.Do<string>(a => _mergeArguments = a),
+			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
+			.Returns(exitCode);
+	}
 }
