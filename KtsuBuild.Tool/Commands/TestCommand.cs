@@ -35,6 +35,16 @@ public class TestCommand : Command
 	};
 
 	/// <summary>
+	/// Gets the option naming project paths to leave out of a whole-workspace run.
+	/// </summary>
+	public static Option<string[]> Exclude { get; } = new("--exclude")
+	{
+		Description = "Glob matched against each project's path in the solution; matching projects are built but not tested. Repeatable.",
+		AllowMultipleArgumentsPerToken = true,
+		DefaultValueFactory = _ => [],
+	};
+
+	/// <summary>
 	/// Initializes a new instance of the <see cref="TestCommand"/> class.
 	/// </summary>
 	public TestCommand() : base("test", "Test project discovery and execution")
@@ -123,11 +133,11 @@ public class TestCommand : Command
 	/// <param name="processRunner">The process runner.</param>
 	/// <param name="logger">The build logger.</param>
 	/// <returns>The command handler action.</returns>
-	public static Func<string, string, bool, CancellationToken, Task<int>> CreateAllHandler(
+	public static Func<string, string, string[], bool, CancellationToken, Task<int>> CreateAllHandler(
 		IProcessRunner processRunner,
 		IBuildLogger logger)
 	{
-		return async (workspace, configuration, verbose, cancellationToken) =>
+		return async (workspace, configuration, exclude, verbose, cancellationToken) =>
 		{
 			logger.VerboseEnabled = verbose;
 			BuildEnvironment.Initialize();
@@ -189,9 +199,68 @@ public class TestCommand : Command
 				// There is no per-project failure list to accumulate anymore: one invocation tests every
 				// project in toRun and reports all of their results itself, so there is nothing left for
 				// this command to collect project by project.
-				await dotNetService.TestAsync(workspace, configuration, "coverage", hostRuntimeOnly: true, cancellationToken).ConfigureAwait(false);
+				// Exclusions narrow the run through a solution filter rather than by looping over
+				// projects, so the single invocation above is preserved. Excluded projects are still
+				// built when something else references them; they are only left untested.
+				string? solutionFilter = null;
+				List<TestProjectInfo> excludedFromRun = [];
 
-				logger.WriteSuccess($"All {toRun.Count} test project(s) passed!");
+				if (exclude.Length > 0)
+				{
+					string? solution = SolutionFilter.FindSolution(workspace);
+
+					if (solution is null)
+					{
+						logger.WriteWarning("--exclude was given but the workspace has no solution file, so nothing was excluded.");
+					}
+					else
+					{
+						// The filter is written from the solution's own project list, so it governs
+						// what runs. This list is the same patterns applied to the test projects, so
+						// what gets reported below matches what the filter actually left out.
+						excludedFromRun = [.. toRun.Where(p => exclude.Any(pattern =>
+							SolutionFilter.Matches(Path.GetRelativePath(workspace, p.Project), pattern)))];
+						toRun = [.. toRun.Except(excludedFromRun)];
+
+						solutionFilter = Path.Combine(workspace, "ktsubuild.filtered.slnf");
+						IReadOnlyList<string> excludedProjects = SolutionFilter.Write(solution, exclude, solutionFilter);
+
+						// A project silently dropped from a run looks identical to a passing run, so
+						// every exclusion is named, and a pattern that matched nothing is called out
+						// rather than left to look like it worked.
+						foreach (string project in excludedProjects)
+						{
+							logger.WriteInfo($"Excluding {project.Replace('\\', '/')} from the test run.");
+						}
+
+						if (excludedProjects.Count == 0)
+						{
+							logger.WriteWarning($"--exclude matched no projects in {Path.GetFileName(solution)}. Patterns: {string.Join(", ", exclude)}");
+						}
+					}
+				}
+
+				if (toRun.Count == 0)
+				{
+					logger.WriteInfo("Every test project was excluded. Nothing to run.");
+					return 0;
+				}
+
+				try
+				{
+					await dotNetService.TestAsync(workspace, configuration, "coverage", hostRuntimeOnly: true, solutionFilter, cancellationToken).ConfigureAwait(false);
+				}
+				finally
+				{
+					if (solutionFilter is not null && File.Exists(solutionFilter))
+					{
+						File.Delete(solutionFilter);
+					}
+				}
+
+				logger.WriteSuccess(excludedFromRun.Count > 0
+					? $"All {toRun.Count} test project(s) passed! ({excludedFromRun.Count} excluded by --exclude.)"
+					: $"All {toRun.Count} test project(s) passed!");
 				return 0;
 			}
 			catch (Exception ex)
@@ -250,6 +319,7 @@ public class TestCommand : Command
 			Options.Add(GlobalOptions.Workspace);
 			Options.Add(GlobalOptions.Configuration);
 			Options.Add(GlobalOptions.Verbose);
+			Options.Add(Exclude);
 		}
 	}
 }

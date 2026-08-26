@@ -238,13 +238,14 @@ internal sealed class Program
 
 		// All subcommand
 		Command allCommand = testCommand.Subcommands.First(c => c.Name == "all");
-		Func<string, string, bool, CancellationToken, Task<int>> allHandler = TestCommand.CreateAllHandler(processRunner, logger);
+		Func<string, string, string[], bool, CancellationToken, Task<int>> allHandler = TestCommand.CreateAllHandler(processRunner, logger);
 		allCommand.SetAction(async (parseResult, ct) =>
 		{
 			string workspace = parseResult.GetValue(GlobalOptions.Workspace)!;
 			string configuration = parseResult.GetValue(GlobalOptions.Configuration)!;
+			string[] exclude = parseResult.GetValue(TestCommand.Exclude) ?? [];
 			bool verbose = parseResult.GetValue(GlobalOptions.Verbose);
-			return await allHandler(workspace, configuration, verbose, ct).ConfigureAwait(false);
+			return await allHandler(workspace, configuration, exclude, verbose, ct).ConfigureAwait(false);
 		});
 
 		rootCommand.Subcommands.Add(testCommand);

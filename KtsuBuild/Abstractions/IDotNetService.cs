@@ -43,7 +43,8 @@ public interface IDotNetService
 	/// it, so this defaults to <see langword="false"/> and is safe to set unconditionally once callers
 	/// opt in.
 	/// </remarks>
-	public Task TestAsync(string workingDirectory, string configuration = "Release", string? coverageOutputPath = null, bool hostRuntimeOnly = false, CancellationToken cancellationToken = default);
+	/// <param name="solutionFilter">Path to a solution filter narrowing the run, or null for the whole workspace.</param>
+	public Task TestAsync(string workingDirectory, string configuration = "Release", string? coverageOutputPath = null, bool hostRuntimeOnly = false, string? solutionFilter = null, CancellationToken cancellationToken = default);
 
 	/// <summary>
 	/// Runs a single test project with coverage.

@@ -114,7 +114,7 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger) : 
 	}
 
 	/// <inheritdoc/>
-	public async Task TestAsync(string workingDirectory, string configuration = DefaultConfiguration, string? coverageOutputPath = null, bool hostRuntimeOnly = false, CancellationToken cancellationToken = default)
+	public async Task TestAsync(string workingDirectory, string configuration = DefaultConfiguration, string? coverageOutputPath = null, bool hostRuntimeOnly = false, string? solutionFilter = null, CancellationToken cancellationToken = default)
 	{
 		Ensure.NotNull(workingDirectory);
 		logger.WriteStepHeader("Running Tests with Coverage");
@@ -129,7 +129,7 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger) : 
 
 		logger.WriteInfo($"Found {testProjects.Count} test project(s)");
 
-		await RunTestsAsync(target: string.Empty, workingDirectory, configuration, coverageOutputPath, noBuild: false, runtimeIdentifierPin: false, ktsuHostRuntimeOnly: hostRuntimeOnly, cancellationToken).ConfigureAwait(false);
+		await RunTestsAsync(target: string.Empty, workingDirectory, configuration, coverageOutputPath, noBuild: false, runtimeIdentifierPin: false, ktsuHostRuntimeOnly: hostRuntimeOnly, solutionFilter, cancellationToken).ConfigureAwait(false);
 	}
 
 	// Shared by TestAsync, which tests everything the host can build in one invocation, and
@@ -140,7 +140,7 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger) : 
 	// ever true from TestAsync, where the run spans the whole workspace and a global
 	// `RuntimeIdentifier` would fail with NETSDK1134, so pinning goes through the Sdk's opt-in
 	// property instead. See the property's own comment below for why the two cannot be swapped.
-	private async Task RunTestsAsync(string target, string workingDirectory, string configuration, string? coverageOutputPath, bool noBuild, bool runtimeIdentifierPin, bool ktsuHostRuntimeOnly, CancellationToken cancellationToken)
+	private async Task RunTestsAsync(string target, string workingDirectory, string configuration, string? coverageOutputPath, bool noBuild, bool runtimeIdentifierPin, bool ktsuHostRuntimeOnly, string? solutionFilter, CancellationToken cancellationToken)
 	{
 		string resultsPath = coverageOutputPath ?? "coverage";
 		string testResultsPath = Path.Combine(resultsPath, "TestResults");
@@ -151,7 +151,15 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger) : 
 		// unresolved path runs the whole solution and reports "total: 0" with an error per
 		// assembly, which reads as a test failure rather than as a bad argument. `--project`
 		// fails loudly instead. An empty target is the whole-workspace case and passes neither.
-		string scope = string.IsNullOrEmpty(target) ? string.Empty : $"--project \"{target}\" ";
+		// A solution filter narrows a workspace-wide run to a subset of projects while keeping it a
+		// single invocation. `--solution` is used rather than a positional path for the same reason
+		// `--project` is: dotnet test silently ignores a positional path it cannot resolve and falls
+		// back to the current directory, which reads as a test failure rather than a bad argument.
+		string scope = !string.IsNullOrEmpty(target)
+			? $"--project \"{target}\" "
+			: !string.IsNullOrEmpty(solutionFilter)
+				? $"--solution \"{solutionFilter}\" "
+				: string.Empty;
 		string args = $"test {scope}--configuration {configuration} --coverage --coverage-output-format xml " +
 			$"--coverage-output \"coverage.xml\" --results-directory \"{testResultsPath}\" " +
 			$"--report-trx --report-trx-filename TestResults.trx";
@@ -231,7 +239,7 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger) : 
 
 		logger.WriteStepHeader($"Running Tests with Coverage: {Path.GetFileNameWithoutExtension(projectPath)}");
 
-		await RunTestsAsync(projectPath, workingDirectory, configuration, coverageOutputPath, noBuild, runtimeIdentifierPin: hostRuntimeOnly, ktsuHostRuntimeOnly: false, cancellationToken).ConfigureAwait(false);
+		await RunTestsAsync(projectPath, workingDirectory, configuration, coverageOutputPath, noBuild, runtimeIdentifierPin: hostRuntimeOnly, ktsuHostRuntimeOnly: false, solutionFilter: null, cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc/>

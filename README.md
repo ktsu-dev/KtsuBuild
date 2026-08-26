@@ -193,6 +193,30 @@ which is why the pin now rides a single invocation instead of a loop.
 This is for testing, not for shipping. `release` still publishes for every runtime it names, and
 `build` stays runtime-agnostic, because a solution build cannot take a runtime identifier at all.
 
+##### Excluding projects
+
+`--exclude` takes a glob matched against each project's path as the solution records it, and is
+repeatable. Matching projects are left out of the test run:
+
+```bash
+ktsubuild test all --exclude "**/*.UITests/*"
+```
+
+The exclusion works by writing a solution filter and testing that, so the run stays a single
+`dotnet test` invocation. Looping over the remaining projects instead would cost one test host
+startup each, which is the trade this command already measured and rejected.
+
+Matching is case insensitive and runs against the forward-slash form of the path, so one pattern
+works whichever platform wrote the solution. `**` crosses directory separators and `*` does not.
+
+Every excluded project is named in the log and the closing summary counts only what ran, because a
+project silently dropped from a run is indistinguishable from a run that passed. A pattern matching
+nothing is reported as a warning rather than left to look like it worked.
+
+Use this when a suite is worth running on one platform but not on all of them. ImGuiApp excludes
+its UI suites on Windows: they are the entire cost of that job, and what they exercise is a managed
+CPU rasterizer that measures the same on both operating systems.
+
 ### `release`
 
 Release workflow: pack, publish NuGet packages, and create GitHub release.
