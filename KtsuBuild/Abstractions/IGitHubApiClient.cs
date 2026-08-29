@@ -53,16 +53,6 @@ public interface IGitHubApiClient
 	public Task<string?> GetFileTextAsync(string organization, string repository, string path, CancellationToken cancellationToken = default);
 
 	/// <summary>
-	/// Lists the names of the entries in a repository directory.
-	/// </summary>
-	/// <param name="organization">The repository owner.</param>
-	/// <param name="repository">The repository name.</param>
-	/// <param name="path">The directory path within the repository.</param>
-	/// <param name="cancellationToken">A cancellation token.</param>
-	/// <returns>The names of the subdirectories in the path, or an empty list when the path does not exist.</returns>
-	public Task<IReadOnlyList<string>> ListDirectoryNamesAsync(string organization, string repository, string path, CancellationToken cancellationToken = default);
-
-	/// <summary>
 	/// Counts the commits pushed to a repository since a point in time.
 	/// </summary>
 	/// <param name="organization">The repository owner.</param>
@@ -100,7 +90,8 @@ public interface IGitHubApiClient
 /// <param name="Name">The repository name.</param>
 /// <param name="DefaultBranch">The default branch name.</param>
 /// <param name="IsArchived">Whether the repository is archived.</param>
-public record GitHubRepository(string Name, string DefaultBranch, bool IsArchived);
+/// <param name="Stars">The stargazer count, which the listing endpoint already returns.</param>
+public record GitHubRepository(string Name, string DefaultBranch, bool IsArchived, int Stars = 0);
 
 /// <summary>
 /// A published release.

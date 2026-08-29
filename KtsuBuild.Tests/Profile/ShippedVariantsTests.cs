@@ -126,19 +126,4 @@ public class ShippedVariantsTests
 	[TestMethod]
 	public void Combine_WithNothing_ReportsNothing() =>
 		Assert.IsEmpty(ShippedVariants.Combine([]));
-
-	[TestMethod]
-	[DataRow(ShippedVariant.ConsoleApp)]
-	[DataRow(ShippedVariant.App)]
-	[DataRow(ShippedVariant.Tool)]
-	public void IncludesExecutable_WithARunnableVariant_ReturnsTrue(ShippedVariant variant) =>
-		Assert.IsTrue(ShippedVariants.IncludesExecutable([variant]));
-
-	[TestMethod]
-	public void IncludesExecutable_WithOnlyALibrary_ReturnsFalse() =>
-		Assert.IsFalse(ShippedVariants.IncludesExecutable([ShippedVariant.Library]));
-
-	[TestMethod]
-	public void IncludesExecutable_WithNothing_ReturnsFalse() =>
-		Assert.IsFalse(ShippedVariants.IncludesExecutable([]));
 }

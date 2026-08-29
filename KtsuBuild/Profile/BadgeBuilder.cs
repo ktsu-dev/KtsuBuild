@@ -52,9 +52,6 @@ public static class BadgeColors
 	/// <summary>Gets the GitHub brand dark.</summary>
 	public static string GitHub => "181717";
 
-	/// <summary>Gets the Windows brand blue, used for winget.</summary>
-	public static string Winget => "0078D4";
-
 	/// <summary>Gets the color for a passing state.</summary>
 	public static string Success => "2ea44f";
 
@@ -66,6 +63,9 @@ public static class BadgeColors
 
 	/// <summary>Gets the color for an unknown or in-progress state.</summary>
 	public static string Warning => "dbab09";
+
+	/// <summary>Gets the color for a stargazer count.</summary>
+	public static string Star => "e3b341";
 
 	/// <summary>Gets the color for a .NET tool.</summary>
 	public static string Tool => "512BD4";
