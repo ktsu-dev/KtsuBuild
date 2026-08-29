@@ -28,7 +28,8 @@ public class GitHubApiClient(IProcessRunner processRunner, IBuildLogger logger) 
 
 		List<GitHubRepository> repositories = [];
 
-		for (int page = 1; ; page++)
+		bool hasMorePages = true;
+		for (int page = 1; hasMorePages; page++)
 		{
 			string endpoint = $"/orgs/{organization}/repos?type=public&sort=full_name&direction=asc&page={page.ToString(CultureInfo.InvariantCulture)}&per_page={PageSize.ToString(CultureInfo.InvariantCulture)}";
 			JsonElement? response = await GetJsonAsync(endpoint, cancellationToken).ConfigureAwait(false);
@@ -37,26 +38,16 @@ public class GitHubApiClient(IProcessRunner processRunner, IBuildLogger logger) 
 				break;
 			}
 
-			int count = 0;
-			foreach (JsonElement item in response.Value.EnumerateArray())
-			{
-				count++;
-				string? name = GetString(item, "name");
-				if (name is null)
-				{
-					continue;
-				}
-
-				repositories.Add(new GitHubRepository(
-					name,
+			JsonElement[] items = [.. response.Value.EnumerateArray()];
+			repositories.AddRange(items
+				.Where(static item => GetString(item, "name") is not null)
+				.Select(static item => new GitHubRepository(
+					GetString(item, "name")!,
 					GetString(item, "default_branch") ?? "main",
-					item.TryGetProperty("archived", out JsonElement archived) && archived.ValueKind == JsonValueKind.True));
-			}
+					item.TryGetProperty("archived", out JsonElement archived) && archived.ValueKind == JsonValueKind.True)));
 
-			if (count < PageSize)
-			{
-				break;
-			}
+			// A page shorter than the page size is the last one.
+			hasMorePages = items.Length == PageSize;
 		}
 
 		return repositories;
@@ -71,17 +62,13 @@ public class GitHubApiClient(IProcessRunner processRunner, IBuildLogger logger) 
 			return [];
 		}
 
-		List<GitHubRelease> releases = [];
-		foreach (JsonElement item in response.Value.EnumerateArray())
-		{
-			string? tag = GetString(item, "tag_name");
-			if (tag is not null)
-			{
-				releases.Add(new GitHubRelease(tag));
-			}
-		}
-
-		return releases;
+		return
+		[
+			.. response.Value.EnumerateArray()
+				.Select(static item => GetString(item, "tag_name"))
+				.OfType<string>()
+				.Select(static tag => new GitHubRelease(tag)),
+		];
 	}
 
 	/// <inheritdoc/>
@@ -100,16 +87,13 @@ public class GitHubApiClient(IProcessRunner processRunner, IBuildLogger logger) 
 			logger.WriteWarning($"  Tree for {repository} was truncated by the API, so some files are not listed");
 		}
 
-		List<string> paths = [];
-		foreach (JsonElement item in tree.EnumerateArray())
-		{
-			if (GetString(item, "type") == "blob" && GetString(item, "path") is string path)
-			{
-				paths.Add(path);
-			}
-		}
-
-		return paths;
+		return
+		[
+			.. tree.EnumerateArray()
+				.Where(static item => GetString(item, "type") == "blob")
+				.Select(static item => GetString(item, "path"))
+				.OfType<string>(),
+		];
 	}
 
 	/// <inheritdoc/>
@@ -141,16 +125,13 @@ public class GitHubApiClient(IProcessRunner processRunner, IBuildLogger logger) 
 			return [];
 		}
 
-		List<string> names = [];
-		foreach (JsonElement item in response.Value.EnumerateArray())
-		{
-			if (GetString(item, "type") == "dir" && GetString(item, "name") is string name)
-			{
-				names.Add(name);
-			}
-		}
-
-		return names;
+		return
+		[
+			.. response.Value.EnumerateArray()
+				.Where(static item => GetString(item, "type") == "dir")
+				.Select(static item => GetString(item, "name"))
+				.OfType<string>(),
+		];
 	}
 
 	/// <inheritdoc/>
@@ -171,16 +152,14 @@ public class GitHubApiClient(IProcessRunner processRunner, IBuildLogger logger) 
 			return [];
 		}
 
-		List<string> names = [];
-		foreach (JsonElement item in workflows.EnumerateArray())
-		{
-			if (GetString(item, "state") == "active" && GetString(item, "path") is string path)
-			{
-				names.Add(path[(path.LastIndexOf('/') + 1)..]);
-			}
-		}
-
-		return names;
+		return
+		[
+			.. workflows.EnumerateArray()
+				.Where(static item => GetString(item, "state") == "active")
+				.Select(static item => GetString(item, "path"))
+				.OfType<string>()
+				.Select(static path => path[(path.LastIndexOf('/') + 1)..]),
+		];
 	}
 
 	/// <inheritdoc/>

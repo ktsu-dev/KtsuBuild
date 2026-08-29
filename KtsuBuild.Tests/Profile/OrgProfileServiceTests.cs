@@ -77,7 +77,7 @@ public class OrgProfileServiceTests
 		_gitHub.ListReleasesAsync(Arg.Any<string>(), "Alpha", Arg.Any<CancellationToken>())
 			.Returns(Task.FromResult<IReadOnlyList<GitHubRelease>>([new GitHubRelease("v1.0.0-pre.1")]));
 
-		Assert.AreEqual(0, (await _service.GatherAsync(Options).ConfigureAwait(false)).Count);
+		Assert.IsEmpty(await _service.GatherAsync(Options).ConfigureAwait(false));
 	}
 
 	[TestMethod]
@@ -87,7 +87,7 @@ public class OrgProfileServiceTests
 		_gitHub.ListReleasesAsync(Arg.Any<string>(), "Alpha", Arg.Any<CancellationToken>())
 			.Returns(Task.FromResult<IReadOnlyList<GitHubRelease>>([]));
 
-		Assert.AreEqual(0, (await _service.GatherAsync(Options).ConfigureAwait(false)).Count);
+		Assert.IsEmpty(await _service.GatherAsync(Options).ConfigureAwait(false));
 	}
 
 	[TestMethod]

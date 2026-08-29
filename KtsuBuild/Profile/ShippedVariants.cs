@@ -35,6 +35,10 @@ public enum ShippedVariant
 /// </remarks>
 public static partial class ShippedVariants
 {
+	// Project files come from a remote repository, so matching is bounded rather than left to run for
+	// as long as a pathological input takes.
+	private const int MatchTimeoutMilliseconds = 2000;
+
 	private static readonly string[] SupportingDirectories =
 	[
 		"test", "tests", "example", "examples", "sample", "samples",
@@ -181,7 +185,10 @@ public static partial class ShippedVariants
 	/// demo left in the list reports its SDK as something the repository ships, so Keybinding would
 	/// claim a command line program it does not have.
 	/// </remarks>
-	[GeneratedRegex(@"(Benchmark|Test|Sample|Example|Demo)s?\.csproj$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+	[GeneratedRegex(
+		@"(Benchmark|Test|Sample|Example|Demo)s?\.csproj$",
+		RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
+		MatchTimeoutMilliseconds)]
 	private static partial Regex SupportingProjectRegex();
 
 	/// <summary>
@@ -191,6 +198,7 @@ public static partial class ShippedVariants
 	/// <returns>The compiled regex.</returns>
 	[GeneratedRegex(
 		"""(?:Sdk\s*=\s*"|<Sdk\s+Name\s*=\s*")ktsu\.Sdk(?:\.(?<variant>[A-Za-z]+))?(?:/[\d.]+)?"?""",
-		RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+		RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
+		MatchTimeoutMilliseconds)]
 	private static partial Regex SdkDeclarationRegex();
 }

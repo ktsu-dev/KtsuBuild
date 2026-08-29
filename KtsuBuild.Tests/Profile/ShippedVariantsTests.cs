@@ -89,11 +89,11 @@ public class ShippedVariantsTests
 
 	[TestMethod]
 	public void FromProject_WithNoKtsuSdk_ReportsNothing() =>
-		Assert.AreEqual(0, ShippedVariants.FromProject("""<Project Sdk="Microsoft.NET.Sdk"></Project>""").Count);
+		Assert.IsEmpty(ShippedVariants.FromProject("""<Project Sdk="Microsoft.NET.Sdk"></Project>"""));
 
 	[TestMethod]
 	public void FromProject_WithNoContent_ReportsNothing() =>
-		Assert.AreEqual(0, ShippedVariants.FromProject(null).Count);
+		Assert.IsEmpty(ShippedVariants.FromProject(null));
 
 	[TestMethod]
 	public void Combine_MergesAcrossProjects() =>
@@ -125,7 +125,7 @@ public class ShippedVariantsTests
 
 	[TestMethod]
 	public void Combine_WithNothing_ReportsNothing() =>
-		Assert.AreEqual(0, ShippedVariants.Combine([]).Count);
+		Assert.IsEmpty(ShippedVariants.Combine([]));
 
 	[TestMethod]
 	[DataRow(ShippedVariant.ConsoleApp)]

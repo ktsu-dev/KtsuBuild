@@ -23,6 +23,8 @@ public static class ProfileRenderer
 
 	private const string EmptyCell = "| ";
 
+	private const string GitHubLogo = "github";
+
 	/// <summary>
 	/// Renders the full profile README.
 	/// </summary>
@@ -142,7 +144,7 @@ public static class ProfileRenderer
 
 		if (!string.IsNullOrEmpty(repository.ReleaseStableVersion))
 		{
-			return $"|![GitHub Version]({BadgeBuilder.Build(string.Empty, $"v{repository.ReleaseStableVersion}", BadgeColors.GitHub, "github")})";
+			return $"|![GitHub Version]({BadgeBuilder.Build(string.Empty, $"v{repository.ReleaseStableVersion}", BadgeColors.GitHub, GitHubLogo)})";
 		}
 
 		return EmptyCell;
@@ -165,7 +167,7 @@ public static class ProfileRenderer
 		if (!string.IsNullOrEmpty(repository.ReleasePrereleaseVersion) &&
 			SemanticVersion.IsGreater(repository.ReleasePrereleaseVersion, repository.ReleaseStableVersion))
 		{
-			return $"|![GitHub Prerelease]({BadgeBuilder.Build(string.Empty, $"v{repository.ReleasePrereleaseVersion}", BadgeColors.GitHub, "github")})";
+			return $"|![GitHub Prerelease]({BadgeBuilder.Build(string.Empty, $"v{repository.ReleasePrereleaseVersion}", BadgeColors.GitHub, GitHubLogo)})";
 		}
 
 		return EmptyCell;
@@ -188,7 +190,7 @@ public static class ProfileRenderer
 	/// <returns>The markdown cell.</returns>
 	private static string RenderActivityCell(RepoFacts repository) =>
 		repository.CommitActivity > 0
-			? $"|![Activity]({BadgeBuilder.Build(string.Empty, repository.CommitActivity.ToString(CultureInfo.InvariantCulture), BadgeColors.GitHub, "github")})"
+			? $"|![Activity]({BadgeBuilder.Build(string.Empty, repository.CommitActivity.ToString(CultureInfo.InvariantCulture), BadgeColors.GitHub, GitHubLogo)})"
 			: EmptyCell;
 
 	/// <summary>
@@ -211,7 +213,7 @@ public static class ProfileRenderer
 			_ => ("unknown", BadgeColors.Warning),
 		};
 
-		return $"|![Status]({BadgeBuilder.Build(string.Empty, message, color, "github")})";
+		return $"|![Status]({BadgeBuilder.Build(string.Empty, message, color, GitHubLogo)})";
 	}
 
 	/// <summary>

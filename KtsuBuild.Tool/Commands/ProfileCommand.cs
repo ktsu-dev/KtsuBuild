@@ -3,10 +3,8 @@
 namespace KtsuBuild.Tool.Commands;
 
 using System.CommandLine;
-using System.Globalization;
 using KtsuBuild.Abstractions;
 using KtsuBuild.Profile;
-using KtsuBuild.Utilities;
 
 /// <summary>
 /// Profile command for generating an organization's public profile README.
@@ -41,49 +39,49 @@ public class ProfileCommand : Command
 		bool Verbose);
 
 	/// <summary>Gets the organization option.</summary>
-	public static Option<string> Organization { get; } = new("--org", "-o")
+	public static Option<string> OrganizationOption { get; } = new("--org", "-o")
 	{
 		Description = "The GitHub organization to profile",
 		Required = true,
 	};
 
 	/// <summary>Gets the template path option.</summary>
-	public static Option<string> Template { get; } = new("--template", "-t")
+	public static Option<string> TemplateOption { get; } = new("--template", "-t")
 	{
 		Description = "The README template the generated tables are appended to",
 		DefaultValueFactory = _ => "./profile/README.template",
 	};
 
 	/// <summary>Gets the output path option.</summary>
-	public static Option<string> Output { get; } = new("--output")
+	public static Option<string> OutputOption { get; } = new("--output")
 	{
 		Description = "Where to write the rendered README",
 		DefaultValueFactory = _ => "./profile/README.md",
 	};
 
 	/// <summary>Gets the NuGet package prefix option.</summary>
-	public static Option<string> PackagePrefix { get; } = new("--package-prefix")
+	public static Option<string> PackagePrefixOption { get; } = new("--package-prefix")
 	{
 		Description = "The NuGet package prefix, so repo Extensions resolves to prefix.Extensions",
 		DefaultValueFactory = _ => "ktsu",
 	};
 
 	/// <summary>Gets the winget publisher option.</summary>
-	public static Option<string> WingetPublisher { get; } = new("--winget-publisher")
+	public static Option<string> WingetPublisherOption { get; } = new("--winget-publisher")
 	{
 		Description = "The winget publisher whose manifests are searched for shipped applications",
 		DefaultValueFactory = _ => "ktsu",
 	};
 
 	/// <summary>Gets the SDK package option.</summary>
-	public static Option<string> SdkPackage { get; } = new("--sdk-package")
+	public static Option<string> SdkPackageOption { get; } = new("--sdk-package")
 	{
 		Description = "The MSBuild SDK whose pinned version is reported and compared",
 		DefaultValueFactory = _ => "ktsu.Sdk",
 	};
 
 	/// <summary>Gets the repository exclusion option.</summary>
-	public static Option<string[]> Exclude { get; } = new("--exclude")
+	public static Option<string[]> ExcludeOption { get; } = new("--exclude")
 	{
 		Description = "A repository to leave out of the tables, repeatable",
 		AllowMultipleArgumentsPerToken = true,
@@ -91,7 +89,7 @@ public class ProfileCommand : Command
 	};
 
 	/// <summary>Gets the repository filter option.</summary>
-	public static Option<string[]> Only { get; } = new("--only")
+	public static Option<string[]> OnlyOption { get; } = new("--only")
 	{
 		Description = "Consider only this repository, repeatable",
 		AllowMultipleArgumentsPerToken = true,
@@ -99,7 +97,7 @@ public class ProfileCommand : Command
 	};
 
 	/// <summary>Gets the fallback workflow option.</summary>
-	public static Option<string[]> FallbackWorkflows { get; } = new("--fallback-workflow")
+	public static Option<string[]> FallbackWorkflowsOption { get; } = new("--fallback-workflow")
 	{
 		Description = "A workflow file name to try when a repository has no dotnet.yml, repeatable",
 		AllowMultipleArgumentsPerToken = true,
@@ -136,6 +134,11 @@ public class ProfileCommand : Command
 				logger.WriteWarning("Cancelled");
 				return 1;
 			}
+			catch (FileNotFoundException exception)
+			{
+				logger.WriteError(exception.Message);
+				return 1;
+			}
 			catch (Exception exception)
 			{
 				logger.WriteError($"Failed to generate profile README: {exception.Message}");
@@ -151,14 +154,6 @@ public class ProfileCommand : Command
 		ProfileOptionsInput input,
 		CancellationToken cancellationToken)
 	{
-		if (!File.Exists(input.TemplatePath))
-		{
-			logger.WriteError($"Template not found: {input.TemplatePath}");
-			return 1;
-		}
-
-		string template = await File.ReadAllTextAsync(input.TemplatePath, cancellationToken).ConfigureAwait(false);
-
 		using HttpClient httpClient = new()
 		{
 			Timeout = TimeSpan.FromSeconds(30),
@@ -166,7 +161,7 @@ public class ProfileCommand : Command
 
 		GitHubApiClient gitHub = new(processRunner, logger);
 		NuGetCatalogClient nuGet = new(httpClient, logger);
-		OrgProfileService service = new(gitHub, nuGet, logger);
+		ProfileGenerator generator = new(new OrgProfileService(gitHub, nuGet, logger), logger);
 
 		ProfileOptions options = new()
 		{
@@ -179,20 +174,8 @@ public class ProfileCommand : Command
 			FallbackWorkflowFileNames = input.FallbackWorkflows,
 		};
 
-		IReadOnlyList<RepoFacts> facts = await service.GatherAsync(options, cancellationToken).ConfigureAwait(false);
-		string rendered = ProfileRenderer.Render(template, facts);
+		await generator.GenerateAsync(options, input.TemplatePath, input.OutputPath, cancellationToken).ConfigureAwait(false);
 
-		string? directory = Path.GetDirectoryName(Path.GetFullPath(input.OutputPath));
-		if (!string.IsNullOrEmpty(directory))
-		{
-			Directory.CreateDirectory(directory);
-		}
-
-		// LF regardless of platform, because Git normalizes the committed blob to LF anyway and a
-		// stable byte sequence keeps the daily commit empty when nothing changed.
-		await LineEndingHelper.WriteFileAsync(input.OutputPath, rendered, "\n", cancellationToken).ConfigureAwait(false);
-
-		logger.WriteSuccess($"Wrote {input.OutputPath} with {facts.Count.ToString(CultureInfo.InvariantCulture)} repositories");
 		return 0;
 	}
 
@@ -202,15 +185,15 @@ public class ProfileCommand : Command
 	{
 		public ReadmeCommand() : base("readme", "Generate the organization profile README")
 		{
-			Options.Add(Organization);
-			Options.Add(Template);
-			Options.Add(Output);
-			Options.Add(PackagePrefix);
-			Options.Add(WingetPublisher);
-			Options.Add(SdkPackage);
-			Options.Add(Exclude);
-			Options.Add(Only);
-			Options.Add(FallbackWorkflows);
+			Options.Add(OrganizationOption);
+			Options.Add(TemplateOption);
+			Options.Add(OutputOption);
+			Options.Add(PackagePrefixOption);
+			Options.Add(WingetPublisherOption);
+			Options.Add(SdkPackageOption);
+			Options.Add(ExcludeOption);
+			Options.Add(OnlyOption);
+			Options.Add(FallbackWorkflowsOption);
 			Options.Add(GlobalOptions.Verbose);
 		}
 	}

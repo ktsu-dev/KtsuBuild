@@ -49,15 +49,15 @@ public class ProfileRendererTests
 
 	[TestMethod]
 	public void RenderRow_WithCurrentSdk_UsesTheSuccessColor() =>
-		StringAssert.Contains(
-			ProfileRenderer.RenderRow(Library("Widget") with { SdkVersion = "2.28.0", SdkIsCurrent = true }),
-			"![SDK](https://img.shields.io/badge/-2.28.0-2ea44f)");
+		Assert.Contains(
+			"![SDK](https://img.shields.io/badge/-2.28.0-2ea44f)",
+			ProfileRenderer.RenderRow(Library("Widget") with { SdkVersion = "2.28.0", SdkIsCurrent = true }));
 
 	[TestMethod]
 	public void RenderRow_WithOutdatedSdk_UsesTheWarningColor() =>
-		StringAssert.Contains(
-			ProfileRenderer.RenderRow(Library("Widget") with { SdkVersion = "2.8.0", SdkIsCurrent = false }),
-			"![SDK](https://img.shields.io/badge/-2.8.0-dbab09)");
+		Assert.Contains(
+			"![SDK](https://img.shields.io/badge/-2.8.0-dbab09)",
+			ProfileRenderer.RenderRow(Library("Widget") with { SdkVersion = "2.8.0", SdkIsCurrent = false }));
 
 	[TestMethod]
 	public void RenderRow_WithNoSdkPin_LeavesTheCellBlank() =>
@@ -71,8 +71,8 @@ public class ProfileRendererTests
 			Variants = [ShippedVariant.Library, ShippedVariant.Tool],
 		});
 
-		StringAssert.Contains(row, "![lib](https://img.shields.io/badge/-lib-004880)");
-		StringAssert.Contains(row, "![tool](https://img.shields.io/badge/-tool-512BD4)");
+		Assert.Contains("![lib](https://img.shields.io/badge/-lib-004880)", row);
+		Assert.Contains("![tool](https://img.shields.io/badge/-tool-512BD4)", row);
 	}
 
 	[TestMethod]
@@ -88,19 +88,19 @@ public class ProfileRendererTests
 	{
 		string row = ProfileRenderer.RenderRow(Library("Extensions") with { NuGetStableVersion = "1.6.8" });
 
-		StringAssert.Contains(row, "![NuGet Version](https://img.shields.io/badge/-v1.6.8-004880?logo=nuget&logoColor=white)");
+		Assert.Contains("![NuGet Version](https://img.shields.io/badge/-v1.6.8-004880?logo=nuget&logoColor=white)", row);
 		Assert.IsFalse(row.Contains("GitHub Version", StringComparison.Ordinal));
 	}
 
 	[TestMethod]
 	public void RenderRow_WithNewerPrerelease_ShowsIt() =>
-		StringAssert.Contains(
+		Assert.Contains(
+			"![NuGet Prerelease](https://img.shields.io/badge/-v1.1.0--pre.1-004880?logo=nuget&logoColor=white)",
 			ProfileRenderer.RenderRow(Library("Widget") with
 			{
 				NuGetStableVersion = "1.0.0",
 				NuGetPrereleaseVersion = "1.1.0-pre.1",
-			}),
-			"![NuGet Prerelease](https://img.shields.io/badge/-v1.1.0--pre.1-004880?logo=nuget&logoColor=white)");
+			}));
 
 	[TestMethod]
 	public void RenderRow_WithSupersededPrerelease_LeavesTheCellBlank()
@@ -129,15 +129,11 @@ public class ProfileRendererTests
 	[DataRow(null, "unknown", "dbab09")]
 	[DataRow("timed_out", "unknown", "dbab09")]
 	public void RenderRow_MapsWorkflowConclusionToBadge(string? conclusion, string message, string color) =>
-		StringAssert.Contains(
-			ProfileRenderer.RenderRow(Library("Widget") with { WorkflowConclusion = conclusion }),
-			$"![Status](https://img.shields.io/badge/-{message}-{color}?logo=github&logoColor=white)");
+		Assert.Contains($"![Status](https://img.shields.io/badge/-{message}-{color}?logo=github&logoColor=white)", ProfileRenderer.RenderRow(Library("Widget") with { WorkflowConclusion = conclusion }));
 
 	[TestMethod]
 	public void RenderRow_WithShortReadme_ShowsFailing() =>
-		StringAssert.Contains(
-			ProfileRenderer.RenderRow(Library("Widget") with { ReadmePasses = false }),
-			"![README](https://img.shields.io/badge/-failing-d73a4a?logo=mdbook&logoColor=white)");
+		Assert.Contains("![README](https://img.shields.io/badge/-failing-d73a4a?logo=mdbook&logoColor=white)", ProfileRenderer.RenderRow(Library("Widget") with { ReadmePasses = false }));
 
 	[TestMethod]
 	public void RenderRow_HasOneCellPerHeaderColumn()
@@ -156,7 +152,7 @@ public class ProfileRendererTests
 			Library("Charlie"),
 		]);
 
-		StringAssert.Contains(rendered, "\n| Repo | Ships | Stable | Prerelease | winget | SDK | Activity | Status | README |\n|------|-------|--------|------------|--------|-----|----------|--------|--------|\n|[Alpha]");
+		Assert.Contains("\n| Repo | Ships | Stable | Prerelease | winget | SDK | Activity | Status | README |\n|------|-------|--------|------------|--------|-----|----------|--------|--------|\n|[Alpha]", rendered);
 		Assert.AreEqual(1, rendered.Split("| Repo |").Length - 1, "There should be exactly one table");
 	}
 
@@ -165,8 +161,9 @@ public class ProfileRendererTests
 	{
 		string rendered = ProfileRenderer.Render(string.Empty, [Library("Charlie"), Library("Alpha"), Library("Bravo")]);
 
-		Assert.IsTrue(
-			rendered.IndexOf("[Charlie]", StringComparison.Ordinal) < rendered.IndexOf("[Alpha]", StringComparison.Ordinal),
+		Assert.IsLessThan(
+			rendered.IndexOf("[Alpha]", StringComparison.Ordinal),
+			rendered.IndexOf("[Charlie]", StringComparison.Ordinal),
 			"Rows should keep the order they were gathered in, not be re-sorted");
 	}
 
@@ -181,11 +178,12 @@ public class ProfileRendererTests
 			Library("Charlie"),
 		]);
 
-		Assert.IsTrue(
-			rendered.IndexOf("[Alpha]", StringComparison.Ordinal) <
-			rendered.IndexOf("[Bravo]", StringComparison.Ordinal) &&
-			rendered.IndexOf("[Bravo]", StringComparison.Ordinal) <
-			rendered.IndexOf("[Charlie]", StringComparison.Ordinal));
+		Assert.IsLessThan(
+			rendered.IndexOf("[Bravo]", StringComparison.Ordinal),
+			rendered.IndexOf("[Alpha]", StringComparison.Ordinal));
+		Assert.IsLessThan(
+			rendered.IndexOf("[Charlie]", StringComparison.Ordinal),
+			rendered.IndexOf("[Bravo]", StringComparison.Ordinal));
 	}
 
 	[TestMethod]

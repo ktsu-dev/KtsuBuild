@@ -51,7 +51,7 @@ public class GitHubApiClientTests
 
 		await _client.CountCommitsSinceAsync("ktsu-dev", "Extensions", since).ConfigureAwait(false);
 
-		StringAssert.Contains(_requestedArguments[0], "since=2026-07-29T20:28:34Z");
+		Assert.Contains("since=2026-07-29T20:28:34Z", _requestedArguments[0]);
 	}
 
 	[TestMethod]
@@ -81,8 +81,8 @@ public class GitHubApiClientTests
 
 		GitHubWorkflowRun? run = await _client.GetLatestWorkflowRunAsync("ktsu-dev", "TUI", "dotnet.yml", "main").ConfigureAwait(false);
 
-		StringAssert.Contains(_requestedArguments[0], "branch=main");
-		StringAssert.Contains(_requestedArguments[0], "per_page=1");
+		Assert.Contains("branch=main", _requestedArguments[0]);
+		Assert.Contains("per_page=1", _requestedArguments[0]);
 		Assert.AreEqual("success", run?.Conclusion);
 	}
 
@@ -127,7 +127,7 @@ public class GitHubApiClientTests
 		// One recursive request replaces a walk that cost a call per directory.
 		await _client.ListTreePathsAsync("ktsu-dev", "Widget", "main").ConfigureAwait(false);
 
-		StringAssert.Contains(_requestedArguments[0], "git/trees/main?recursive=1");
+		Assert.Contains("git/trees/main?recursive=1", _requestedArguments[0]);
 	}
 
 	[TestMethod]
@@ -159,7 +159,7 @@ public class GitHubApiClientTests
 
 		IReadOnlyList<GitHubRepository> repositories = await _client.ListOrganizationRepositoriesAsync("ktsu-dev").ConfigureAwait(false);
 
-		Assert.AreEqual(2, repositories.Count);
+		Assert.HasCount(2, repositories);
 		Assert.AreEqual("main", repositories[0].DefaultBranch);
 		Assert.IsFalse(repositories[0].IsArchived);
 		Assert.AreEqual("trunk", repositories[1].DefaultBranch);
@@ -214,6 +214,56 @@ public class GitHubApiClientTests
 	{
 		RespondWith("not json at all");
 
-		Assert.AreEqual(0, (await _client.ListOrganizationRepositoriesAsync("ktsu-dev").ConfigureAwait(false)).Count);
+		Assert.IsEmpty(await _client.ListOrganizationRepositoriesAsync("ktsu-dev").ConfigureAwait(false));
+	}
+
+	[TestMethod]
+	public async Task ListReleasesAsync_ParsesTagNamesNewestFirst()
+	{
+		RespondWith("""[{"tag_name":"v2.4.0-pre.1"},{"tag_name":"v2.3.1"},{"tag_name":"v2.3.0"}]""");
+
+		IReadOnlyList<GitHubRelease> releases = await _client.ListReleasesAsync("ktsu-dev", "Essentials").ConfigureAwait(false);
+
+		Assert.AreEqual("v2.4.0-pre.1,v2.3.1,v2.3.0", string.Join(",", releases.Select(static r => r.TagName)));
+	}
+
+	[TestMethod]
+	public async Task ListReleasesAsync_WithNoReleases_ReturnsEmpty()
+	{
+		RespondWith("[]");
+
+		Assert.IsEmpty(await _client.ListReleasesAsync("ktsu-dev", "Fresh").ConfigureAwait(false));
+	}
+
+	[TestMethod]
+	public async Task ListReleasesAsync_SkipsEntriesWithoutATag()
+	{
+		RespondWith("""[{"tag_name":"v1.0.0"},{"name":"untagged"}]""");
+
+		Assert.AreEqual("v1.0.0", string.Join(",", (await _client.ListReleasesAsync("ktsu-dev", "Widget").ConfigureAwait(false)).Select(static r => r.TagName)));
+	}
+
+	[TestMethod]
+	public async Task ListReleasesAsync_WithAFailedCall_ReturnsEmpty()
+	{
+		RespondWith("""{"message":"Not Found"}""");
+
+		Assert.IsEmpty(await _client.ListReleasesAsync("ktsu-dev", "Missing").ConfigureAwait(false));
+	}
+
+	[TestMethod]
+	public async Task GetFileTextAsync_WithContentThatIsNotBase64_ReturnsNull()
+	{
+		RespondWith("""{"content":"this is not base64!!"}""");
+
+		Assert.IsNull(await _client.GetFileTextAsync("ktsu-dev", "Widget", "global.json").ConfigureAwait(false));
+	}
+
+	[TestMethod]
+	public async Task ListTreePathsAsync_WithATruncatedTree_StillReturnsWhatItRead()
+	{
+		RespondWith("""{"truncated":true,"tree":[{"path":"Widget.csproj","type":"blob"}]}""");
+
+		Assert.AreEqual("Widget.csproj", string.Join(",", await _client.ListTreePathsAsync("ktsu-dev", "Widget", "main").ConfigureAwait(false)));
 	}
 }

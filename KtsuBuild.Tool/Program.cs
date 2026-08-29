@@ -787,15 +787,15 @@ internal sealed class Program
 		readmeCommand.SetAction(async (parseResult, ct) =>
 		{
 			ProfileCommand.ProfileOptionsInput input = new(
-				Organization: parseResult.GetValue(ProfileCommand.Organization)!,
-				TemplatePath: parseResult.GetValue(ProfileCommand.Template)!,
-				OutputPath: parseResult.GetValue(ProfileCommand.Output)!,
-				PackagePrefix: parseResult.GetValue(ProfileCommand.PackagePrefix)!,
-				WingetPublisher: parseResult.GetValue(ProfileCommand.WingetPublisher)!,
-				SdkPackage: parseResult.GetValue(ProfileCommand.SdkPackage)!,
-				Exclude: parseResult.GetValue(ProfileCommand.Exclude) ?? [],
-				Only: parseResult.GetValue(ProfileCommand.Only) ?? [],
-				FallbackWorkflows: parseResult.GetValue(ProfileCommand.FallbackWorkflows) ?? [],
+				Organization: parseResult.GetValue(ProfileCommand.OrganizationOption)!,
+				TemplatePath: parseResult.GetValue(ProfileCommand.TemplateOption)!,
+				OutputPath: parseResult.GetValue(ProfileCommand.OutputOption)!,
+				PackagePrefix: parseResult.GetValue(ProfileCommand.PackagePrefixOption)!,
+				WingetPublisher: parseResult.GetValue(ProfileCommand.WingetPublisherOption)!,
+				SdkPackage: parseResult.GetValue(ProfileCommand.SdkPackageOption)!,
+				Exclude: parseResult.GetValue(ProfileCommand.ExcludeOption) ?? [],
+				Only: parseResult.GetValue(ProfileCommand.OnlyOption) ?? [],
+				FallbackWorkflows: parseResult.GetValue(ProfileCommand.FallbackWorkflowsOption) ?? [],
 				Verbose: parseResult.GetValue(GlobalOptions.Verbose));
 			return await handler(input, ct).ConfigureAwait(false);
 		});

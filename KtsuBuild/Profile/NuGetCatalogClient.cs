@@ -81,17 +81,12 @@ public class NuGetCatalogClient(HttpClient httpClient, IBuildLogger logger) : IN
 			? value
 			: 0;
 
-		List<string> packageTypes = [];
-		if (entry.TryGetProperty("packageTypes", out JsonElement types) && types.ValueKind == JsonValueKind.Array)
-		{
-			foreach (JsonElement type in types.EnumerateArray())
-			{
-				if (type.TryGetProperty("name", out JsonElement name) && name.GetString() is string typeName)
-				{
-					packageTypes.Add(typeName);
-				}
-			}
-		}
+		IReadOnlyList<string> packageTypes =
+			entry.TryGetProperty("packageTypes", out JsonElement types) && types.ValueKind == JsonValueKind.Array
+				? [.. types.EnumerateArray()
+					.Select(static type => type.TryGetProperty("name", out JsonElement name) ? name.GetString() : null)
+					.OfType<string>()]
+				: [];
 
 		return (downloads, packageTypes);
 	}

@@ -77,7 +77,7 @@ public class OrgProfileService(IGitHubApiClient gitHub, INuGetCatalogClient nuGe
 			}
 		}
 
-		logger.WriteInfo($"Listing {facts.Count.ToString(CultureInfo.InvariantCulture)} repositories");
+		logger.WriteInfo($"Listing {facts.Count.ToString(CultureInfo.InvariantCulture)} {(facts.Count == 1 ? "repository" : "repositories")}");
 
 		return facts;
 	}
