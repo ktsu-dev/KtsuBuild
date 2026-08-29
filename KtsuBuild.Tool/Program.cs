@@ -1,4 +1,4 @@
-// Copyright (c) 2023-2026 ktsu-dev contributors
+﻿// Copyright (c) 2023-2026 ktsu-dev contributors
 
 namespace KtsuBuild.Tool;
 
@@ -38,6 +38,7 @@ internal sealed class Program
 		AddMetadataCommand(rootCommand, processRunner, logger);
 		AddWingetCommand(rootCommand, processRunner, logger);
 		AddIosCommand(rootCommand, processRunner, logger);
+		AddProfileCommand(rootCommand, processRunner, logger);
 
 		// Parse and invoke
 		return await rootCommand.Parse(args).InvokeAsync(configuration: null, cancellationToken: CancellationToken.None).ConfigureAwait(false);
@@ -775,5 +776,29 @@ internal sealed class Program
 			}
 #pragma warning restore CA1031
 		});
+	}
+
+	private static void AddProfileCommand(RootCommand rootCommand, IProcessRunner processRunner, IBuildLogger logger)
+	{
+		ProfileCommand profileCommand = new();
+
+		Command readmeCommand = profileCommand.Subcommands.First(c => c.Name == "readme");
+		Func<ProfileCommand.ProfileOptionsInput, CancellationToken, Task<int>> handler = ProfileCommand.CreateReadmeHandler(processRunner, logger);
+		readmeCommand.SetAction(async (parseResult, ct) =>
+		{
+			ProfileCommand.ProfileOptionsInput input = new(
+				Organization: parseResult.GetValue(ProfileCommand.Organization)!,
+				TemplatePath: parseResult.GetValue(ProfileCommand.Template)!,
+				OutputPath: parseResult.GetValue(ProfileCommand.Output)!,
+				PackagePrefix: parseResult.GetValue(ProfileCommand.PackagePrefix)!,
+				WingetPublisher: parseResult.GetValue(ProfileCommand.WingetPublisher)!,
+				Exclude: parseResult.GetValue(ProfileCommand.Exclude) ?? [],
+				Only: parseResult.GetValue(ProfileCommand.Only) ?? [],
+				FallbackWorkflows: parseResult.GetValue(ProfileCommand.FallbackWorkflows) ?? [],
+				Verbose: parseResult.GetValue(GlobalOptions.Verbose));
+			return await handler(input, ct).ConfigureAwait(false);
+		});
+
+		rootCommand.Subcommands.Add(profileCommand);
 	}
 }

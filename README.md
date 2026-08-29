@@ -19,6 +19,7 @@
 - **NuGet Publishing**: Publish to NuGet.org, GitHub Packages, and custom feeds
 - **GitHub Releases**: Create releases with assets, SHA256 hashes, and release notes
 - **Winget Manifests**: Generate Windows Package Manager manifests with auto-detection
+- **Organization Profiles**: Generate a GitHub profile README listing every repository with version, activity, and build status badges
 
 ## Usage
 
@@ -336,6 +337,43 @@ ktsubuild winget upload --version <version> [options]
 
 **Options:**
 - `--version`, `-V`: The version to upload manifests for (required)
+
+### `profile`
+
+Organization profile generation.
+
+#### `profile readme`
+
+Generate a GitHub organization profile README. Reads every public repository in the organization,
+then appends an applications table and a libraries table to a template.
+
+```bash
+ktsubuild profile readme --org <organization> [options]
+```
+
+A repository is listed once it has a stable release, so work in progress stays off the public
+profile. Repositories are classified by the SDK their primary project declares: `ktsu.Sdk.App` or
+`ktsu.Sdk.ConsoleApp` makes an application, anything else makes a library.
+
+**Options:**
+- `--org`, `-o`: The GitHub organization to profile (required)
+- `--template`, `-t`: The README template the tables are appended to (default: `./profile/README.template`)
+- `--output`: Where to write the rendered README (default: `./profile/README.md`)
+- `--package-prefix`: The NuGet package prefix, so repo `Extensions` resolves to `ktsu.Extensions` (default: `ktsu`)
+- `--winget-publisher`: The winget publisher whose manifests are searched (default: `ktsu`)
+- `--exclude`: A repository to leave out of the tables, repeatable
+- `--only`: Consider only this repository, repeatable. Useful for checking one row without regenerating the whole profile
+- `--fallback-workflow`: A workflow file name to try when a repository has no `dotnet.yml`, repeatable
+
+Build status comes from `dotnet.yml` on the default branch. A repository that names its build
+workflow something else reports no status unless `--fallback-workflow` names it, and a fallback
+logs a warning so the repository gets renamed rather than the exception living here forever.
+
+```bash
+ktsubuild profile readme --org ktsu-dev --exclude Sdk --fallback-workflow ci.yml
+```
+
+Requires the `gh` CLI to be authenticated, or `GH_TOKEN` to be set.
 
 ## Version Bump Control
 
