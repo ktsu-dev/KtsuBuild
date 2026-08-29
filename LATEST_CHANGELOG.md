@@ -1,6 +1,6 @@
-## v2.11.0 (minor)
+## v2.12.0 (minor)
 
-Changes since v2.10.0:
+Changes since v2.11.0:
 
-- feat: trade the prerelease, winget, and README columns for stars [minor] ([@matt-edmondson](https://github.com/matt-edmondson))
+- feat: fail when the profile template promotes a retired repository [minor] ([@matt-edmondson](https://github.com/matt-edmondson))
 
