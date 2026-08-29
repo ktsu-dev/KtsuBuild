@@ -161,18 +161,6 @@ public static partial class ShippedVariants
 	};
 
 	/// <summary>
-	/// Determines whether a set of variants includes something a user runs rather than references.
-	/// </summary>
-	/// <param name="variants">The variants to check.</param>
-	/// <returns><see langword="true"/> when the repository ships a runnable program.</returns>
-	public static bool IncludesExecutable(IEnumerable<ShippedVariant> variants)
-	{
-		Ensure.NotNull(variants);
-
-		return variants.Any(static v => v is ShippedVariant.ConsoleApp or ShippedVariant.App or ShippedVariant.Tool);
-	}
-
-	/// <summary>
 	/// Puts variants into a fixed order so a repository's badges do not reshuffle between runs.
 	/// </summary>
 	/// <param name="variants">The variants to order.</param>

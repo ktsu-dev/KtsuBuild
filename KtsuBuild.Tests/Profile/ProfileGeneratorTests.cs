@@ -30,8 +30,6 @@ public class ProfileGeneratorTests
 			.Returns(Task.FromResult<IReadOnlyList<string>>([]));
 		_gitHub.GetFileTextAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
 			.Returns(Task.FromResult<string?>(new string('x', 512)));
-		_gitHub.ListDirectoryNamesAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-			.Returns(Task.FromResult<IReadOnlyList<string>>([]));
 		_nuGet.GetPackageAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
 			.Returns(Task.FromResult<NuGetPackageInfo?>(null));
 

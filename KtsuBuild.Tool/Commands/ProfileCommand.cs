@@ -20,7 +20,6 @@ public class ProfileCommand : Command
 	/// <param name="TemplatePath">The path to the README template the tables are appended to.</param>
 	/// <param name="OutputPath">The path the rendered README is written to.</param>
 	/// <param name="PackagePrefix">The NuGet package prefix for the organization.</param>
-	/// <param name="WingetPublisher">The winget publisher whose manifests are searched.</param>
 	/// <param name="SdkPackage">The MSBuild SDK whose pinned version is reported and compared.</param>
 	/// <param name="Exclude">Repositories to leave out of the tables.</param>
 	/// <param name="Only">The only repositories to consider, or empty for all of them.</param>
@@ -31,7 +30,6 @@ public class ProfileCommand : Command
 		string TemplatePath,
 		string OutputPath,
 		string PackagePrefix,
-		string WingetPublisher,
 		string SdkPackage,
 		IReadOnlyList<string> Exclude,
 		IReadOnlyList<string> Only,
@@ -63,13 +61,6 @@ public class ProfileCommand : Command
 	public static Option<string> PackagePrefixOption { get; } = new("--package-prefix")
 	{
 		Description = "The NuGet package prefix, so repo Extensions resolves to prefix.Extensions",
-		DefaultValueFactory = _ => "ktsu",
-	};
-
-	/// <summary>Gets the winget publisher option.</summary>
-	public static Option<string> WingetPublisherOption { get; } = new("--winget-publisher")
-	{
-		Description = "The winget publisher whose manifests are searched for shipped applications",
 		DefaultValueFactory = _ => "ktsu",
 	};
 
@@ -167,7 +158,6 @@ public class ProfileCommand : Command
 		{
 			Organization = input.Organization,
 			PackagePrefix = input.PackagePrefix,
-			WingetPublisher = input.WingetPublisher,
 			SdkPackageId = input.SdkPackage,
 			ExcludedRepositories = input.Exclude,
 			OnlyRepositories = input.Only,
@@ -189,7 +179,6 @@ public class ProfileCommand : Command
 			Options.Add(TemplateOption);
 			Options.Add(OutputOption);
 			Options.Add(PackagePrefixOption);
-			Options.Add(WingetPublisherOption);
 			Options.Add(SdkPackageOption);
 			Options.Add(ExcludeOption);
 			Options.Add(OnlyOption);

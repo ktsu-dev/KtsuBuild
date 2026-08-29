@@ -17,7 +17,6 @@ public class ProfileRendererTests
 		CommitActivity = 5,
 		HasWorkflowRun = true,
 		WorkflowConclusion = "success",
-		ReadmePasses = true,
 	};
 
 	[TestMethod]
@@ -26,26 +25,32 @@ public class ProfileRendererTests
 			"|[BlastMerge](https://github.com/ktsu-dev/BlastMerge)" +
 			"|![lib](https://img.shields.io/badge/-lib-004880)![cli](https://img.shields.io/badge/-cli-3B3B3B)" +
 			"|![NuGet Version](https://img.shields.io/badge/-v1.1.4-004880?logo=nuget&logoColor=white)" +
-			"| " +
-			"|![winget](https://img.shields.io/badge/-v1.0.21-0078D4?logo=windows&logoColor=white)" +
 			"|![SDK](https://img.shields.io/badge/-2.25.0-dbab09)" +
+			"|![Stars](https://img.shields.io/badge/-42-e3b341)" +
 			"|![Activity](https://img.shields.io/badge/-37-181717?logo=github&logoColor=white)" +
-			"|![Status](https://img.shields.io/badge/-failing-d73a4a?logo=github&logoColor=white)" +
-			"|![README](https://img.shields.io/badge/-passing-2ea44f?logo=mdbook&logoColor=white)|\n",
+			"|![Status](https://img.shields.io/badge/-failing-d73a4a?logo=github&logoColor=white)|\n",
 			ProfileRenderer.RenderRow(new RepoFacts
 			{
 				Owner = "ktsu-dev",
 				Name = "BlastMerge",
 				Variants = [ShippedVariant.Library, ShippedVariant.ConsoleApp],
 				NuGetStableVersion = "1.1.4",
-				WingetVersion = "1.0.21",
 				SdkVersion = "2.25.0",
 				SdkIsCurrent = false,
+				Stars = 42,
 				CommitActivity = 37,
 				HasWorkflowRun = true,
 				WorkflowConclusion = "failure",
-				ReadmePasses = true,
 			}));
+
+	[TestMethod]
+	public void RenderRow_HasOneCellPerHeaderColumn()
+	{
+		string row = ProfileRenderer.RenderRow(Library("Widget"));
+
+		// A row opens and closes with a pipe, so seven cells split into nine parts.
+		Assert.HasCount(9, row.TrimEnd('\n').Split('|'));
+	}
 
 	[TestMethod]
 	public void RenderRow_WithCurrentSdk_UsesTheSuccessColor() =>
@@ -64,6 +69,16 @@ public class ProfileRendererTests
 		Assert.IsFalse(ProfileRenderer.RenderRow(Library("Widget")).Contains("SDK", StringComparison.Ordinal));
 
 	[TestMethod]
+	public void RenderRow_WithStars_ShowsTheCount() =>
+		Assert.Contains(
+			"![Stars](https://img.shields.io/badge/-137-e3b341)",
+			ProfileRenderer.RenderRow(Library("Widget") with { Stars = 137 }));
+
+	[TestMethod]
+	public void RenderRow_WithNoStars_LeavesTheCellBlank() =>
+		Assert.IsFalse(ProfileRenderer.RenderRow(Library("Widget")).Contains("Stars", StringComparison.Ordinal));
+
+	[TestMethod]
 	public void RenderRow_RendersOneBadgePerVariant()
 	{
 		string row = ProfileRenderer.RenderRow(Library("KtsuBuild") with
@@ -76,12 +91,9 @@ public class ProfileRendererTests
 	}
 
 	[TestMethod]
-	public void RenderRow_WithNoVariants_LeavesTheShipsCellBlank()
-	{
-		string row = ProfileRenderer.RenderRow(Library("Widget") with { Variants = [] });
-
-		Assert.IsFalse(row.Contains("badge/-lib", StringComparison.Ordinal));
-	}
+	public void RenderRow_WithNoVariants_LeavesTheShipsCellBlank() =>
+		Assert.IsFalse(ProfileRenderer.RenderRow(Library("Widget") with { Variants = [] })
+			.Contains("badge/-lib", StringComparison.Ordinal));
 
 	[TestMethod]
 	public void RenderRow_PrefersNuGetVersionOverReleaseTag()
@@ -90,28 +102,6 @@ public class ProfileRendererTests
 
 		Assert.Contains("![NuGet Version](https://img.shields.io/badge/-v1.6.8-004880?logo=nuget&logoColor=white)", row);
 		Assert.IsFalse(row.Contains("GitHub Version", StringComparison.Ordinal));
-	}
-
-	[TestMethod]
-	public void RenderRow_WithNewerPrerelease_ShowsIt() =>
-		Assert.Contains(
-			"![NuGet Prerelease](https://img.shields.io/badge/-v1.1.0--pre.1-004880?logo=nuget&logoColor=white)",
-			ProfileRenderer.RenderRow(Library("Widget") with
-			{
-				NuGetStableVersion = "1.0.0",
-				NuGetPrereleaseVersion = "1.1.0-pre.1",
-			}));
-
-	[TestMethod]
-	public void RenderRow_WithSupersededPrerelease_LeavesTheCellBlank()
-	{
-		string row = ProfileRenderer.RenderRow(Library("Widget") with
-		{
-			NuGetStableVersion = "1.1.0",
-			NuGetPrereleaseVersion = "1.1.0-pre.1",
-		});
-
-		Assert.IsFalse(row.Contains("Prerelease", StringComparison.Ordinal));
 	}
 
 	[TestMethod]
@@ -129,19 +119,9 @@ public class ProfileRendererTests
 	[DataRow(null, "unknown", "dbab09")]
 	[DataRow("timed_out", "unknown", "dbab09")]
 	public void RenderRow_MapsWorkflowConclusionToBadge(string? conclusion, string message, string color) =>
-		Assert.Contains($"![Status](https://img.shields.io/badge/-{message}-{color}?logo=github&logoColor=white)", ProfileRenderer.RenderRow(Library("Widget") with { WorkflowConclusion = conclusion }));
-
-	[TestMethod]
-	public void RenderRow_WithShortReadme_ShowsFailing() =>
-		Assert.Contains("![README](https://img.shields.io/badge/-failing-d73a4a?logo=mdbook&logoColor=white)", ProfileRenderer.RenderRow(Library("Widget") with { ReadmePasses = false }));
-
-	[TestMethod]
-	public void RenderRow_HasOneCellPerHeaderColumn()
-	{
-		string row = ProfileRenderer.RenderRow(Library("Widget"));
-
-		Assert.AreEqual(9, row.TrimEnd('\n').Split('|')[1..^1].Length);
-	}
+		Assert.Contains(
+			$"![Status](https://img.shields.io/badge/-{message}-{color}?logo=github&logoColor=white)",
+			ProfileRenderer.RenderRow(Library("Widget") with { WorkflowConclusion = conclusion }));
 
 	[TestMethod]
 	public void Render_ListsEveryRepositoryInOneTable()
@@ -152,7 +132,7 @@ public class ProfileRendererTests
 			Library("Charlie"),
 		]);
 
-		Assert.Contains("\n| Repo | Ships | Stable | Prerelease | winget | SDK | Activity | Status | README |\n|------|-------|--------|------------|--------|-----|----------|--------|--------|\n|[Alpha]", rendered);
+		Assert.Contains("\n| Repo | Ships | Stable | SDK | Stars | Activity | Status |\n|------|-------|--------|-----|-------|----------|--------|\n|[Alpha]", rendered);
 		Assert.HasCount(2, rendered.Split("| Repo |"), "One header occurrence splits the text into two parts, so there is exactly one table");
 	}
 

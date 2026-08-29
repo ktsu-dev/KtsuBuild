@@ -28,8 +28,6 @@ public class OrgProfileServiceTests
 			.Returns(Task.FromResult<IReadOnlyList<string>>([]));
 		_gitHub.GetFileTextAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
 			.Returns(Task.FromResult<string?>(new string('x', 512)));
-		_gitHub.ListDirectoryNamesAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-			.Returns(Task.FromResult<IReadOnlyList<string>>([]));
 		_nuGet.GetPackageAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
 			.Returns(Task.FromResult<NuGetPackageInfo?>(null));
 	}
@@ -100,56 +98,6 @@ public class OrgProfileServiceTests
 		RepoFacts facts = (await _service.GatherAsync(Options).ConfigureAwait(false))[0];
 
 		Assert.AreEqual("2.3.1", facts.ReleaseStableVersion);
-		Assert.AreEqual("2.4.0-pre.1", facts.ReleasePrereleaseVersion);
-	}
-
-	[TestMethod]
-	public async Task GatherAsync_ChecksWingetOnlyForApplications()
-	{
-		HaveRepositories(new GitHubRepository("Alpha", "main", false));
-
-		await _service.GatherAsync(Options).ConfigureAwait(false);
-
-		await _gitHub.DidNotReceive()
-			.ListDirectoryNamesAsync("microsoft", "winget-pkgs", Arg.Any<string>(), Arg.Any<CancellationToken>())
-			.ConfigureAwait(false);
-	}
-
-	[TestMethod]
-	public async Task GatherAsync_PicksTheNewestWingetVersionByPrecedence()
-	{
-		HaveRepositories(new GitHubRepository("BlastMerge", "main", false));
-		_gitHub.ListTreePathsAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-			.Returns(Task.FromResult<IReadOnlyList<string>>(["BlastMerge.ConsoleApp/BlastMerge.ConsoleApp.csproj"]));
-		_gitHub.GetFileTextAsync(Arg.Any<string>(), Arg.Any<string>(), "BlastMerge.ConsoleApp/BlastMerge.ConsoleApp.csproj", Arg.Any<CancellationToken>())
-			.Returns(Task.FromResult<string?>("""<Sdk Name="ktsu.Sdk.ConsoleApp" />"""));
-		_gitHub.ListDirectoryNamesAsync("microsoft", "winget-pkgs", "manifests/k/ktsu/BlastMerge", Arg.Any<CancellationToken>())
-			.Returns(Task.FromResult<IReadOnlyList<string>>(["1.0.9", "1.0.21", "1.0.19"]));
-
-		RepoFacts facts = (await _service.GatherAsync(Options).ConfigureAwait(false))[0];
-
-		Assert.AreEqual("cli", string.Join(" ", facts.Variants.Select(ShippedVariants.ToLabel)));
-		Assert.AreEqual("1.0.21", facts.WingetVersion, "Sorted as text, 1.0.9 would win");
-	}
-
-	[TestMethod]
-	public async Task GatherAsync_WithShortReadme_MarksItFailing()
-	{
-		HaveRepositories(new GitHubRepository("Alpha", "main", false));
-		_gitHub.GetFileTextAsync(Arg.Any<string>(), Arg.Any<string>(), "README.md", Arg.Any<CancellationToken>())
-			.Returns(Task.FromResult<string?>("# Alpha"));
-
-		Assert.IsFalse((await _service.GatherAsync(Options).ConfigureAwait(false))[0].ReadmePasses);
-	}
-
-	[TestMethod]
-	public async Task GatherAsync_WithMissingReadme_MarksItFailing()
-	{
-		HaveRepositories(new GitHubRepository("Alpha", "main", false));
-		_gitHub.GetFileTextAsync(Arg.Any<string>(), Arg.Any<string>(), "README.md", Arg.Any<CancellationToken>())
-			.Returns(Task.FromResult<string?>(null));
-
-		Assert.IsFalse((await _service.GatherAsync(Options).ConfigureAwait(false))[0].ReadmePasses);
 	}
 
 	[TestMethod]
@@ -299,6 +247,56 @@ public class OrgProfileServiceTests
 		Assert.IsNull(facts.SdkVersion);
 		await _gitHub.DidNotReceive()
 			.GetFileTextAsync(Arg.Any<string>(), Arg.Any<string>(), "global.json", Arg.Any<CancellationToken>())
+			.ConfigureAwait(false);
+	}
+
+	[TestMethod]
+	public async Task GatherAsync_CarriesTheStarCountFromTheListing()
+	{
+		// Stars arrive with the organization listing, so no extra request is made for them.
+		HaveRepositories(new GitHubRepository("Semantics", "main", false, 137));
+
+		Assert.AreEqual(137, (await _service.GatherAsync(Options).ConfigureAwait(false))[0].Stars);
+	}
+
+	[TestMethod]
+	public async Task GatherAsync_TreatsAPinAheadOfTheLatestSdkAsCurrent()
+	{
+		// A repository pinned to a version newer than the newest published SDK is not behind.
+		HaveRepositories(new GitHubRepository("Alpha", "main", false));
+		_gitHub.ListTreePathsAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+			.Returns(Task.FromResult<IReadOnlyList<string>>(["global.json"]));
+		_gitHub.GetFileTextAsync(Arg.Any<string>(), Arg.Any<string>(), "global.json", Arg.Any<CancellationToken>())
+			.Returns(Task.FromResult<string?>("""{"msbuild-sdks":{"ktsu.Sdk":"2.29.0"}}"""));
+		_nuGet.GetPackageAsync("ktsu.Sdk", Arg.Any<CancellationToken>())
+			.Returns(Task.FromResult<NuGetPackageInfo?>(new NuGetPackageInfo("2.28.0", null, 0, [])));
+
+		Assert.IsTrue((await _service.GatherAsync(Options).ConfigureAwait(false))[0].SdkIsCurrent);
+	}
+
+	[TestMethod]
+	public async Task GatherAsync_WithAnUnknownLatestSdk_DoesNotClaimCurrent()
+	{
+		// The lookup failing must not paint every repository green.
+		HaveRepositories(new GitHubRepository("Alpha", "main", false));
+		_gitHub.ListTreePathsAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+			.Returns(Task.FromResult<IReadOnlyList<string>>(["global.json"]));
+		_gitHub.GetFileTextAsync(Arg.Any<string>(), Arg.Any<string>(), "global.json", Arg.Any<CancellationToken>())
+			.Returns(Task.FromResult<string?>("""{"msbuild-sdks":{"ktsu.Sdk":"2.28.0"}}"""));
+
+		Assert.IsFalse((await _service.GatherAsync(Options).ConfigureAwait(false))[0].SdkIsCurrent);
+	}
+
+	[TestMethod]
+	public async Task GatherAsync_DoesNotFetchTheReadme()
+	{
+		// The README column is hidden, so the request that backed it is gone.
+		HaveRepositories(new GitHubRepository("Alpha", "main", false));
+
+		await _service.GatherAsync(Options).ConfigureAwait(false);
+
+		await _gitHub.DidNotReceive()
+			.GetFileTextAsync(Arg.Any<string>(), Arg.Any<string>(), "README.md", Arg.Any<CancellationToken>())
 			.ConfigureAwait(false);
 	}
 }

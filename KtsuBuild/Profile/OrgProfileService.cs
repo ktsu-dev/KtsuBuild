@@ -16,9 +16,6 @@ using static Polyfill;
 /// <param name="logger">The build logger.</param>
 public class OrgProfileService(IGitHubApiClient gitHub, INuGetCatalogClient nuGet, IBuildLogger logger)
 {
-	private const string WingetRepositoryOwner = "microsoft";
-	private const string WingetRepositoryName = "winget-pkgs";
-
 	private static readonly int AllVariantCount = Enum.GetValues<ShippedVariant>().Length;
 
 	/// <summary>
@@ -110,10 +107,6 @@ public class OrgProfileService(IGitHubApiClient gitHub, INuGetCatalogClient nuGe
 			return null;
 		}
 
-		string? prereleaseVersion = StripTagPrefix(releases
-			.FirstOrDefault(static release => release.TagName.Contains('-', StringComparison.Ordinal))?
-			.TagName);
-
 		NuGetPackageInfo? package = await nuGet
 			.GetPackageAsync($"{options.PackagePrefix}.{repository.Name}", cancellationToken)
 			.ConfigureAwait(false);
@@ -131,31 +124,20 @@ public class OrgProfileService(IGitHubApiClient gitHub, INuGetCatalogClient nuGe
 
 		GitHubWorkflowRun? run = await GetBuildStatusAsync(repository, options, cancellationToken).ConfigureAwait(false);
 
-		string? readme = await gitHub
-			.GetFileTextAsync(options.Organization, repository.Name, "README.md", cancellationToken)
-			.ConfigureAwait(false);
-
-		// Only a program a user installs can be in winget, so a library repository never needs the lookup.
-		string? wingetVersion = ShippedVariants.IncludesExecutable(variants)
-			? await GetWingetVersionAsync(repository.Name, options, cancellationToken).ConfigureAwait(false)
-			: null;
-
 		return new RepoFacts
 		{
 			Owner = options.Organization,
 			Name = repository.Name,
+			Stars = repository.Stars,
 			Variants = variants,
 			SdkVersion = sdkVersion,
-			SdkIsCurrent = sdkVersion is not null && sdkVersion == latestSdkVersion,
+			SdkIsCurrent = sdkVersion is not null && latestSdkVersion is not null &&
+				!SemanticVersion.IsGreater(latestSdkVersion, sdkVersion),
 			NuGetStableVersion = package?.StableVersion,
-			NuGetPrereleaseVersion = package?.PrereleaseVersion,
 			ReleaseStableVersion = stableVersion,
-			ReleasePrereleaseVersion = prereleaseVersion,
-			WingetVersion = wingetVersion,
 			CommitActivity = commitActivity,
 			WorkflowConclusion = run?.Conclusion,
 			HasWorkflowRun = run is not null,
-			ReadmePasses = (readme?.Length ?? 0) >= options.MinimumReadmeLength,
 		};
 	}
 
@@ -276,31 +258,6 @@ public class OrgProfileService(IGitHubApiClient gitHub, INuGetCatalogClient nuGe
 		}
 
 		return null;
-	}
-
-	/// <summary>
-	/// Finds the newest version of an application published to the winget community repository.
-	/// </summary>
-	/// <param name="repositoryName">The repository name, which doubles as the winget package name.</param>
-	/// <param name="options">The gathering settings.</param>
-	/// <param name="cancellationToken">A cancellation token.</param>
-	/// <returns>The newest published version, or <see langword="null"/> when the package is not in winget.</returns>
-	private async Task<string?> GetWingetVersionAsync(string repositoryName, ProfileOptions options, CancellationToken cancellationToken)
-	{
-		string publisher = options.WingetPublisher;
-		string manifestPath = $"manifests/{char.ToLowerInvariant(publisher[0]).ToString(CultureInfo.InvariantCulture)}/{publisher}/{repositoryName}";
-
-		IReadOnlyList<string> versions = await gitHub
-			.ListDirectoryNamesAsync(WingetRepositoryOwner, WingetRepositoryName, manifestPath, cancellationToken)
-			.ConfigureAwait(false);
-
-		if (versions.Count == 0)
-		{
-			return null;
-		}
-
-		// Compare by version precedence rather than as text, so 1.0.21 beats 1.0.9.
-		return versions.Aggregate((newest, candidate) => SemanticVersion.IsGreater(candidate, newest) ? candidate : newest);
 	}
 
 	/// <summary>

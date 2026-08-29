@@ -369,15 +369,15 @@ something the repository ships. Platform SDKs such as `ktsu.Sdk.Windows` say whi
 project targets rather than what kind of thing it is, so they are not shown.
 
 The **SDK** column shows the version each repository pins for `--sdk-package` in its `global.json`,
-green when it matches the newest published version and yellow when the repository has been left
-behind.
+green when the repository has kept up with the newest published version and yellow when it has been
+left behind. **Stars** and **Activity** carry the stargazer count and the commits pushed in the last
+30 days, each left blank at zero.
 
 **Options:**
 - `--org`, `-o`: The GitHub organization to profile (required)
 - `--template`, `-t`: The README template the tables are appended to (default: `./profile/README.template`)
 - `--output`: Where to write the rendered README (default: `./profile/README.md`)
 - `--package-prefix`: The NuGet package prefix, so repo `Extensions` resolves to `ktsu.Extensions` (default: `ktsu`)
-- `--winget-publisher`: The winget publisher whose manifests are searched (default: `ktsu`)
 - `--sdk-package`: The MSBuild SDK whose pinned version is reported and compared (default: `ktsu.Sdk`)
 - `--exclude`: A repository to leave out of the tables, repeatable
 - `--only`: Consider only this repository, repeatable. Useful for checking one row without regenerating the whole profile
