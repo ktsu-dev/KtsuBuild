@@ -34,7 +34,7 @@ public class ProfileGeneratorTests
 			.Returns(Task.FromResult<NuGetPackageInfo?>(null));
 
 		MockBuildLogger logger = new();
-		_generator = new ProfileGenerator(new OrgProfileService(_gitHub, _nuGet, logger), logger);
+		_generator = new ProfileGenerator(new OrgProfileService(_gitHub, _nuGet, logger), _gitHub, logger);
 
 		_tempDir = Path.Combine(Path.GetTempPath(), $"ProfileGeneratorTest_{Guid.NewGuid():N}");
 		Directory.CreateDirectory(_tempDir);
@@ -170,5 +170,50 @@ public class ProfileGeneratorTests
 		await _generator.GenerateAsync(Options, template, output).ConfigureAwait(false);
 
 		Assert.AreEqual("## Project Status\n\n", await File.ReadAllTextAsync(output).ConfigureAwait(false));
+	}
+
+	[TestMethod]
+	public async Task GenerateAsync_WithAnArchivedLinkInTheTemplate_ThrowsWithoutWritingAnything()
+	{
+		// Publishing a page that promotes retired work is worse than failing loudly.
+		_gitHub.ListOrganizationRepositoriesAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+			.Returns(Task.FromResult<IReadOnlyList<GitHubRepository>>([
+				new GitHubRepository("Extensions", "main", false),
+				new GitHubRepository("PersistenceProvider", "main", true),
+			]));
+		string template = WriteTemplate("- [PersistenceProvider](https://github.com/ktsu-dev/PersistenceProvider)\n## Project Status\n");
+		string output = Path.Combine(_tempDir, "README.md");
+
+		InvalidOperationException error = await Assert
+			.ThrowsExactlyAsync<InvalidOperationException>(() => _generator.GenerateAsync(Options, template, output))
+			.ConfigureAwait(false);
+
+		Assert.Contains("PersistenceProvider", error.Message);
+		Assert.IsFalse(File.Exists(output), "Nothing should be written when the template is unhealthy");
+	}
+
+	[TestMethod]
+	public async Task GenerateAsync_WithHealthyLinks_Writes()
+	{
+		string template = WriteTemplate("- [Extensions](https://github.com/ktsu-dev/Extensions)\n## Project Status\n");
+		string output = Path.Combine(_tempDir, "README.md");
+
+		await _generator.GenerateAsync(Options, template, output).ConfigureAwait(false);
+
+		Assert.IsTrue(File.Exists(output));
+	}
+
+	[TestMethod]
+	public async Task GenerateAsync_WithAnEmptyListing_WritesRatherThanBlockingOnAFailedLookup()
+	{
+		// A listing that could not be read is a transient failure, not evidence of a bad template.
+		_gitHub.ListOrganizationRepositoriesAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+			.Returns(Task.FromResult<IReadOnlyList<GitHubRepository>>([]));
+		string template = WriteTemplate("- [Whatever](https://github.com/ktsu-dev/Whatever)\n## Project Status\n");
+		string output = Path.Combine(_tempDir, "README.md");
+
+		await _generator.GenerateAsync(Options, template, output).ConfigureAwait(false);
+
+		Assert.IsTrue(File.Exists(output));
 	}
 }

@@ -152,7 +152,7 @@ public class ProfileCommand : Command
 
 		GitHubApiClient gitHub = new(processRunner, logger);
 		NuGetCatalogClient nuGet = new(httpClient, logger);
-		ProfileGenerator generator = new(new OrgProfileService(gitHub, nuGet, logger), logger);
+		ProfileGenerator generator = new(new OrgProfileService(gitHub, nuGet, logger), gitHub, logger);
 
 		ProfileOptions options = new()
 		{

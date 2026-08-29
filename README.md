@@ -391,6 +391,16 @@ logs a warning so the repository gets renamed rather than the exception living h
 ktsubuild profile readme --org ktsu-dev --exclude Sdk --fallback-workflow ci.yml
 ```
 
+The run fails if the template links a repository in the organization that is archived or no longer
+public. The curated lists at the top of a profile template are written by hand, so nothing else
+stops them promoting retired work, and the generated table below is a separate list that will not
+show the problem.
+
+```text
+Failed to generate profile README: The profile template links 1 repository that is archived or no
+longer public: PersistenceProvider. Remove each entry, or point it at whatever replaced it.
+```
+
 Requires the `gh` CLI to be authenticated, or `GH_TOKEN` to be set.
 
 ## Version Bump Control
