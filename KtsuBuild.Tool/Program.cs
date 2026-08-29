@@ -791,7 +791,6 @@ internal sealed class Program
 				TemplatePath: parseResult.GetValue(ProfileCommand.TemplateOption)!,
 				OutputPath: parseResult.GetValue(ProfileCommand.OutputOption)!,
 				PackagePrefix: parseResult.GetValue(ProfileCommand.PackagePrefixOption)!,
-				WingetPublisher: parseResult.GetValue(ProfileCommand.WingetPublisherOption)!,
 				SdkPackage: parseResult.GetValue(ProfileCommand.SdkPackageOption)!,
 				Exclude: parseResult.GetValue(ProfileCommand.ExcludeOption) ?? [],
 				Only: parseResult.GetValue(ProfileCommand.OnlyOption) ?? [],

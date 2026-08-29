@@ -152,7 +152,7 @@ public class GitHubApiClientTests
 	{
 		RespondWith("""
 			[
-				{"name":"Alpha","default_branch":"main","archived":false},
+				{"name":"Alpha","default_branch":"main","archived":false,"stargazers_count":137},
 				{"name":"Bravo","default_branch":"trunk","archived":true}
 			]
 			""");
@@ -164,6 +164,8 @@ public class GitHubApiClientTests
 		Assert.IsFalse(repositories[0].IsArchived);
 		Assert.AreEqual("trunk", repositories[1].DefaultBranch);
 		Assert.IsTrue(repositories[1].IsArchived);
+		Assert.AreEqual(137, repositories[0].Stars);
+		Assert.AreEqual(0, repositories[1].Stars, "A listing without the field reads as no stars");
 	}
 
 	[TestMethod]
@@ -174,24 +176,6 @@ public class GitHubApiClientTests
 		await _client.ListOrganizationRepositoriesAsync("ktsu-dev").ConfigureAwait(false);
 
 		Assert.HasCount(1, _requestedArguments, "A page shorter than the page size is the last page");
-	}
-
-	[TestMethod]
-	public async Task ListDirectoryNamesAsync_ReturnsDirectoriesOnly()
-	{
-		RespondWith("""
-			[
-				{"name":"1.0.19","type":"dir"},
-				{"name":"1.0.21","type":"dir"},
-				{"name":"README.md","type":"file"}
-			]
-			""");
-
-		IReadOnlyList<string> names = await _client
-			.ListDirectoryNamesAsync("microsoft", "winget-pkgs", "manifests/k/ktsu/BlastMerge")
-			.ConfigureAwait(false);
-
-		Assert.AreEqual("1.0.19,1.0.21", string.Join(",", names));
 	}
 
 	[TestMethod]

@@ -45,7 +45,8 @@ public class GitHubApiClient(IProcessRunner processRunner, IBuildLogger logger) 
 				.Select(static item => new GitHubRepository(
 					GetString(item, "name")!,
 					GetString(item, "default_branch") ?? "main",
-					item.TryGetProperty("archived", out JsonElement archived) && archived.ValueKind == JsonValueKind.True)));
+					item.TryGetProperty("archived", out JsonElement archived) && archived.ValueKind == JsonValueKind.True,
+					GetInt(item, "stargazers_count"))));
 
 			// A page shorter than the page size is the last one.
 			hasMorePages = items.Length == PageSize;
@@ -116,24 +117,6 @@ public class GitHubApiClient(IProcessRunner processRunner, IBuildLogger logger) 
 			logger.WriteVerbose($"  Could not decode {path} in {repository}");
 			return null;
 		}
-	}
-
-	/// <inheritdoc/>
-	public async Task<IReadOnlyList<string>> ListDirectoryNamesAsync(string organization, string repository, string path, CancellationToken cancellationToken = default)
-	{
-		JsonElement? response = await GetJsonAsync($"/repos/{organization}/{repository}/contents/{path}", cancellationToken).ConfigureAwait(false);
-		if (response is not { ValueKind: JsonValueKind.Array })
-		{
-			return [];
-		}
-
-		return
-		[
-			.. response.Value.EnumerateArray()
-				.Where(static item => GetString(item, "type") == "dir")
-				.Select(static item => GetString(item, "name"))
-				.OfType<string>(),
-		];
 	}
 
 	/// <inheritdoc/>
@@ -213,6 +196,14 @@ public class GitHubApiClient(IProcessRunner processRunner, IBuildLogger logger) 
 			return null;
 		}
 	}
+
+	private static int GetInt(JsonElement element, string propertyName) =>
+		element.ValueKind == JsonValueKind.Object &&
+		element.TryGetProperty(propertyName, out JsonElement value) &&
+		value.ValueKind == JsonValueKind.Number &&
+		value.TryGetInt32(out int number)
+			? number
+			: 0;
 
 	private static string? GetString(JsonElement element, string propertyName) =>
 		element.ValueKind == JsonValueKind.Object &&

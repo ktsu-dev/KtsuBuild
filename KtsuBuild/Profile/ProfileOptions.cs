@@ -14,9 +14,6 @@ public sealed record ProfileOptions
 	/// with the prefix <c>ktsu</c> is looked up as <c>ktsu.Extensions</c>.</summary>
 	public string PackagePrefix { get; init; } = "ktsu";
 
-	/// <summary>Gets the winget publisher whose manifests are searched for shipped applications.</summary>
-	public string WingetPublisher { get; init; } = "ktsu";
-
 	/// <summary>Gets the MSBuild SDK whose pinned version is reported, and whose newest published
 	/// version every repository is compared against.</summary>
 	public string SdkPackageId { get; init; } = "ktsu.Sdk";
@@ -38,7 +35,4 @@ public sealed record ProfileOptions
 
 	/// <summary>Gets how many days of commit history the activity count covers.</summary>
 	public int ActivityWindowDays { get; init; } = 30;
-
-	/// <summary>Gets the README length, in characters, below which a repository counts as undocumented.</summary>
-	public int MinimumReadmeLength { get; init; } = 256;
 }

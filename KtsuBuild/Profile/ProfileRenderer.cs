@@ -18,8 +18,8 @@ using static Polyfill;
 public static class ProfileRenderer
 {
 	private const string TableHeader =
-		"\n| Repo | Ships | Stable | Prerelease | winget | SDK | Activity | Status | README |\n" +
-		"|------|-------|--------|------------|--------|-----|----------|--------|--------|\n";
+		"\n| Repo | Ships | Stable | SDK | Stars | Activity | Status |\n" +
+		"|------|-------|--------|-----|-------|----------|--------|\n";
 
 	private const string EmptyCell = "| ";
 
@@ -72,12 +72,10 @@ public static class ProfileRenderer
 		row.Append(CultureInfo.InvariantCulture, $"|[{repository.Name}](https://github.com/{repository.Owner}/{repository.Name})");
 		row.Append(RenderShipsCell(repository));
 		row.Append(RenderStableCell(repository));
-		row.Append(RenderPrereleaseCell(repository));
-		row.Append(RenderWingetCell(repository));
 		row.Append(RenderSdkCell(repository));
+		row.Append(RenderStarsCell(repository));
 		row.Append(RenderActivityCell(repository));
 		row.Append(RenderStatusCell(repository));
-		row.Append(RenderReadmeCell(repository));
 		row.Append("|\n");
 
 		return row.ToString();
@@ -120,22 +118,6 @@ public static class ProfileRenderer
 	};
 
 	/// <summary>
-	/// Renders the pinned SDK version, colored by whether it is the newest published one.
-	/// </summary>
-	/// <param name="repository">The repository to render.</param>
-	/// <returns>The markdown cell.</returns>
-	private static string RenderSdkCell(RepoFacts repository)
-	{
-		if (string.IsNullOrEmpty(repository.SdkVersion))
-		{
-			return EmptyCell;
-		}
-
-		string color = repository.SdkIsCurrent ? BadgeColors.Success : BadgeColors.Warning;
-		return $"|![SDK]({BadgeBuilder.Build(string.Empty, repository.SdkVersion, color)})";
-	}
-
-	/// <summary>
 	/// Renders the stable version cell, preferring the NuGet version over the GitHub release tag
 	/// because the package is what consumers install.
 	/// </summary>
@@ -157,37 +139,32 @@ public static class ProfileRenderer
 	}
 
 	/// <summary>
-	/// Renders the prerelease cell, showing a prerelease only when it is actually newer than the
-	/// stable version. A prerelease at or below stable has already been superseded.
+	/// Renders the pinned SDK version, colored by whether the repository has kept up with the newest
+	/// published one.
 	/// </summary>
 	/// <param name="repository">The repository to render.</param>
 	/// <returns>The markdown cell.</returns>
-	private static string RenderPrereleaseCell(RepoFacts repository)
+	private static string RenderSdkCell(RepoFacts repository)
 	{
-		if (!string.IsNullOrEmpty(repository.NuGetPrereleaseVersion) &&
-			SemanticVersion.IsGreater(repository.NuGetPrereleaseVersion, repository.NuGetStableVersion))
+		if (string.IsNullOrEmpty(repository.SdkVersion))
 		{
-			return $"|![NuGet Prerelease]({BadgeBuilder.Build(string.Empty, $"v{repository.NuGetPrereleaseVersion}", BadgeColors.NuGet, "nuget")})";
+			return EmptyCell;
 		}
 
-		if (!string.IsNullOrEmpty(repository.ReleasePrereleaseVersion) &&
-			SemanticVersion.IsGreater(repository.ReleasePrereleaseVersion, repository.ReleaseStableVersion))
-		{
-			return $"|![GitHub Prerelease]({BadgeBuilder.Build(string.Empty, $"v{repository.ReleasePrereleaseVersion}", BadgeColors.GitHub, GitHubLogo)})";
-		}
-
-		return EmptyCell;
+		string color = repository.SdkIsCurrent ? BadgeColors.Success : BadgeColors.Warning;
+		return $"|![SDK]({BadgeBuilder.Build(string.Empty, repository.SdkVersion, color)})";
 	}
 
 	/// <summary>
-	/// Renders the winget availability cell.
+	/// Renders the stargazer count, left blank for a repository nobody has starred yet.
 	/// </summary>
 	/// <param name="repository">The repository to render.</param>
 	/// <returns>The markdown cell.</returns>
-	private static string RenderWingetCell(RepoFacts repository) =>
-		string.IsNullOrEmpty(repository.WingetVersion)
-			? EmptyCell
-			: $"|![winget]({BadgeBuilder.Build(string.Empty, $"v{repository.WingetVersion}", BadgeColors.Winget, "windows")})";
+	/// <remarks>Gold and unlogoed, so it does not read as another of the dark GitHub badges.</remarks>
+	private static string RenderStarsCell(RepoFacts repository) =>
+		repository.Stars > 0
+			? $"|![Stars]({BadgeBuilder.Build(string.Empty, repository.Stars.ToString(CultureInfo.InvariantCulture), BadgeColors.Star)})"
+			: EmptyCell;
 
 	/// <summary>
 	/// Renders the commit activity cell, left blank when there has been no activity in the window.
@@ -220,19 +197,5 @@ public static class ProfileRenderer
 		};
 
 		return $"|![Status]({BadgeBuilder.Build(string.Empty, message, color, GitHubLogo)})";
-	}
-
-	/// <summary>
-	/// Renders the README quality cell.
-	/// </summary>
-	/// <param name="repository">The repository to render.</param>
-	/// <returns>The markdown cell.</returns>
-	private static string RenderReadmeCell(RepoFacts repository)
-	{
-		(string message, string color) = repository.ReadmePasses
-			? ("passing", BadgeColors.Success)
-			: ("failing", BadgeColors.Failure);
-
-		return $"|![README]({BadgeBuilder.Build(string.Empty, message, color, "mdbook")})";
 	}
 }

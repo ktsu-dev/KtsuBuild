@@ -16,10 +16,10 @@ public class BadgeBuilderTests
 			BadgeBuilder.Build(string.Empty, "v1.1.4", BadgeColors.GitHub, "github"));
 
 	[TestMethod]
-	public void Build_WithWingetColors_MatchesPublishedBadgeUrl() =>
+	public void Build_WithStarColor_OmitsTheLogo() =>
 		Assert.AreEqual(
-			"https://img.shields.io/badge/-v1.0.21-0078D4?logo=windows&logoColor=white",
-			BadgeBuilder.Build(string.Empty, "v1.0.21", BadgeColors.Winget, "windows"));
+			"https://img.shields.io/badge/-12-e3b341",
+			BadgeBuilder.Build(string.Empty, "12", BadgeColors.Star));
 
 	[TestMethod]
 	public void Build_WithStatusMessage_MatchesPublishedBadgeUrl() =>
