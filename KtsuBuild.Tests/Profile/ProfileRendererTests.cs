@@ -153,7 +153,7 @@ public class ProfileRendererTests
 		]);
 
 		Assert.Contains("\n| Repo | Ships | Stable | Prerelease | winget | SDK | Activity | Status | README |\n|------|-------|--------|------------|--------|-----|----------|--------|--------|\n|[Alpha]", rendered);
-		Assert.AreEqual(1, rendered.Split("| Repo |").Length - 1, "There should be exactly one table");
+		Assert.HasCount(2, rendered.Split("| Repo |"), "One header occurrence splits the text into two parts, so there is exactly one table");
 	}
 
 	[TestMethod]

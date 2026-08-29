@@ -124,10 +124,16 @@ public static class ProfileRenderer
 	/// </summary>
 	/// <param name="repository">The repository to render.</param>
 	/// <returns>The markdown cell.</returns>
-	private static string RenderSdkCell(RepoFacts repository) =>
-		string.IsNullOrEmpty(repository.SdkVersion)
-			? EmptyCell
-			: $"|![SDK]({BadgeBuilder.Build(string.Empty, repository.SdkVersion, repository.SdkIsCurrent ? BadgeColors.Success : BadgeColors.Warning)})";
+	private static string RenderSdkCell(RepoFacts repository)
+	{
+		if (string.IsNullOrEmpty(repository.SdkVersion))
+		{
+			return EmptyCell;
+		}
+
+		string color = repository.SdkIsCurrent ? BadgeColors.Success : BadgeColors.Warning;
+		return $"|![SDK]({BadgeBuilder.Build(string.Empty, repository.SdkVersion, color)})";
+	}
 
 	/// <summary>
 	/// Renders the stable version cell, preferring the NuGet version over the GitHub release tag

@@ -29,7 +29,8 @@ public class GitHubApiClient(IProcessRunner processRunner, IBuildLogger logger) 
 		List<GitHubRepository> repositories = [];
 
 		bool hasMorePages = true;
-		for (int page = 1; hasMorePages; page++)
+		int page = 1;
+		while (hasMorePages)
 		{
 			string endpoint = $"/orgs/{organization}/repos?type=public&sort=full_name&direction=asc&page={page.ToString(CultureInfo.InvariantCulture)}&per_page={PageSize.ToString(CultureInfo.InvariantCulture)}";
 			JsonElement? response = await GetJsonAsync(endpoint, cancellationToken).ConfigureAwait(false);
@@ -48,6 +49,7 @@ public class GitHubApiClient(IProcessRunner processRunner, IBuildLogger logger) 
 
 			// A page shorter than the page size is the last one.
 			hasMorePages = items.Length == PageSize;
+			page++;
 		}
 
 		return repositories;

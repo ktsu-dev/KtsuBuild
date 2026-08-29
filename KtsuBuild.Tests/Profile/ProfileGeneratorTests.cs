@@ -69,7 +69,7 @@ public class ProfileGeneratorTests
 		await _generator.GenerateAsync(Options, template, output).ConfigureAwait(false);
 
 		string rendered = await File.ReadAllTextAsync(output).ConfigureAwait(false);
-		StringAssert.StartsWith(rendered, "# ktsu.dev");
+		Assert.StartsWith("# ktsu.dev", rendered);
 		Assert.Contains("| Repo | Ships | Stable |", rendered);
 		Assert.Contains("[Extensions](https://github.com/ktsu-dev/Extensions)", rendered);
 	}

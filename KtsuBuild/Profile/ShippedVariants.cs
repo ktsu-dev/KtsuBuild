@@ -39,6 +39,10 @@ public static partial class ShippedVariants
 	// as long as a pathological input takes.
 	private const int MatchTimeoutMilliseconds = 2000;
 
+	// An explicit array leaves no doubt which Split overload runs. Passing two chars partially
+	// matches Split(char, int, StringSplitOptions), where the second char would read as a count.
+	private static readonly char[] DirectorySeparators = ['/', '\\'];
+
 	private static readonly string[] SupportingDirectories =
 	[
 		"test", "tests", "example", "examples", "sample", "samples",
@@ -65,7 +69,7 @@ public static partial class ShippedVariants
 			return false;
 		}
 
-		string[] segments = path.Split('/', '\\');
+		string[] segments = path.Split(DirectorySeparators);
 		for (int i = 0; i < segments.Length - 1; i++)
 		{
 			if (SupportingDirectories.Contains(segments[i], StringComparer.OrdinalIgnoreCase))

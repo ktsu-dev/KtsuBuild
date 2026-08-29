@@ -173,7 +173,7 @@ public class GitHubApiClientTests
 
 		await _client.ListOrganizationRepositoriesAsync("ktsu-dev").ConfigureAwait(false);
 
-		Assert.AreEqual(1, _requestedArguments.Count, "A page shorter than the page size is the last page");
+		Assert.HasCount(1, _requestedArguments, "A page shorter than the page size is the last page");
 	}
 
 	[TestMethod]
