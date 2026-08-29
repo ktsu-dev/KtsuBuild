@@ -1,4 +1,4 @@
-// Copyright (c) 2023-2026 ktsu-dev contributors
+﻿// Copyright (c) 2023-2026 ktsu-dev contributors
 
 namespace KtsuBuild.Tool;
 
@@ -38,6 +38,7 @@ internal sealed class Program
 		AddMetadataCommand(rootCommand, processRunner, logger);
 		AddWingetCommand(rootCommand, processRunner, logger);
 		AddIosCommand(rootCommand, processRunner, logger);
+		AddProfileCommand(rootCommand, processRunner, logger);
 
 		// Parse and invoke
 		return await rootCommand.Parse(args).InvokeAsync(configuration: null, cancellationToken: CancellationToken.None).ConfigureAwait(false);
@@ -775,5 +776,30 @@ internal sealed class Program
 			}
 #pragma warning restore CA1031
 		});
+	}
+
+	private static void AddProfileCommand(RootCommand rootCommand, IProcessRunner processRunner, IBuildLogger logger)
+	{
+		ProfileCommand profileCommand = new();
+
+		Command readmeCommand = profileCommand.Subcommands.First(c => c.Name == "readme");
+		Func<ProfileCommand.ProfileOptionsInput, CancellationToken, Task<int>> handler = ProfileCommand.CreateReadmeHandler(processRunner, logger);
+		readmeCommand.SetAction(async (parseResult, ct) =>
+		{
+			ProfileCommand.ProfileOptionsInput input = new(
+				Organization: parseResult.GetValue(ProfileCommand.OrganizationOption)!,
+				TemplatePath: parseResult.GetValue(ProfileCommand.TemplateOption)!,
+				OutputPath: parseResult.GetValue(ProfileCommand.OutputOption)!,
+				PackagePrefix: parseResult.GetValue(ProfileCommand.PackagePrefixOption)!,
+				WingetPublisher: parseResult.GetValue(ProfileCommand.WingetPublisherOption)!,
+				SdkPackage: parseResult.GetValue(ProfileCommand.SdkPackageOption)!,
+				Exclude: parseResult.GetValue(ProfileCommand.ExcludeOption) ?? [],
+				Only: parseResult.GetValue(ProfileCommand.OnlyOption) ?? [],
+				FallbackWorkflows: parseResult.GetValue(ProfileCommand.FallbackWorkflowsOption) ?? [],
+				Verbose: parseResult.GetValue(GlobalOptions.Verbose));
+			return await handler(input, ct).ConfigureAwait(false);
+		});
+
+		rootCommand.Subcommands.Add(profileCommand);
 	}
 }

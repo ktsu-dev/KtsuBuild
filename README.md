@@ -19,6 +19,7 @@
 - **NuGet Publishing**: Publish to NuGet.org, GitHub Packages, and custom feeds
 - **GitHub Releases**: Create releases with assets, SHA256 hashes, and release notes
 - **Winget Manifests**: Generate Windows Package Manager manifests with auto-detection
+- **Organization Profiles**: Generate a GitHub profile README listing every repository with version, activity, and build status badges
 
 ## Usage
 
@@ -336,6 +337,61 @@ ktsubuild winget upload --version <version> [options]
 
 **Options:**
 - `--version`, `-V`: The version to upload manifests for (required)
+
+### `profile`
+
+Organization profile generation.
+
+#### `profile readme`
+
+Generate a GitHub organization profile README. Reads every public repository in the organization,
+then appends an applications table and a libraries table to a template.
+
+```bash
+ktsubuild profile readme --org <organization> [options]
+```
+
+A repository is listed once it has a stable release, so work in progress stays off the public
+profile.
+
+The **Ships** column says what each repository produces, read from the SDK its projects declare:
+
+| Badge | Declared by | Meaning |
+|-------|-------------|---------|
+| `lib` | plain `ktsu.Sdk` | A NuGet package other projects reference |
+| `cli` | `ktsu.Sdk.ConsoleApp` | A command line program |
+| `app` | `ktsu.Sdk.App` | A windowed application |
+| `tool` | `ktsu.Sdk.Tool` | A .NET tool installed with `dotnet tool install` |
+
+A repository can ship several at once. Test, benchmark, sample, example, and demo projects are
+skipped, by file name and by the directories above them, so a demo application does not count as
+something the repository ships. Platform SDKs such as `ktsu.Sdk.Windows` say which platform a
+project targets rather than what kind of thing it is, so they are not shown.
+
+The **SDK** column shows the version each repository pins for `--sdk-package` in its `global.json`,
+green when it matches the newest published version and yellow when the repository has been left
+behind.
+
+**Options:**
+- `--org`, `-o`: The GitHub organization to profile (required)
+- `--template`, `-t`: The README template the tables are appended to (default: `./profile/README.template`)
+- `--output`: Where to write the rendered README (default: `./profile/README.md`)
+- `--package-prefix`: The NuGet package prefix, so repo `Extensions` resolves to `ktsu.Extensions` (default: `ktsu`)
+- `--winget-publisher`: The winget publisher whose manifests are searched (default: `ktsu`)
+- `--sdk-package`: The MSBuild SDK whose pinned version is reported and compared (default: `ktsu.Sdk`)
+- `--exclude`: A repository to leave out of the tables, repeatable
+- `--only`: Consider only this repository, repeatable. Useful for checking one row without regenerating the whole profile
+- `--fallback-workflow`: A workflow file name to try when a repository has no `dotnet.yml`, repeatable
+
+Build status comes from `dotnet.yml` on the default branch. A repository that names its build
+workflow something else reports no status unless `--fallback-workflow` names it, and a fallback
+logs a warning so the repository gets renamed rather than the exception living here forever.
+
+```bash
+ktsubuild profile readme --org ktsu-dev --exclude Sdk --fallback-workflow ci.yml
+```
+
+Requires the `gh` CLI to be authenticated, or `GH_TOKEN` to be set.
 
 ## Version Bump Control
 
