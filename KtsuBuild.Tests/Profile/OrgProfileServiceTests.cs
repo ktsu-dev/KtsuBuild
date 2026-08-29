@@ -128,7 +128,7 @@ public class OrgProfileServiceTests
 
 		RepoFacts facts = (await _service.GatherAsync(Options).ConfigureAwait(false))[0];
 
-		Assert.IsTrue(facts.IsApplication);
+		Assert.AreEqual("cli", string.Join(" ", facts.Variants.Select(ShippedVariants.ToLabel)));
 		Assert.AreEqual("1.0.21", facts.WingetVersion, "Sorted as text, 1.0.9 would win");
 	}
 
@@ -210,5 +210,95 @@ public class OrgProfileServiceTests
 		IReadOnlyList<RepoFacts> facts = await _service.GatherAsync(Options).ConfigureAwait(false);
 
 		Assert.AreEqual("Charlie,Alpha,Bravo", string.Join(",", facts.Select(static f => f.Name)));
+	}
+
+	[TestMethod]
+	public async Task GatherAsync_CombinesVariantsAcrossShippingProjects()
+	{
+		HaveRepositories(new GitHubRepository("Coder", "main", false));
+		_gitHub.ListTreePathsAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+			.Returns(Task.FromResult<IReadOnlyList<string>>([
+				"Coder.App/Coder.App.csproj",
+				"Coder.ConsoleApp/Coder.ConsoleApp.csproj",
+				"Coder.Core/Coder.Core.csproj",
+				"Coder.Test/Coder.Test.csproj",
+			]));
+		_gitHub.GetFileTextAsync(Arg.Any<string>(), Arg.Any<string>(), "Coder.App/Coder.App.csproj", Arg.Any<CancellationToken>())
+			.Returns(Task.FromResult<string?>("""<Sdk Name="ktsu.Sdk" /><Sdk Name="ktsu.Sdk.App" />"""));
+		_gitHub.GetFileTextAsync(Arg.Any<string>(), Arg.Any<string>(), "Coder.ConsoleApp/Coder.ConsoleApp.csproj", Arg.Any<CancellationToken>())
+			.Returns(Task.FromResult<string?>("""<Sdk Name="ktsu.Sdk" /><Sdk Name="ktsu.Sdk.ConsoleApp" />"""));
+		_gitHub.GetFileTextAsync(Arg.Any<string>(), Arg.Any<string>(), "Coder.Core/Coder.Core.csproj", Arg.Any<CancellationToken>())
+			.Returns(Task.FromResult<string?>("""<Sdk Name="ktsu.Sdk" />"""));
+
+		RepoFacts facts = (await _service.GatherAsync(Options).ConfigureAwait(false))[0];
+
+		Assert.AreEqual("lib cli app", string.Join(" ", facts.Variants.Select(ShippedVariants.ToLabel)));
+	}
+
+	[TestMethod]
+	public async Task GatherAsync_IgnoresProjectsUnderSupportingDirectories()
+	{
+		// ImGuiApp keeps demo applications under examples/, and they are not what it ships.
+		HaveRepositories(new GitHubRepository("ImGuiApp", "main", false));
+		_gitHub.ListTreePathsAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+			.Returns(Task.FromResult<IReadOnlyList<string>>([
+				"ImGui.App/ImGui.App.csproj",
+				"examples/ImGuiAppDemo/ImGuiAppDemo.csproj",
+			]));
+		_gitHub.GetFileTextAsync(Arg.Any<string>(), Arg.Any<string>(), "ImGui.App/ImGui.App.csproj", Arg.Any<CancellationToken>())
+			.Returns(Task.FromResult<string?>("""<Sdk Name="ktsu.Sdk" />"""));
+		_gitHub.GetFileTextAsync(Arg.Any<string>(), Arg.Any<string>(), "examples/ImGuiAppDemo/ImGuiAppDemo.csproj", Arg.Any<CancellationToken>())
+			.Returns(Task.FromResult<string?>("""<Sdk Name="ktsu.Sdk" /><Sdk Name="ktsu.Sdk.App" />"""));
+
+		RepoFacts facts = (await _service.GatherAsync(Options).ConfigureAwait(false))[0];
+
+		Assert.AreEqual("lib", string.Join(" ", facts.Variants.Select(ShippedVariants.ToLabel)));
+	}
+
+	[TestMethod]
+	public async Task GatherAsync_ReadsThePinnedSdkVersion()
+	{
+		HaveRepositories(new GitHubRepository("Extensions", "main", false));
+		_gitHub.ListTreePathsAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+			.Returns(Task.FromResult<IReadOnlyList<string>>(["global.json"]));
+		_gitHub.GetFileTextAsync(Arg.Any<string>(), Arg.Any<string>(), "global.json", Arg.Any<CancellationToken>())
+			.Returns(Task.FromResult<string?>("""{"msbuild-sdks":{"ktsu.Sdk":"2.28.0"}}"""));
+		_nuGet.GetPackageAsync("ktsu.Sdk", Arg.Any<CancellationToken>())
+			.Returns(Task.FromResult<NuGetPackageInfo?>(new NuGetPackageInfo("2.28.0", null, 0, [])));
+
+		RepoFacts facts = (await _service.GatherAsync(Options).ConfigureAwait(false))[0];
+
+		Assert.AreEqual("2.28.0", facts.SdkVersion);
+		Assert.IsTrue(facts.SdkIsCurrent);
+	}
+
+	[TestMethod]
+	public async Task GatherAsync_FlagsARepositoryLeftBehindOnAnOlderSdk()
+	{
+		HaveRepositories(new GitHubRepository("VST", "main", false));
+		_gitHub.ListTreePathsAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+			.Returns(Task.FromResult<IReadOnlyList<string>>(["global.json"]));
+		_gitHub.GetFileTextAsync(Arg.Any<string>(), Arg.Any<string>(), "global.json", Arg.Any<CancellationToken>())
+			.Returns(Task.FromResult<string?>("""{"msbuild-sdks":{"ktsu.Sdk":"2.8.0"}}"""));
+		_nuGet.GetPackageAsync("ktsu.Sdk", Arg.Any<CancellationToken>())
+			.Returns(Task.FromResult<NuGetPackageInfo?>(new NuGetPackageInfo("2.28.0", null, 0, [])));
+
+		RepoFacts facts = (await _service.GatherAsync(Options).ConfigureAwait(false))[0];
+
+		Assert.AreEqual("2.8.0", facts.SdkVersion);
+		Assert.IsFalse(facts.SdkIsCurrent);
+	}
+
+	[TestMethod]
+	public async Task GatherAsync_WithNoGlobalJson_SkipsTheRequestEntirely()
+	{
+		HaveRepositories(new GitHubRepository("Alpha", "main", false));
+
+		RepoFacts facts = (await _service.GatherAsync(Options).ConfigureAwait(false))[0];
+
+		Assert.IsNull(facts.SdkVersion);
+		await _gitHub.DidNotReceive()
+			.GetFileTextAsync(Arg.Any<string>(), Arg.Any<string>(), "global.json", Arg.Any<CancellationToken>())
+			.ConfigureAwait(false);
 	}
 }

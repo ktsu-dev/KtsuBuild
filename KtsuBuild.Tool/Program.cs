@@ -792,6 +792,7 @@ internal sealed class Program
 				OutputPath: parseResult.GetValue(ProfileCommand.Output)!,
 				PackagePrefix: parseResult.GetValue(ProfileCommand.PackagePrefix)!,
 				WingetPublisher: parseResult.GetValue(ProfileCommand.WingetPublisher)!,
+				SdkPackage: parseResult.GetValue(ProfileCommand.SdkPackage)!,
 				Exclude: parseResult.GetValue(ProfileCommand.Exclude) ?? [],
 				Only: parseResult.GetValue(ProfileCommand.Only) ?? [],
 				FallbackWorkflows: parseResult.GetValue(ProfileCommand.FallbackWorkflows) ?? [],

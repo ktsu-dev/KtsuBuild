@@ -17,6 +17,10 @@ public sealed record ProfileOptions
 	/// <summary>Gets the winget publisher whose manifests are searched for shipped applications.</summary>
 	public string WingetPublisher { get; init; } = "ktsu";
 
+	/// <summary>Gets the MSBuild SDK whose pinned version is reported, and whose newest published
+	/// version every repository is compared against.</summary>
+	public string SdkPackageId { get; init; } = "ktsu.Sdk";
+
 	/// <summary>Gets the repositories to leave out of the tables, by name. Use this for repositories
 	/// covered elsewhere in the template rather than teaching the generator about them.</summary>
 	public IReadOnlyList<string> ExcludedRepositories { get; init; } = [];

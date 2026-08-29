@@ -17,9 +17,16 @@ public sealed record RepoFacts
 	/// <summary>Gets the repository name.</summary>
 	public required string Name { get; init; }
 
-	/// <summary>Gets a value indicating whether the repository's primary deliverable is an application
-	/// rather than a library. Applications and libraries are listed in separate tables.</summary>
-	public bool IsApplication { get; init; }
+	/// <summary>Gets what the repository ships, in a stable order.</summary>
+	public IReadOnlyList<ShippedVariant> Variants { get; init; } = [];
+
+	/// <summary>Gets the ktsu SDK version the repository pins in its <c>global.json</c>, or
+	/// <see langword="null"/> when it pins none.</summary>
+	public string? SdkVersion { get; init; }
+
+	/// <summary>Gets a value indicating whether <see cref="SdkVersion"/> is the newest published SDK.
+	/// A repository left behind is the thing this column exists to surface.</summary>
+	public bool SdkIsCurrent { get; init; }
 
 	/// <summary>Gets the newest stable version published to NuGet, or <see langword="null"/> when the
 	/// package is unpublished or has only prereleases.</summary>

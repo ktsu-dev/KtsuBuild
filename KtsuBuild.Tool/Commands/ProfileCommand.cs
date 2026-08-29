@@ -23,6 +23,7 @@ public class ProfileCommand : Command
 	/// <param name="OutputPath">The path the rendered README is written to.</param>
 	/// <param name="PackagePrefix">The NuGet package prefix for the organization.</param>
 	/// <param name="WingetPublisher">The winget publisher whose manifests are searched.</param>
+	/// <param name="SdkPackage">The MSBuild SDK whose pinned version is reported and compared.</param>
 	/// <param name="Exclude">Repositories to leave out of the tables.</param>
 	/// <param name="Only">The only repositories to consider, or empty for all of them.</param>
 	/// <param name="FallbackWorkflows">Workflow file names to try when a repository has no <c>dotnet.yml</c>.</param>
@@ -33,6 +34,7 @@ public class ProfileCommand : Command
 		string OutputPath,
 		string PackagePrefix,
 		string WingetPublisher,
+		string SdkPackage,
 		IReadOnlyList<string> Exclude,
 		IReadOnlyList<string> Only,
 		IReadOnlyList<string> FallbackWorkflows,
@@ -71,6 +73,13 @@ public class ProfileCommand : Command
 	{
 		Description = "The winget publisher whose manifests are searched for shipped applications",
 		DefaultValueFactory = _ => "ktsu",
+	};
+
+	/// <summary>Gets the SDK package option.</summary>
+	public static Option<string> SdkPackage { get; } = new("--sdk-package")
+	{
+		Description = "The MSBuild SDK whose pinned version is reported and compared",
+		DefaultValueFactory = _ => "ktsu.Sdk",
 	};
 
 	/// <summary>Gets the repository exclusion option.</summary>
@@ -164,6 +173,7 @@ public class ProfileCommand : Command
 			Organization = input.Organization,
 			PackagePrefix = input.PackagePrefix,
 			WingetPublisher = input.WingetPublisher,
+			SdkPackageId = input.SdkPackage,
 			ExcludedRepositories = input.Exclude,
 			OnlyRepositories = input.Only,
 			FallbackWorkflowFileNames = input.FallbackWorkflows,
@@ -197,6 +207,7 @@ public class ProfileCommand : Command
 			Options.Add(Output);
 			Options.Add(PackagePrefix);
 			Options.Add(WingetPublisher);
+			Options.Add(SdkPackage);
 			Options.Add(Exclude);
 			Options.Add(Only);
 			Options.Add(FallbackWorkflows);

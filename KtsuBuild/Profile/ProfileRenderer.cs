@@ -17,45 +17,35 @@ using static Polyfill;
 /// </remarks>
 public static class ProfileRenderer
 {
-	private const string ApplicationsHeader =
-		"\n### Applications\n\n| Repo | Stable | winget | Activity | Status | README |\n|------|--------|--------|----------|--------|--------|\n";
-
-	private const string LibrariesHeader =
-		"\n### Libraries\n\n| Repo | Stable | Prerelease | Activity | Status | README |\n|------|--------|------------|----------|--------|--------|\n";
+	private const string TableHeader =
+		"\n| Repo | Ships | Stable | Prerelease | winget | SDK | Activity | Status | README |\n" +
+		"|------|-------|--------|------------|--------|-----|----------|--------|--------|\n";
 
 	private const string EmptyCell = "| ";
 
 	/// <summary>
 	/// Renders the full profile README.
 	/// </summary>
-	/// <param name="template">The template content the tables are appended to.</param>
-	/// <param name="repositories">The repositories to list, in the order they should appear. Applications
-	/// and libraries are split into separate tables while each keeps its relative order.</param>
+	/// <param name="template">The template content the table is appended to.</param>
+	/// <param name="repositories">The repositories to list, in the order they should appear.</param>
 	/// <returns>The rendered markdown, using LF line endings.</returns>
+	/// <remarks>
+	/// One table rather than one per kind. The Ships column says what each repository is, so splitting
+	/// the list would only make a reader guess which half to look in, and a repository that ships both
+	/// a library and an application has no correct half.
+	/// </remarks>
 	public static string Render(string template, IEnumerable<RepoFacts> repositories)
 	{
 		Ensure.NotNull(template);
 		Ensure.NotNull(repositories);
 
 		List<RepoFacts> all = [.. repositories];
-		List<RepoFacts> applications = [.. all.Where(static r => r.IsApplication)];
-		List<RepoFacts> libraries = [.. all.Where(static r => !r.IsApplication)];
-
 		StringBuilder builder = new(template);
 
-		if (applications.Count > 0)
+		if (all.Count > 0)
 		{
-			builder.Append(ApplicationsHeader);
-			foreach (RepoFacts repository in applications)
-			{
-				builder.Append(RenderRow(repository));
-			}
-		}
-
-		if (libraries.Count > 0)
-		{
-			builder.Append(LibrariesHeader);
-			foreach (RepoFacts repository in libraries)
+			builder.Append(TableHeader);
+			foreach (RepoFacts repository in all)
 			{
 				builder.Append(RenderRow(repository));
 			}
@@ -78,8 +68,11 @@ public static class ProfileRenderer
 
 		StringBuilder row = new();
 		row.Append(CultureInfo.InvariantCulture, $"|[{repository.Name}](https://github.com/{repository.Owner}/{repository.Name})");
+		row.Append(RenderShipsCell(repository));
 		row.Append(RenderStableCell(repository));
-		row.Append(repository.IsApplication ? RenderWingetCell(repository) : RenderPrereleaseCell(repository));
+		row.Append(RenderPrereleaseCell(repository));
+		row.Append(RenderWingetCell(repository));
+		row.Append(RenderSdkCell(repository));
 		row.Append(RenderActivityCell(repository));
 		row.Append(RenderStatusCell(repository));
 		row.Append(RenderReadmeCell(repository));
@@ -87,6 +80,52 @@ public static class ProfileRenderer
 
 		return row.ToString();
 	}
+
+	/// <summary>
+	/// Renders the badges for what the repository ships.
+	/// </summary>
+	/// <param name="repository">The repository to render.</param>
+	/// <returns>The markdown cell.</returns>
+	private static string RenderShipsCell(RepoFacts repository)
+	{
+		if (repository.Variants.Count == 0)
+		{
+			return EmptyCell;
+		}
+
+		StringBuilder cell = new("|");
+		foreach (ShippedVariant variant in repository.Variants)
+		{
+			string label = ShippedVariants.ToLabel(variant);
+			cell.Append(CultureInfo.InvariantCulture, $"![{label}]({BadgeBuilder.Build(string.Empty, label, ColorFor(variant))})");
+		}
+
+		return cell.ToString();
+	}
+
+	/// <summary>
+	/// Gets the badge color for a variant. Packages a caller references are blue, programs a user runs
+	/// are purple, so the column separates the two at a glance.
+	/// </summary>
+	/// <param name="variant">The variant to color.</param>
+	/// <returns>The hex color.</returns>
+	private static string ColorFor(ShippedVariant variant) => variant switch
+	{
+		ShippedVariant.Library => BadgeColors.NuGet,
+		ShippedVariant.Tool => BadgeColors.Tool,
+		ShippedVariant.App => BadgeColors.App,
+		_ => BadgeColors.ConsoleApp,
+	};
+
+	/// <summary>
+	/// Renders the pinned SDK version, colored by whether it is the newest published one.
+	/// </summary>
+	/// <param name="repository">The repository to render.</param>
+	/// <returns>The markdown cell.</returns>
+	private static string RenderSdkCell(RepoFacts repository) =>
+		string.IsNullOrEmpty(repository.SdkVersion)
+			? EmptyCell
+			: $"|![SDK]({BadgeBuilder.Build(string.Empty, repository.SdkVersion, repository.SdkIsCurrent ? BadgeColors.Success : BadgeColors.Warning)})";
 
 	/// <summary>
 	/// Renders the stable version cell, preferring the NuGet version over the GitHub release tag

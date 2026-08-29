@@ -66,4 +66,13 @@ public static class BadgeColors
 
 	/// <summary>Gets the color for an unknown or in-progress state.</summary>
 	public static string Warning => "dbab09";
+
+	/// <summary>Gets the color for a .NET tool.</summary>
+	public static string Tool => "512BD4";
+
+	/// <summary>Gets the color for a windowed application.</summary>
+	public static string App => "68217A";
+
+	/// <summary>Gets the color for a command line program.</summary>
+	public static string ConsoleApp => "3B3B3B";
 }

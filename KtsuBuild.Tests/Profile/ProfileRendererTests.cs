@@ -12,6 +12,7 @@ public class ProfileRendererTests
 	{
 		Owner = "ktsu-dev",
 		Name = name,
+		Variants = [ShippedVariant.Library],
 		ReleaseStableVersion = "1.0.0",
 		CommitActivity = 5,
 		HasWorkflowRun = true,
@@ -20,12 +21,14 @@ public class ProfileRendererTests
 	};
 
 	[TestMethod]
-	public void RenderRow_ForApplication_MatchesPublishedRow() =>
-		// Pinned against the BlastMerge row in the live profile README.
+	public void RenderRow_RendersEveryColumnInOrder() =>
 		Assert.AreEqual(
 			"|[BlastMerge](https://github.com/ktsu-dev/BlastMerge)" +
-			"|![GitHub Version](https://img.shields.io/badge/-v1.1.4-181717?logo=github&logoColor=white)" +
+			"|![lib](https://img.shields.io/badge/-lib-004880)![cli](https://img.shields.io/badge/-cli-3B3B3B)" +
+			"|![NuGet Version](https://img.shields.io/badge/-v1.1.4-004880?logo=nuget&logoColor=white)" +
+			"| " +
 			"|![winget](https://img.shields.io/badge/-v1.0.21-0078D4?logo=windows&logoColor=white)" +
+			"|![SDK](https://img.shields.io/badge/-2.25.0-dbab09)" +
 			"|![Activity](https://img.shields.io/badge/-37-181717?logo=github&logoColor=white)" +
 			"|![Status](https://img.shields.io/badge/-failing-d73a4a?logo=github&logoColor=white)" +
 			"|![README](https://img.shields.io/badge/-passing-2ea44f?logo=mdbook&logoColor=white)|\n",
@@ -33,9 +36,11 @@ public class ProfileRendererTests
 			{
 				Owner = "ktsu-dev",
 				Name = "BlastMerge",
-				IsApplication = true,
-				ReleaseStableVersion = "1.1.4",
+				Variants = [ShippedVariant.Library, ShippedVariant.ConsoleApp],
+				NuGetStableVersion = "1.1.4",
 				WingetVersion = "1.0.21",
+				SdkVersion = "2.25.0",
+				SdkIsCurrent = false,
 				CommitActivity = 37,
 				HasWorkflowRun = true,
 				WorkflowConclusion = "failure",
@@ -43,25 +48,40 @@ public class ProfileRendererTests
 			}));
 
 	[TestMethod]
-	public void RenderRow_ForLibrary_MatchesPublishedRow() =>
-		// Pinned against the AppDataStorage row in the live profile README.
-		Assert.AreEqual(
-			"|[AppDataStorage](https://github.com/ktsu-dev/AppDataStorage)" +
-			"|![GitHub Version](https://img.shields.io/badge/-v1.16.46-181717?logo=github&logoColor=white)" +
-			"| " +
-			"|![Activity](https://img.shields.io/badge/-94-181717?logo=github&logoColor=white)" +
-			"|![Status](https://img.shields.io/badge/-passing-2ea44f?logo=github&logoColor=white)" +
-			"|![README](https://img.shields.io/badge/-passing-2ea44f?logo=mdbook&logoColor=white)|\n",
-			ProfileRenderer.RenderRow(new RepoFacts
-			{
-				Owner = "ktsu-dev",
-				Name = "AppDataStorage",
-				ReleaseStableVersion = "1.16.46",
-				CommitActivity = 94,
-				HasWorkflowRun = true,
-				WorkflowConclusion = "success",
-				ReadmePasses = true,
-			}));
+	public void RenderRow_WithCurrentSdk_UsesTheSuccessColor() =>
+		StringAssert.Contains(
+			ProfileRenderer.RenderRow(Library("Widget") with { SdkVersion = "2.28.0", SdkIsCurrent = true }),
+			"![SDK](https://img.shields.io/badge/-2.28.0-2ea44f)");
+
+	[TestMethod]
+	public void RenderRow_WithOutdatedSdk_UsesTheWarningColor() =>
+		StringAssert.Contains(
+			ProfileRenderer.RenderRow(Library("Widget") with { SdkVersion = "2.8.0", SdkIsCurrent = false }),
+			"![SDK](https://img.shields.io/badge/-2.8.0-dbab09)");
+
+	[TestMethod]
+	public void RenderRow_WithNoSdkPin_LeavesTheCellBlank() =>
+		Assert.IsFalse(ProfileRenderer.RenderRow(Library("Widget")).Contains("SDK", StringComparison.Ordinal));
+
+	[TestMethod]
+	public void RenderRow_RendersOneBadgePerVariant()
+	{
+		string row = ProfileRenderer.RenderRow(Library("KtsuBuild") with
+		{
+			Variants = [ShippedVariant.Library, ShippedVariant.Tool],
+		});
+
+		StringAssert.Contains(row, "![lib](https://img.shields.io/badge/-lib-004880)");
+		StringAssert.Contains(row, "![tool](https://img.shields.io/badge/-tool-512BD4)");
+	}
+
+	[TestMethod]
+	public void RenderRow_WithNoVariants_LeavesTheShipsCellBlank()
+	{
+		string row = ProfileRenderer.RenderRow(Library("Widget") with { Variants = [] });
+
+		Assert.IsFalse(row.Contains("badge/-lib", StringComparison.Ordinal));
+	}
 
 	[TestMethod]
 	public void RenderRow_PrefersNuGetVersionOverReleaseTag()
@@ -95,20 +115,14 @@ public class ProfileRendererTests
 	}
 
 	[TestMethod]
-	public void RenderRow_WithNoCommitActivity_LeavesTheCellBlank()
-	{
-		string row = ProfileRenderer.RenderRow(Library("Widget") with { CommitActivity = 0 });
-
-		Assert.IsFalse(row.Contains("Activity", StringComparison.Ordinal));
-	}
+	public void RenderRow_WithNoCommitActivity_LeavesTheCellBlank() =>
+		Assert.IsFalse(ProfileRenderer.RenderRow(Library("Widget") with { CommitActivity = 0 })
+			.Contains("Activity", StringComparison.Ordinal));
 
 	[TestMethod]
-	public void RenderRow_WithNoWorkflowRun_LeavesTheCellBlank()
-	{
-		string row = ProfileRenderer.RenderRow(Library("Widget") with { HasWorkflowRun = false });
-
-		Assert.IsFalse(row.Contains("Status", StringComparison.Ordinal));
-	}
+	public void RenderRow_WithNoWorkflowRun_LeavesTheCellBlank() =>
+		Assert.IsFalse(ProfileRenderer.RenderRow(Library("Widget") with { HasWorkflowRun = false })
+			.Contains("Status", StringComparison.Ordinal));
 
 	[TestMethod]
 	[DataRow("cancelled", "cancelled", "6e7681")]
@@ -126,23 +140,28 @@ public class ProfileRendererTests
 			"![README](https://img.shields.io/badge/-failing-d73a4a?logo=mdbook&logoColor=white)");
 
 	[TestMethod]
-	public void Render_SplitsApplicationsAndLibrariesIntoSeparateTables()
+	public void RenderRow_HasOneCellPerHeaderColumn()
 	{
-		string rendered = ProfileRenderer.Render("## Project Status\n", [
-			Library("Alpha"),
-			Library("Bravo") with { IsApplication = true },
-			Library("Charlie"),
-		]);
+		string row = ProfileRenderer.RenderRow(Library("Widget"));
 
-		StringAssert.Contains(rendered, "\n### Applications\n\n| Repo | Stable | winget | Activity | Status | README |\n|------|--------|--------|----------|--------|--------|\n|[Bravo]");
-		StringAssert.Contains(rendered, "\n### Libraries\n\n| Repo | Stable | Prerelease | Activity | Status | README |\n|------|--------|------------|----------|--------|--------|\n|[Alpha]");
-		Assert.IsTrue(
-			rendered.IndexOf("### Applications", StringComparison.Ordinal) < rendered.IndexOf("### Libraries", StringComparison.Ordinal),
-			"Applications should be listed before libraries");
+		Assert.AreEqual(9, row.TrimEnd('\n').Split('|')[1..^1].Length);
 	}
 
 	[TestMethod]
-	public void Render_PreservesInputOrderWithinEachTable()
+	public void Render_ListsEveryRepositoryInOneTable()
+	{
+		string rendered = ProfileRenderer.Render("## Project Status\n", [
+			Library("Alpha"),
+			Library("Bravo") with { Variants = [ShippedVariant.App] },
+			Library("Charlie"),
+		]);
+
+		StringAssert.Contains(rendered, "\n| Repo | Ships | Stable | Prerelease | winget | SDK | Activity | Status | README |\n|------|-------|--------|------------|--------|-----|----------|--------|--------|\n|[Alpha]");
+		Assert.AreEqual(1, rendered.Split("| Repo |").Length - 1, "There should be exactly one table");
+	}
+
+	[TestMethod]
+	public void Render_PreservesInputOrder()
 	{
 		string rendered = ProfileRenderer.Render(string.Empty, [Library("Charlie"), Library("Alpha"), Library("Bravo")]);
 
@@ -152,12 +171,21 @@ public class ProfileRendererTests
 	}
 
 	[TestMethod]
-	public void Render_WithNoApplications_OmitsTheApplicationsTable()
+	public void Render_DoesNotSeparateApplicationsFromLibraries()
 	{
-		string rendered = ProfileRenderer.Render(string.Empty, [Library("Alpha")]);
+		// The Ships column says what each repository is, so an application between two libraries stays
+		// where the alphabet puts it.
+		string rendered = ProfileRenderer.Render(string.Empty, [
+			Library("Alpha"),
+			Library("Bravo") with { Variants = [ShippedVariant.App] },
+			Library("Charlie"),
+		]);
 
-		Assert.IsFalse(rendered.Contains("### Applications", StringComparison.Ordinal));
-		StringAssert.Contains(rendered, "### Libraries");
+		Assert.IsTrue(
+			rendered.IndexOf("[Alpha]", StringComparison.Ordinal) <
+			rendered.IndexOf("[Bravo]", StringComparison.Ordinal) &&
+			rendered.IndexOf("[Bravo]", StringComparison.Ordinal) <
+			rendered.IndexOf("[Charlie]", StringComparison.Ordinal));
 	}
 
 	[TestMethod]
@@ -165,10 +193,8 @@ public class ProfileRendererTests
 		Assert.AreEqual("## Project Status\n\n", ProfileRenderer.Render("## Project Status\n", []));
 
 	[TestMethod]
-	public void Render_EndsWithABlankLineAfterTheLastRow()
-	{
-		string rendered = ProfileRenderer.Render(string.Empty, [Library("Alpha")]);
-
-		Assert.IsTrue(rendered.EndsWith(")|\n\n", StringComparison.Ordinal), "The file should end with a newline of its own after the last row");
-	}
+	public void Render_EndsWithABlankLineAfterTheLastRow() =>
+		Assert.IsTrue(
+			ProfileRenderer.Render(string.Empty, [Library("Alpha")]).EndsWith(")|\n\n", StringComparison.Ordinal),
+			"The file should end with a newline of its own after the last row");
 }
