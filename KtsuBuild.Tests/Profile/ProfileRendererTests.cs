@@ -140,7 +140,8 @@ public class ProfileRendererTests
 	{
 		string row = ProfileRenderer.RenderRow(Library("Widget"));
 
-		Assert.AreEqual(9, row.TrimEnd('\n').Split('|')[1..^1].Length);
+		// A row opens and closes with a pipe, so nine cells split into eleven parts.
+		Assert.HasCount(11, row.TrimEnd('\n').Split('|'));
 	}
 
 	[TestMethod]
