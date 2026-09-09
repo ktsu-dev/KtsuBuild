@@ -1,6 +1,8 @@
-## v2.12.1
+## v2.12.2 (patch)
 
-No significant changes detected since v2.12.1.
+Changes since v2.12.1:
+
+- Bump the microsoft group with 6 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
 
 ## v2.12.1 (patch)
 
