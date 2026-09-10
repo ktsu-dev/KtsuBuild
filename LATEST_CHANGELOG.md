@@ -1,6 +1,6 @@
-## v2.12.2 (patch)
+## v2.12.3 (patch)
 
-Changes since v2.12.1:
+Changes since v2.12.2:
 
-- Bump the microsoft group with 6 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump System.CommandLine from 2.0.11 to 2.0.12 ([@dependabot[bot]](https://github.com/dependabot[bot]))
 
