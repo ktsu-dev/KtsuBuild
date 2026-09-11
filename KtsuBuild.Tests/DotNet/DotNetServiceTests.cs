@@ -688,6 +688,26 @@ public class DotNetServiceTests
 	}
 
 	[TestMethod]
+	public void IsExecutableProject_SdkAppElementForm_ReturnsTrue()
+	{
+		// The standard ktsu.dev shape: multiple <Sdk Name="..." /> elements rather than a
+		// single Sdk="..." attribute on <Project>.
+		string projPath = Path.Combine(_tempDir, "App.csproj");
+		File.WriteAllText(projPath, """
+			<Project>
+				<Sdk Name="Microsoft.NET.Sdk" />
+				<Sdk Name="ktsu.Sdk" />
+				<Sdk Name="ktsu.Sdk.App" />
+				<PropertyGroup>
+					<TargetFramework>net10.0</TargetFramework>
+				</PropertyGroup>
+			</Project>
+			""");
+
+		Assert.IsTrue(_service.IsExecutableProject(projPath));
+	}
+
+	[TestMethod]
 	public void IsExecutableProject_LibraryProject_ReturnsFalse()
 	{
 		string projPath = Path.Combine(_tempDir, "Lib.csproj");
@@ -745,6 +765,28 @@ public class DotNetServiceTests
 	}
 
 	[TestMethod]
+	public void IsTestProject_SdkTestElementForm_ReturnsTrue()
+	{
+		// A file name/directory that does not itself look like a test project (so the name-pattern
+		// checks can't short-circuit), using the standard multi-<Sdk Name> element form.
+		string dir = Path.Combine(_tempDir, "MyProj");
+		Directory.CreateDirectory(dir);
+		string projPath = Path.Combine(dir, "MyProj.csproj");
+		File.WriteAllText(projPath, """
+			<Project>
+				<Sdk Name="Microsoft.NET.Sdk" />
+				<Sdk Name="ktsu.Sdk" />
+				<Sdk Name="ktsu.Sdk.Test" />
+				<PropertyGroup>
+					<TargetFramework>net10.0</TargetFramework>
+				</PropertyGroup>
+			</Project>
+			""");
+
+		Assert.IsTrue(_service.IsTestProject(projPath));
+	}
+
+	[TestMethod]
 	public void IsTestProject_IsTestProjectElement_ReturnsTrue()
 	{
 		string dir = Path.Combine(_tempDir, "MyProj");
@@ -777,6 +819,26 @@ public class DotNetServiceTests
 	{
 		string projPath = Path.Combine(_tempDir, "App.csproj");
 		File.WriteAllText(projPath, "<Project Sdk=\"ktsu.Sdk.Ios/1.0.0\"><PropertyGroup><TargetFramework>net10.0-ios</TargetFramework></PropertyGroup></Project>");
+
+		Assert.IsTrue(_service.IsExecutableProject(projPath));
+	}
+
+	[TestMethod]
+	public void IsExecutableProject_SdkIosElementForm_ReturnsTrue()
+	{
+		// The standard ktsu.dev shape, per CLAUDE.md: ktsu.Sdk.iOS is layered via multiple
+		// <Sdk Name="..." /> elements, with no literal <OutputType> written into the project.
+		string projPath = Path.Combine(_tempDir, "App.csproj");
+		File.WriteAllText(projPath, """
+			<Project>
+				<Sdk Name="Microsoft.NET.Sdk" />
+				<Sdk Name="ktsu.Sdk" />
+				<Sdk Name="ktsu.Sdk.iOS" />
+				<PropertyGroup>
+					<TargetFramework>net10.0-ios</TargetFramework>
+				</PropertyGroup>
+			</Project>
+			""");
 
 		Assert.IsTrue(_service.IsExecutableProject(projPath));
 	}

@@ -74,6 +74,33 @@ public class ProjectDetectorTests
 	}
 
 	[TestMethod]
+	public void Detect_SdkAppElementForm_NotLibraryOnly()
+	{
+		// Arrange - the standard ktsu.dev shape: multiple <Sdk Name="..." /> elements rather than
+		// a single Sdk="..." attribute, and no literal <OutputType> (ktsu.Sdk.App sets it via its
+		// own props). Project name matches the repo directory, so it is the "main" project.
+		string projectName = Path.GetFileName(_tempDir);
+		string csproj = $"""
+			<Project>
+				<Sdk Name="Microsoft.NET.Sdk" />
+				<Sdk Name="ktsu.Sdk" />
+				<Sdk Name="ktsu.Sdk.App" />
+				<PropertyGroup>
+					<TargetFramework>net10.0</TargetFramework>
+				</PropertyGroup>
+			</Project>
+			""";
+		File.WriteAllText(Path.Combine(_tempDir, $"{projectName}.csproj"), csproj);
+
+		// Act
+		ProjectInfo result = ProjectDetector.Detect(_tempDir);
+		bool isLibraryOnly = ProjectDetector.IsLibraryOnlyProject(_tempDir, result);
+
+		// Assert
+		Assert.IsFalse(isLibraryOnly, "An app project using the multi-<Sdk Name> element form should be detected as executable, not library-only");
+	}
+
+	[TestMethod]
 	public void Detect_TestProject_Excluded()
 	{
 		// Arrange
