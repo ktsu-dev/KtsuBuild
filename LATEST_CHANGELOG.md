@@ -1,6 +1,4 @@
-## v2.14.0 (minor)
+## v2.14.0
 
-Changes since v2.13.0:
-
-- Fix `test all` running platform-incompatible projects it just logged as skipped ([@Claude](https://github.com/Claude))
+No significant changes detected since v2.14.0.
 
