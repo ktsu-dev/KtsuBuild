@@ -119,6 +119,45 @@ EndProject
 	}
 
 	[TestMethod]
+	public void Write_TreatsALiteralPathAsAnExactMatchExclusion()
+	{
+		// TestCommand's platform-skip filtering (ktsu-dev/KtsuBuild#125) relies on this: a project
+		// path with no glob characters, produced by normalizing a discovered project's path rather
+		// than typed by a user, must exclude exactly that project and nothing that merely resembles it.
+		string solution = Path.Combine(_tempDir, "Sample.sln");
+		File.WriteAllText(solution, ClassicSolution);
+		string filter = Path.Combine(_tempDir, "Sample.slnf");
+
+		IReadOnlyList<string> excluded = SolutionFilter.Write(solution, [@"ImGui.App\ImGui.App.csproj"], filter);
+
+		Assert.HasCount(1, excluded);
+		Assert.AreEqual(@"ImGui.App\ImGui.App.csproj", excluded[0]);
+		using JsonDocument document = JsonDocument.Parse(File.ReadAllText(filter));
+		JsonElement projects = document.RootElement.GetProperty("solution").GetProperty("projects");
+		Assert.HasCount(1, projects.EnumerateArray().ToList());
+		Assert.AreEqual(@"tests\Widgets.UITests\Widgets.UITests.csproj", projects[0].GetString());
+	}
+
+	[TestMethod]
+	public void Write_CombinesGlobAndLiteralPatternsInOneFilter()
+	{
+		// Mirrors TestCommand.CreateAllHandler, which merges --exclude globs with exact paths for
+		// projects a platform check has already dropped, in one Write call.
+		string solution = Path.Combine(_tempDir, "Sample.sln");
+		File.WriteAllText(solution, ClassicSolution);
+		string filter = Path.Combine(_tempDir, "Sample.slnf");
+
+		IReadOnlyList<string> excluded = SolutionFilter.Write(
+			solution,
+			["**/*.UITests/*", "ImGui.App/ImGui.App.csproj"],
+			filter);
+
+		CollectionAssert.AreEquivalent(ExpectedClassicProjects, excluded.ToList());
+		using JsonDocument document = JsonDocument.Parse(File.ReadAllText(filter));
+		Assert.IsEmpty(document.RootElement.GetProperty("solution").GetProperty("projects").EnumerateArray().ToList());
+	}
+
+	[TestMethod]
 	public void Write_NamesTheSolutionRelativeToTheFilter()
 	{
 		string solution = Path.Combine(_tempDir, "Sample.sln");
