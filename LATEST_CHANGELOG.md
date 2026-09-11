@@ -1,6 +1,6 @@
-## v2.13.0 (minor)
+## v2.14.0 (minor)
 
-Changes since v2.12.0:
+Changes since v2.13.0:
 
-- Recognize the multi-<Sdk Name> project form as executable/test ([@Claude](https://github.com/Claude))
+- Fix `test all` running platform-incompatible projects it just logged as skipped ([@Claude](https://github.com/Claude))
 
