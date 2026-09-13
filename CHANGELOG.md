@@ -1,6 +1,9 @@
-## v2.14.0
+## v2.14.1 (patch)
 
-No significant changes detected since v2.14.0.
+Changes since v2.14.0:
+
+- ci: hold the blocking quality gate at the release, not at every pull request [patch] ([@Claude](https://github.com/Claude))
+- ci: adopt the consolidated .NET workflow [patch] ([@Claude](https://github.com/Claude))
 
 ## v2.14.0 (minor)
 
