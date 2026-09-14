@@ -339,6 +339,62 @@ edition = ""2021""
 	}
 
 	[TestMethod]
+	[DataRow("ktsu.Sdk.App")]
+	[DataRow("ktsu.Sdk.ConsoleApp")]
+	[DataRow("ktsu.Sdk.iOS")]
+	[DataRow("ktsu.Sdk.Windows")]
+	[DataRow("ktsu.Sdk.Linux")]
+	[DataRow("ktsu.Sdk.macOS")]
+	public void IsLibraryOnlyProject_ExecutableSdkAttributeForm_ReturnsFalse(string sdk)
+	{
+		// Arrange: these SDKs set OutputType themselves, so the project carries no literal
+		// <OutputType> element and the SDK reference is the only executable signal.
+		string projectName = Path.GetFileName(_tempDir);
+		string csproj = $@"<Project Sdk=""{sdk}/1.0.0"">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+</Project>";
+		File.WriteAllText(Path.Combine(_tempDir, $"{projectName}.csproj"), csproj);
+
+		// Act
+		ProjectInfo result = ProjectDetector.Detect(_tempDir);
+		bool isLibraryOnly = ProjectDetector.IsLibraryOnlyProject(_tempDir, result);
+
+		// Assert
+		Assert.IsFalse(isLibraryOnly, $"{sdk} produces an executable, so the repository is not library-only");
+	}
+
+	[TestMethod]
+	[DataRow("ktsu.Sdk.App")]
+	[DataRow("ktsu.Sdk.ConsoleApp")]
+	[DataRow("ktsu.Sdk.iOS")]
+	[DataRow("ktsu.Sdk.Windows")]
+	[DataRow("ktsu.Sdk.Linux")]
+	[DataRow("ktsu.Sdk.macOS")]
+	public void IsLibraryOnlyProject_ExecutableSdkElementForm_ReturnsFalse(string sdk)
+	{
+		// Arrange: the standard ktsu.dev shape, layering SDKs as <Sdk Name="..." /> elements.
+		string projectName = Path.GetFileName(_tempDir);
+		string csproj = $@"<Project>
+  <Sdk Name=""Microsoft.NET.Sdk"" />
+  <Sdk Name=""ktsu.Sdk"" />
+  <Sdk Name=""{sdk}"" />
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+</Project>";
+		File.WriteAllText(Path.Combine(_tempDir, $"{projectName}.csproj"), csproj);
+
+		// Act
+		ProjectInfo result = ProjectDetector.Detect(_tempDir);
+		bool isLibraryOnly = ProjectDetector.IsLibraryOnlyProject(_tempDir, result);
+
+		// Assert
+		Assert.IsFalse(isLibraryOnly, $"{sdk} produces an executable, so the repository is not library-only");
+	}
+
+	[TestMethod]
 	public void Detect_CSharpProject_ReadsPackageTags()
 	{
 		// Arrange

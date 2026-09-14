@@ -36,10 +36,11 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger, st
 #pragma warning disable SYSLIB1045 // GeneratedRegex not available in netstandard2.0/2.1
 	private static readonly Regex OutputTypeExeRegex = new(@"<OutputType>\s*Exe\s*</OutputType>", RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexDefaults.MatchTimeout);
 	private static readonly Regex OutputTypeWinExeRegex = new(@"<OutputType>\s*WinExe\s*</OutputType>", RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexDefaults.MatchTimeout);
-	// Matches both the single-attribute form (<Project Sdk="ktsu.Sdk.App/1.0.0">) and the
-	// multi-element form (<Sdk Name="ktsu.Sdk.App" />) that ktsu.Sdk.* projects actually use.
-	private static readonly Regex SdkAppRegex = new(@"Sdk(?:\s+Name)?\s*=\s*""[^""]*\.App[/""]", RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexDefaults.MatchTimeout);
-	private static readonly Regex SdkIosRegex = new(@"Sdk(?:\s+Name)?\s*=\s*""[^""]*\.Ios[/""]", RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexDefaults.MatchTimeout);
+	// Matches every executable ktsu.Sdk suffix, in both the single-attribute form
+	// (<Project Sdk="ktsu.Sdk.App/1.0.0">) and the multi-element form (<Sdk Name="ktsu.Sdk.App" />)
+	// that ktsu.Sdk.* projects actually use. SdkReferencePatterns holds the suffix list, shared
+	// with Winget.ProjectDetector so the two classifications cannot drift apart.
+	private static readonly Regex SdkExecutableRegex = new(SdkReferencePatterns.ExecutableSdk, RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexDefaults.MatchTimeout);
 	private static readonly Regex SdkTestRegex = new(@"Sdk(?:\s+Name)?\s*=\s*""[^""]*\.Test[/""]", RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexDefaults.MatchTimeout);
 	private static readonly Regex TargetFrameworkRegex = new(@"<TargetFrameworks?>\s*([^<]+?)\s*</TargetFrameworks?>", RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexDefaults.MatchTimeout);
 #pragma warning restore SYSLIB1045
@@ -611,8 +612,7 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger, st
 
 		return OutputTypeExeRegex.IsMatch(content) ||
 			   OutputTypeWinExeRegex.IsMatch(content) ||
-			   SdkAppRegex.IsMatch(content) ||
-			   SdkIosRegex.IsMatch(content);
+			   SdkExecutableRegex.IsMatch(content);
 	}
 
 	private static IEnumerable<string> GetTargetFrameworks(string projectContent)
