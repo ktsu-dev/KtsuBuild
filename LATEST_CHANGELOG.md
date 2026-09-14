@@ -1,6 +1,4 @@
-## v2.14.3 (patch)
+## v2.14.3
 
-Changes since v2.14.2:
-
-- fix: report a bare platform SDK as shipping an app, not a library [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
+No significant changes detected since v2.14.3.
 
