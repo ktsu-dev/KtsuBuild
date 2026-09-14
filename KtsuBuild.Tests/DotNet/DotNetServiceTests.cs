@@ -707,6 +707,80 @@ public class DotNetServiceTests
 		Assert.IsTrue(_service.IsExecutableProject(projPath));
 	}
 
+	// Every executable ktsu.Sdk suffix, across both reference forms. These SDKs set OutputType
+	// themselves, so a consuming project carries no literal <OutputType> element and the SDK
+	// reference is the only signal that the project produces a binary. The two axes — the form
+	// of the reference and the set of names recognised — have drifted apart once already, so
+	// both are covered for every suffix.
+
+	[TestMethod]
+	[DataRow("ktsu.Sdk.App")]
+	[DataRow("ktsu.Sdk.ConsoleApp")]
+	[DataRow("ktsu.Sdk.iOS")]
+	[DataRow("ktsu.Sdk.Windows")]
+	[DataRow("ktsu.Sdk.Linux")]
+	[DataRow("ktsu.Sdk.macOS")]
+	public void IsExecutableProject_ExecutableSdkAttributeForm_ReturnsTrue(string sdk)
+	{
+		string projPath = Path.Combine(_tempDir, "App.csproj");
+		File.WriteAllText(projPath, $"<Project Sdk=\"{sdk}/1.0.0\"><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>");
+
+		Assert.IsTrue(_service.IsExecutableProject(projPath), $"{sdk} produces an executable");
+	}
+
+	[TestMethod]
+	[DataRow("ktsu.Sdk.App")]
+	[DataRow("ktsu.Sdk.ConsoleApp")]
+	[DataRow("ktsu.Sdk.iOS")]
+	[DataRow("ktsu.Sdk.Windows")]
+	[DataRow("ktsu.Sdk.Linux")]
+	[DataRow("ktsu.Sdk.macOS")]
+	public void IsExecutableProject_ExecutableSdkElementForm_ReturnsTrue(string sdk)
+	{
+		string projPath = Path.Combine(_tempDir, "App.csproj");
+		File.WriteAllText(projPath, $"""
+			<Project>
+				<Sdk Name="Microsoft.NET.Sdk" />
+				<Sdk Name="ktsu.Sdk" />
+				<Sdk Name="{sdk}" />
+				<PropertyGroup>
+					<TargetFramework>net10.0</TargetFramework>
+				</PropertyGroup>
+			</Project>
+			""");
+
+		Assert.IsTrue(_service.IsExecutableProject(projPath), $"{sdk} produces an executable");
+	}
+
+	[TestMethod]
+	public void IsExecutableProject_SdkToolAttributeForm_ReturnsFalse()
+	{
+		// ktsu.Sdk.Tool is deliberately excluded: tool packages are framework-dependent and
+		// RID-agnostic, so RID zips would be wrong for them.
+		string projPath = Path.Combine(_tempDir, "Cli.csproj");
+		File.WriteAllText(projPath, "<Project Sdk=\"ktsu.Sdk.Tool/1.0.0\"><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>");
+
+		Assert.IsFalse(_service.IsExecutableProject(projPath));
+	}
+
+	[TestMethod]
+	public void IsExecutableProject_SdkToolElementForm_ReturnsFalse()
+	{
+		string projPath = Path.Combine(_tempDir, "Cli.csproj");
+		File.WriteAllText(projPath, """
+			<Project>
+				<Sdk Name="Microsoft.NET.Sdk" />
+				<Sdk Name="ktsu.Sdk" />
+				<Sdk Name="ktsu.Sdk.Tool" />
+				<PropertyGroup>
+					<TargetFramework>net10.0</TargetFramework>
+				</PropertyGroup>
+			</Project>
+			""");
+
+		Assert.IsFalse(_service.IsExecutableProject(projPath));
+	}
+
 	[TestMethod]
 	public void IsExecutableProject_LibraryProject_ReturnsFalse()
 	{

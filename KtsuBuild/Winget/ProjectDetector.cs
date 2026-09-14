@@ -23,9 +23,11 @@ public static class ProjectDetector
 	private static readonly Regex TitleRegex = new(@"^#\s+(.+?)(?=\r?\n|$)", RegexOptions.Multiline | RegexOptions.Compiled, RegexDefaults.MatchTimeout);
 	private static readonly Regex OutputTypeExeRegex = new(@"<OutputType>\s*Exe\s*</OutputType>", RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexDefaults.MatchTimeout);
 	private static readonly Regex OutputTypeWinExeRegex = new(@"<OutputType>\s*WinExe\s*</OutputType>", RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexDefaults.MatchTimeout);
-	// Matches both the single-attribute form (<Project Sdk="ktsu.Sdk.App/1.0.0">) and the
-	// multi-element form (<Sdk Name="ktsu.Sdk.App" />) that ktsu.Sdk.* projects actually use.
-	private static readonly Regex SdkAppRegex = new(@"Sdk(?:\s+Name)?\s*=\s*""[^""]*\.App[/""]", RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexDefaults.MatchTimeout);
+	// Matches every executable ktsu.Sdk suffix, in both the single-attribute form
+	// (<Project Sdk="ktsu.Sdk.App/1.0.0">) and the multi-element form (<Sdk Name="ktsu.Sdk.App" />)
+	// that ktsu.Sdk.* projects actually use. SdkReferencePatterns holds the suffix list, shared
+	// with DotNet.DotNetService so the two classifications cannot drift apart.
+	private static readonly Regex SdkExecutableRegex = new(SdkReferencePatterns.ExecutableSdk, RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexDefaults.MatchTimeout);
 	private static readonly Regex OutputTypeLibraryRegex = new(@"<OutputType>\s*Library\s*</OutputType>", RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexDefaults.MatchTimeout);
 	private static readonly Regex SdkLibRegex = new(@"Sdk=""[^""]*\.Lib[/""]", RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexDefaults.MatchTimeout);
 	private static readonly Regex NodeNameRegex = new(@"""name""\s*:\s*""([^""]+)""", RegexOptions.Compiled, RegexDefaults.MatchTimeout);
@@ -440,7 +442,7 @@ public static class ProjectDetector
 	private static bool IsExecutableProject(string content) =>
 		OutputTypeExeRegex.IsMatch(content) ||
 		OutputTypeWinExeRegex.IsMatch(content) ||
-		SdkAppRegex.IsMatch(content);
+		SdkExecutableRegex.IsMatch(content);
 
 	private static bool IsLibraryProject(string content) =>
 		OutputTypeLibraryRegex.IsMatch(content) ||
