@@ -14,6 +14,25 @@ namespace KtsuBuild.Utilities;
 internal static class SdkReferencePatterns
 {
 	/// <summary>
+	/// The ktsu.Sdk name suffixes that select a target platform rather than a kind of project.
+	/// </summary>
+	/// <remarks>
+	/// These say which platform a project targets, but they also set <c>OutputType</c>, so a project
+	/// that declares one and no kind suffix still produces a runnable binary rather than a package.
+	/// </remarks>
+	private const string PlatformSuffixPattern = "Ios|Windows|Linux|macOS";
+
+	/// <summary>
+	/// The platform suffixes of <see cref="PlatformSuffixPattern"/>, for callers that match a
+	/// captured suffix against the list rather than running the pattern over a whole project file.
+	/// </summary>
+	/// <remarks>
+	/// Compare with <see cref="StringComparer.OrdinalIgnoreCase"/>, so that casing variants such as
+	/// <c>ktsu.Sdk.iOS</c> and <c>ktsu.Sdk.MacOS</c> also match.
+	/// </remarks>
+	internal static readonly string[] PlatformSuffixes = PlatformSuffixPattern.Split('|');
+
+	/// <summary>
 	/// The ktsu.Sdk name suffixes whose projects produce a runnable binary.
 	/// </summary>
 	/// <remarks>
@@ -25,7 +44,7 @@ internal static class SdkReferencePatterns
 	/// runtime identifier actually selects.
 	/// </para>
 	/// </remarks>
-	private const string ExecutableSuffixes = "App|ConsoleApp|Ios|Windows|Linux|macOS";
+	private const string ExecutableSuffixes = "App|ConsoleApp|" + PlatformSuffixPattern;
 
 	/// <summary>
 	/// Matches a reference to an SDK that produces an executable, in either the single-attribute
