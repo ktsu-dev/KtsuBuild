@@ -1,6 +1,6 @@
-## v2.14.2 (patch)
+## v2.14.3 (patch)
 
-Changes since v2.14.1:
+Changes since v2.14.2:
 
-- Recognize every executable ktsu.Sdk suffix, not just .App and .Ios [patch] ([@Claude](https://github.com/Claude))
+- fix: report a bare platform SDK as shipping an app, not a library [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
 
