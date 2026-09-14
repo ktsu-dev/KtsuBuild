@@ -81,11 +81,36 @@ public class ShippedVariantsTests
 	public void FromProject_WithSdkOnTheProjectAttribute_StillMatches() =>
 		Assert.AreEqual("cli", Labels(ShippedVariants.FromProject("""<Project Sdk="ktsu.Sdk.ConsoleApp">""")));
 
+	// Every platform ktsu.Sdk suffix, on its own and alongside a kind suffix. A platform SDK sets
+	// OutputType itself, so DotNetService.IsExecutableProject already treats a bare one as an
+	// executable and attaches RID zips to the release; reporting the same project as a library here
+	// made the profile page and the release it links to disagree about what the repository ships.
+
 	[TestMethod]
-	public void FromProject_WithAPlatformSdk_ReportsOnlyTheLibrary() =>
-		// A platform SDK says which platform a project targets, not what kind of thing it is.
-		Assert.AreEqual("lib", Labels(ShippedVariants.FromProject(
-			"""<Sdk Name="ktsu.Sdk" /><Sdk Name="ktsu.Sdk.Windows" />""")));
+	[DataRow("ktsu.Sdk.Windows")]
+	[DataRow("ktsu.Sdk.Linux")]
+	[DataRow("ktsu.Sdk.macOS")]
+	[DataRow("ktsu.Sdk.iOS")]
+	public void FromProject_WithOnlyAPlatformSdk_ReportsAnApp(string sdk) =>
+		Assert.AreEqual("app", Labels(ShippedVariants.FromProject(
+			$"""<Sdk Name="ktsu.Sdk" /><Sdk Name="{sdk}" />""")), $"{sdk} produces an executable");
+
+	[TestMethod]
+	[DataRow("ktsu.Sdk.Windows")]
+	[DataRow("ktsu.Sdk.Linux")]
+	[DataRow("ktsu.Sdk.macOS")]
+	[DataRow("ktsu.Sdk.iOS")]
+	public void FromProject_WithAPlatformSdkBesideAKindSdk_ReportsOnlyTheKind(string sdk) =>
+		// A platform SDK says which platform a project targets, not what kind of thing it is, so a
+		// console app built for Windows is a cli and not also an app.
+		Assert.AreEqual("cli", Labels(ShippedVariants.FromProject(
+			$"""<Sdk Name="ktsu.Sdk" /><Sdk Name="ktsu.Sdk.ConsoleApp" /><Sdk Name="{sdk}" />""")),
+			$"{sdk} does not add a second variant");
+
+	[TestMethod]
+	public void FromProject_WithAPlatformSdkOnTheProjectAttribute_StillReportsAnApp() =>
+		Assert.AreEqual("app", Labels(ShippedVariants.FromProject(
+			"""<Project Sdk="ktsu.Sdk.Windows/2.28.1">""")));
 
 	[TestMethod]
 	public void FromProject_WithNoKtsuSdk_ReportsNothing() =>

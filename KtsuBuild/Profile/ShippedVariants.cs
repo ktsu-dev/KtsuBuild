@@ -3,6 +3,7 @@
 namespace KtsuBuild.Profile;
 
 using System.Text.RegularExpressions;
+using KtsuBuild.Utilities;
 #if !NET10_0_OR_GREATER
 using static Polyfill;
 #endif
@@ -89,7 +90,11 @@ public static partial class ShippedVariants
 	/// <remarks>
 	/// A project that declares plain <c>ktsu.Sdk</c> and nothing else is a library, because the SDK
 	/// packs library projects by default. Platform SDKs such as <c>ktsu.Sdk.Windows</c> say which
-	/// platform a project targets rather than what kind of thing it is, so they are ignored here.
+	/// platform a project targets rather than what kind of thing it is, so a kind suffix alongside
+	/// one wins. On their own they still set <c>OutputType</c>, which is why
+	/// <c>DotNetService.IsExecutableProject</c> treats a bare <c>ktsu.Sdk.Windows</c> as an
+	/// executable and attaches RID zips to the release; such a project ships an application, not a
+	/// package.
 	/// </remarks>
 	public static IReadOnlyList<ShippedVariant> FromProject(string? projectContent)
 	{
@@ -100,6 +105,7 @@ public static partial class ShippedVariants
 
 		HashSet<ShippedVariant> variants = [];
 		bool declaresSdk = false;
+		bool declaresPlatform = false;
 
 		foreach (Match match in SdkDeclarationRegex().Matches(projectContent))
 		{
@@ -118,9 +124,19 @@ public static partial class ShippedVariants
 			{
 				variants.Add(ShippedVariant.Tool);
 			}
+			else if (SdkReferencePatterns.PlatformSuffixes.Contains(variant, StringComparer.OrdinalIgnoreCase))
+			{
+				declaresPlatform = true;
+			}
 		}
 
-		if (declaresSdk && variants.Count == 0)
+		if (variants.Count == 0 && declaresPlatform)
+		{
+			// The platform SDK is the only thing saying what the project produces, and what it
+			// produces is a binary. A kind suffix, when there is one, has already said it better.
+			variants.Add(ShippedVariant.App);
+		}
+		else if (declaresSdk && variants.Count == 0)
 		{
 			variants.Add(ShippedVariant.Library);
 		}
