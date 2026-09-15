@@ -5,6 +5,7 @@ namespace KtsuBuild.Publishing;
 using KtsuBuild.Abstractions;
 using KtsuBuild.Configuration;
 using KtsuBuild.DotNet;
+using KtsuBuild.Utilities;
 #if !NET10_0_OR_GREATER
 using static Polyfill;
 #endif
@@ -40,13 +41,27 @@ public class ReleaseService(IDotNetService dotNetService, INuGetPublisher nuGetP
 	}
 
 	/// <summary>
-	/// Publishes every executable project for each supported runtime and archives the output.
+	/// Publishes every executable project the repository actually ships, for each supported runtime,
+	/// and archives the output.
 	/// </summary>
+	/// <remarks>
+	/// Being executable is not the same as being a deliverable. A demo, sample, example, benchmark
+	/// or test can declare <c>ktsu.Sdk.App</c> just as a shipped application does, and publishing it
+	/// attaches seven RID zips of a non-deliverable to the repository's public release — ImGuiApp's
+	/// <c>examples/ImGuiAppDemo</c> is the case that showed it. The exclusions already existed for
+	/// packing (<c>DotNetService.PackAsync</c>) and for the profile README
+	/// (<c>ShippedVariants.IsShippingProject</c>); they were simply never applied here.
+	/// </remarks>
 	private async Task PublishApplicationsAsync(BuildConfiguration config, string workspace, string configuration, CancellationToken cancellationToken)
 	{
 		IReadOnlyList<string> projectFiles = dotNetService.GetProjectFiles(workspace);
 		foreach (string project in projectFiles.Where(dotNetService.IsExecutableProject))
 		{
+			if (!IsDeliverable(workspace, project))
+			{
+				continue;
+			}
+
 			string projectName = Path.GetFileNameWithoutExtension(project);
 
 			foreach (string runtime in PublishRuntimes)
@@ -66,6 +81,21 @@ public class ReleaseService(IDotNetService dotNetService, INuGetPublisher nuGetP
 			}
 		}
 	}
+
+	/// <summary>
+	/// Determines whether an executable project is something the repository ships.
+	/// </summary>
+	/// <param name="workspace">The workspace the project was discovered under.</param>
+	/// <param name="project">The project path, as discovered.</param>
+	/// <returns><see langword="false"/> for tests, benchmarks, samples, examples, and demos.</returns>
+	/// <remarks>
+	/// The name and location check is the same one the profile README applies, so a repository's page
+	/// and the release it links to agree on what is shipped. <c>IsTestProject</c> is asked as well
+	/// because it reads the project rather than its path, which catches the test projects the naming
+	/// convention misses — ImGuiApp's five <c>*.UITests</c> projects among them.
+	/// </remarks>
+	private bool IsDeliverable(string workspace, string project) =>
+		!SupportingProjects.IsSupporting(workspace, project) && !dotNetService.IsTestProject(project);
 
 	/// <summary>
 	/// Creates the zip archive for a single published runtime folder, replacing any existing archive.

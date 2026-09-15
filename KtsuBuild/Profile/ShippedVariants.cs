@@ -40,16 +40,6 @@ public static partial class ShippedVariants
 	// as long as a pathological input takes.
 	private const int MatchTimeoutMilliseconds = 2000;
 
-	// An explicit array leaves no doubt which Split overload runs. Passing two chars partially
-	// matches Split(char, int, StringSplitOptions), where the second char would read as a count.
-	private static readonly char[] DirectorySeparators = ['/', '\\'];
-
-	private static readonly string[] SupportingDirectories =
-	[
-		"test", "tests", "example", "examples", "sample", "samples",
-		"benchmark", "benchmarks", "demo", "demos",
-	];
-
 	/// <summary>
 	/// Determines whether a project is part of what the repository ships.
 	/// </summary>
@@ -57,30 +47,11 @@ public static partial class ShippedVariants
 	/// <returns><see langword="false"/> for tests, benchmarks, samples, examples, and demos, which
 	/// support the deliverable rather than being it.</returns>
 	/// <remarks>
-	/// Both the file name and the directories above it are checked. ImGuiApp keeps its demo
-	/// applications under <c>examples/</c> with names that say nothing about being demos, so filtering
-	/// on the file name alone would report the repository as shipping applications it does not.
+	/// The rule itself lives in <see cref="SupportingProjects"/>, because the release path needs the
+	/// same answer: a project this reports as not shipped must not have RID zips attached to the
+	/// release either.
 	/// </remarks>
-	public static bool IsShippingProject(string path)
-	{
-		Ensure.NotNull(path);
-
-		if (SupportingProjectRegex().IsMatch(path))
-		{
-			return false;
-		}
-
-		string[] segments = path.Split(DirectorySeparators);
-		for (int i = 0; i < segments.Length - 1; i++)
-		{
-			if (SupportingDirectories.Contains(segments[i], StringComparer.OrdinalIgnoreCase))
-			{
-				return false;
-			}
-		}
-
-		return true;
-	}
+	public static bool IsShippingProject(string path) => !SupportingProjects.IsSupporting(path);
 
 	/// <summary>
 	/// Reads what a single project ships from its SDK declarations.
@@ -183,21 +154,6 @@ public static partial class ShippedVariants
 	/// <returns>The ordered variants.</returns>
 	private static IReadOnlyList<ShippedVariant> Order(IEnumerable<ShippedVariant> variants) =>
 		[.. variants.OrderBy(static v => v)];
-
-	/// <summary>
-	/// Matches test, benchmark, sample, example, and demo projects by file name.
-	/// </summary>
-	/// <returns>The compiled regex.</returns>
-	/// <remarks>
-	/// Demo belongs here for the same reason sample and example do. They name the same thing, and a
-	/// demo left in the list reports its SDK as something the repository ships, so Keybinding would
-	/// claim a command line program it does not have.
-	/// </remarks>
-	[GeneratedRegex(
-		@"(Benchmark|Test|Sample|Example|Demo)s?\.csproj$",
-		RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
-		MatchTimeoutMilliseconds)]
-	private static partial Regex SupportingProjectRegex();
 
 	/// <summary>
 	/// Matches both ways a project declares an SDK, capturing the variant suffix when there is one:
