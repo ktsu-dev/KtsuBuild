@@ -256,7 +256,7 @@ public static class ProjectDetector
 		}
 
 		projectInfo.Type = CSharpProjectType;
-		string csproj = csprojFiles[0];
+		string csproj = SelectPrimaryProject(csprojFiles, Path.GetFileName(rootDirectory));
 		string content = File.ReadAllText(csproj);
 
 		// Try to parse as XML
@@ -290,6 +290,38 @@ public static class ProjectDetector
 		{
 			projectInfo.FileExtensions = ["cs", "json", "xml", "config", "txt"];
 		}
+	}
+
+	/// <summary>
+	/// Chooses the project file whose metadata describes what the repository actually ships.
+	/// </summary>
+	/// <param name="csprojFiles">Every project file found under the repository root.</param>
+	/// <param name="repoName">The repository directory name, used to recognise its main project.</param>
+	/// <returns>The project file to read the Winget manifest metadata from.</returns>
+	/// <remarks>
+	/// <see cref="Directory.GetFiles(string, string, SearchOption)"/> enumerates in filesystem
+	/// order, so the first entry is neither stable across machines nor meaningful. Ordering the
+	/// candidates and preferring the repository's own project keeps the generated manifest
+	/// deterministic and away from test and demo projects, matching how
+	/// <see cref="IsLibraryOnlyCSharpProject"/> already classifies the same repository.
+	/// </remarks>
+	private static string SelectPrimaryProject(string[] csprojFiles, string repoName)
+	{
+		string[] ordered = [.. csprojFiles.OrderBy(static path => path, StringComparer.Ordinal)];
+
+		string[] candidates = [.. ordered.Where(static path =>
+			!IsTestOrDemoProject(Path.GetFileNameWithoutExtension(path), File.ReadAllText(path)))];
+
+		// A repository of nothing but test and demo projects has no better project to describe
+		// itself with, so fall back to the full list rather than to no project at all.
+		if (candidates.Length == 0)
+		{
+			candidates = ordered;
+		}
+
+		return candidates.FirstOrDefault(path => Path.GetFileNameWithoutExtension(path) == repoName)
+			?? candidates.FirstOrDefault(path => Path.GetFileNameWithoutExtension(path).StartsWith($"{repoName}.", StringComparison.Ordinal))
+			?? candidates[0];
 	}
 
 	/// <summary>
