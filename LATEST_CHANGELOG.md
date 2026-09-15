@@ -1,6 +1,4 @@
-## v2.15.1 (patch)
+## v2.15.1
 
-Changes since v2.15.0:
-
-- fix: choose the repo's main project for Winget metadata, not an arbitrary csproj [patch] ([@Claude](https://github.com/Claude))
+No significant changes detected since v2.15.1.
 
