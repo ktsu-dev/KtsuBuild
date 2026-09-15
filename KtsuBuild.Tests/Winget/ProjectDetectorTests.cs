@@ -416,6 +416,76 @@ edition = ""2021""
 	}
 
 	[TestMethod]
+	public void Detect_TestProjectEnumeratedFirst_ReadsMetadataFromMainProject()
+	{
+		// Arrange: Directory.GetFiles returns the root directory's own files before it descends,
+		// so the test project here is always handed back first. Reading whichever project the
+		// filesystem offers first would source the Winget manifest from the test assembly.
+		string repoName = Path.GetFileName(_tempDir);
+		WriteProject(Path.Combine(_tempDir, "MyApp.Tests.csproj"), "MyApp.Tests", "Unit tests, not a shipping product");
+		WriteProject(Path.Combine(_tempDir, "src", $"{repoName}.csproj"), "MyApp", "The application people install");
+
+		// Act
+		ProjectInfo result = ProjectDetector.Detect(_tempDir);
+
+		// Assert
+		Assert.AreEqual("MyApp", result.Name);
+		Assert.AreEqual("MyApp.exe", result.ExecutableName);
+		Assert.AreEqual("The application people install", result.Description);
+	}
+
+	[TestMethod]
+	public void Detect_MainAndSatelliteProjects_ReadsMetadataFromMainProject()
+	{
+		// Arrange: the standard ktsu.dev layout, where the main project sits alongside its test
+		// and demo projects as sibling directories and nothing pins the enumeration order.
+		string repoName = Path.GetFileName(_tempDir);
+		WriteProject(Path.Combine(_tempDir, $"{repoName}.Tests", $"{repoName}.Tests.csproj"), "TheTests", "Unit tests");
+		WriteProject(Path.Combine(_tempDir, $"{repoName}.Demo", $"{repoName}.Demo.csproj"), "TheDemo", "A demo harness");
+		WriteProject(Path.Combine(_tempDir, repoName, $"{repoName}.csproj"), "TheApp", "The application people install");
+
+		// Act
+		ProjectInfo result = ProjectDetector.Detect(_tempDir);
+
+		// Assert
+		Assert.AreEqual("TheApp", result.Name);
+		Assert.AreEqual("TheApp.exe", result.ExecutableName);
+		Assert.AreEqual("The application people install", result.Description);
+	}
+
+	[TestMethod]
+	public void Detect_NoProjectNamedForRepo_PrefersProjectPrefixedWithRepoName()
+	{
+		// Arrange: no project carries the repository's exact name, so the one that extends it
+		// wins over an unrelated project that is both enumerated and sorted first.
+		string repoName = Path.GetFileName(_tempDir);
+		WriteProject(Path.Combine(_tempDir, "Aux.csproj"), "Aux", "A vendored helper");
+		WriteProject(Path.Combine(_tempDir, $"{repoName}.Tool", $"{repoName}.Tool.csproj"), "TheTool", "The tool people install");
+
+		// Act
+		ProjectInfo result = ProjectDetector.Detect(_tempDir);
+
+		// Assert
+		Assert.AreEqual("TheTool", result.Name);
+		Assert.AreEqual("The tool people install", result.Description);
+	}
+
+	[TestMethod]
+	public void Detect_OnlyTestProjects_StillIdentifiesCSharp()
+	{
+		// Arrange: with nothing but test projects there is no main project to prefer, and the
+		// repository must still be recognised as C# so it can be classified as library-only.
+		WriteProject(Path.Combine(_tempDir, "MyApp.Tests", "MyApp.Tests.csproj"), "MyApp.Tests", "Unit tests");
+
+		// Act
+		ProjectInfo result = ProjectDetector.Detect(_tempDir);
+
+		// Assert
+		Assert.AreEqual("csharp", result.Type);
+		Assert.IsTrue(ProjectDetector.IsLibraryOnlyProject(_tempDir, result), "A repository of only test projects has nothing to package");
+	}
+
+	[TestMethod]
 	public void Detect_DemoProjectExcluded()
 	{
 		// Arrange
@@ -441,5 +511,23 @@ edition = ""2021""
 
 		// Assert
 		Assert.IsTrue(isLibraryOnly, "Demo projects should be excluded, leaving library-only");
+	}
+
+	/// <summary>
+	/// Writes a minimal executable project file, creating its directory if needed.
+	/// </summary>
+	private static void WriteProject(string path, string assemblyName, string description)
+	{
+		Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+		File.WriteAllText(path, $"""
+			<Project Sdk="Microsoft.NET.Sdk">
+			  <PropertyGroup>
+			    <OutputType>Exe</OutputType>
+			    <TargetFramework>net10.0</TargetFramework>
+			    <AssemblyName>{assemblyName}</AssemblyName>
+			    <Description>{description}</Description>
+			  </PropertyGroup>
+			</Project>
+			""");
 	}
 }
