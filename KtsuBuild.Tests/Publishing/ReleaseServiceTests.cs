@@ -216,6 +216,81 @@ public class ReleaseServiceTests
 			Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
+	// A demo, sample, example, benchmark or test declares ktsu.Sdk.App exactly as a shipped
+	// application does, so IsExecutableProject alone let seven RID zips of a non-deliverable onto the
+	// repository's public release. ImGuiApp's examples/ImGuiAppDemo is the live case.
+
+	[TestMethod]
+	[DataRow("examples")]
+	[DataRow("samples")]
+	[DataRow("benchmarks")]
+	[DataRow("demos")]
+	[DataRow("tests")]
+	public async Task ExecuteReleaseAsync_UnderASupportingDirectory_SkipsPublish(string directory)
+	{
+		string projPath = await WriteProjectAsync(Path.Combine(directory, "Showcase"), "Showcase.csproj").ConfigureAwait(false);
+		StubExecutableProject(projPath);
+
+		BuildConfiguration config = CreateDefaultConfig();
+		await _service.ExecuteReleaseAsync(config, _tempDir, "Release").ConfigureAwait(false);
+
+		await _dotNetService.DidNotReceive().PublishAsync(
+			Arg.Any<PublishOptions>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+	}
+
+	[TestMethod]
+	[DataRow("Widget.Demo.csproj")]
+	[DataRow("Widget.Sample.csproj")]
+	[DataRow("Widget.Examples.csproj")]
+	[DataRow("Widget.Benchmarks.csproj")]
+	[DataRow("Widget.Tests.csproj")]
+	public async Task ExecuteReleaseAsync_WithASupportingProjectName_SkipsPublish(string fileName)
+	{
+		string projPath = await WriteProjectAsync("Widget", fileName).ConfigureAwait(false);
+		StubExecutableProject(projPath);
+
+		BuildConfiguration config = CreateDefaultConfig();
+		await _service.ExecuteReleaseAsync(config, _tempDir, "Release").ConfigureAwait(false);
+
+		await _dotNetService.DidNotReceive().PublishAsync(
+			Arg.Any<PublishOptions>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+	}
+
+	[TestMethod]
+	public async Task ExecuteReleaseAsync_WithATestProjectTheNamingConventionMisses_SkipsPublish()
+	{
+		// ImGuiApp's five *.UITests projects are why the project itself is asked and not only its
+		// path: a test project is free to be named anything.
+		string projPath = await WriteProjectAsync("Widget.Verification", "Widget.Verification.csproj").ConfigureAwait(false);
+		StubExecutableProject(projPath);
+		_dotNetService.IsTestProject(projPath).Returns(true);
+
+		BuildConfiguration config = CreateDefaultConfig();
+		await _service.ExecuteReleaseAsync(config, _tempDir, "Release").ConfigureAwait(false);
+
+		await _dotNetService.DidNotReceive().PublishAsync(
+			Arg.Any<PublishOptions>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+	}
+
+	[TestMethod]
+	public async Task ExecuteReleaseAsync_WhenTheWorkspaceSitsUnderASupportingDirectory_StillPublishes()
+	{
+		// Project discovery hands back absolute paths, so the exclusion is applied to the path
+		// relative to the workspace. Judging the absolute path would let the directories above the
+		// checkout decide, and a clone at ~/examples/MyApp would release nothing at all.
+		string workspace = Path.Combine(_tempDir, "examples", "MyApp");
+		string projPath = Path.Combine(workspace, "src", "MyApp.csproj");
+		Directory.CreateDirectory(Path.GetDirectoryName(projPath)!);
+		await File.WriteAllTextAsync(projPath, "<Project />").ConfigureAwait(false);
+		StubExecutableProject(projPath);
+
+		BuildConfiguration config = CreateDefaultConfig();
+		await _service.ExecuteReleaseAsync(config, workspace, "Release").ConfigureAwait(false);
+
+		await _dotNetService.Received(7).PublishAsync(
+			ArgMatch.NotNull<PublishOptions>(o => o.ProjectPath == projPath), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+	}
+
 	[TestMethod]
 	public async Task ExecuteReleaseAsync_NoExecutableProjects_SkipsPublish()
 	{
@@ -245,6 +320,28 @@ public class ReleaseServiceTests
 		Assert.IsTrue(File.Exists(hashesPath), "hashes.txt should be created");
 		string content = await File.ReadAllTextAsync(hashesPath).ConfigureAwait(false);
 		Assert.IsTrue(content.Contains("app-1.0.0-win-x64.zip="), "Should contain filename=hash entry");
+	}
+
+	/// <summary>
+	/// Writes an empty project file at a path relative to the workspace and returns its full path.
+	/// </summary>
+	private async Task<string> WriteProjectAsync(string relativeDirectory, string fileName)
+	{
+		string projPath = Path.Combine(_tempDir, relativeDirectory, fileName);
+		Directory.CreateDirectory(Path.GetDirectoryName(projPath)!);
+		await File.WriteAllTextAsync(projPath, "<Project />").ConfigureAwait(false);
+		return projPath;
+	}
+
+	/// <summary>
+	/// Presents a single project to the release as an executable the publish step would pick up.
+	/// </summary>
+	private void StubExecutableProject(string projPath)
+	{
+		_dotNetService.GetProjectFiles(Arg.Any<string>()).Returns([projPath]);
+		_dotNetService.IsExecutableProject(projPath).Returns(true);
+		_dotNetService.PublishAsync(Arg.Any<PublishOptions>(), Arg.Any<CancellationToken>())
+			.Returns(Task.CompletedTask);
 	}
 
 	private BuildConfiguration CreateDefaultConfig() => new()
