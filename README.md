@@ -381,14 +381,17 @@ left behind. **Stars** and **Activity** carry the stargazer count and the commit
 - `--sdk-package`: The MSBuild SDK whose pinned version is reported and compared (default: `ktsu.Sdk`)
 - `--exclude`: A repository to leave out of the tables, repeatable
 - `--only`: Consider only this repository, repeatable. Useful for checking one row without regenerating the whole profile
-- `--fallback-workflow`: A workflow file name to try when a repository has no `dotnet.yml`, repeatable
+- `--fallback-workflow`: A workflow file name to try when a repository has no `ci.yml`, repeatable
 
-Build status comes from `dotnet.yml` on the default branch. A repository that names its build
-workflow something else reports no status unless `--fallback-workflow` names it, and a fallback
-logs a warning so the repository gets renamed rather than the exception living here forever.
+Build status comes from `ci.yml` on the default branch, the caller every repository uses to reach
+the organization's shared pipeline. Reading the caller rather than the pipeline it dispatches to is
+what lets the shared workflow grow new languages and visibilities without this generator learning
+about any of them. A repository that names its build workflow something else reports no status
+unless `--fallback-workflow` names it, and a fallback logs a warning so the repository gets migrated
+rather than the exception living here forever.
 
 ```bash
-ktsubuild profile readme --org ktsu-dev --exclude Sdk --fallback-workflow ci.yml
+ktsubuild profile readme --org ktsu-dev --exclude Sdk --fallback-workflow dotnet.yml
 ```
 
 The run fails if the template links a repository in the organization that is archived or no longer

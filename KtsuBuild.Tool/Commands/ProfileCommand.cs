@@ -23,7 +23,7 @@ public class ProfileCommand : Command
 	/// <param name="SdkPackage">The MSBuild SDK whose pinned version is reported and compared.</param>
 	/// <param name="Exclude">Repositories to leave out of the tables.</param>
 	/// <param name="Only">The only repositories to consider, or empty for all of them.</param>
-	/// <param name="FallbackWorkflows">Workflow file names to try when a repository has no <c>dotnet.yml</c>.</param>
+	/// <param name="FallbackWorkflows">Workflow file names to try when a repository has no <c>ci.yml</c>.</param>
 	/// <param name="Verbose">Whether to enable verbose logging.</param>
 	public sealed record ProfileOptionsInput(
 		string Organization,
@@ -90,7 +90,7 @@ public class ProfileCommand : Command
 	/// <summary>Gets the fallback workflow option.</summary>
 	public static Option<string[]> FallbackWorkflowsOption { get; } = new("--fallback-workflow")
 	{
-		Description = "A workflow file name to try when a repository has no dotnet.yml, repeatable",
+		Description = "A workflow file name to try when a repository has no ci.yml, repeatable",
 		AllowMultipleArgumentsPerToken = true,
 		DefaultValueFactory = _ => [],
 	};

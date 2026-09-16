@@ -239,7 +239,7 @@ public class OrgProfileService(IGitHubApiClient gitHub, INuGetCatalogClient nuGe
 		}
 
 		// Repositories that break the naming convention still get a status, but the warning says which
-		// ones need renaming so the exception can be retired.
+		// ones are still to be moved over, so the exception can be retired.
 		IReadOnlyList<string> workflows = await gitHub
 			.ListActiveWorkflowFileNamesAsync(options.Organization, repository.Name, cancellationToken)
 			.ConfigureAwait(false);
@@ -251,7 +251,7 @@ public class OrgProfileService(IGitHubApiClient gitHub, INuGetCatalogClient nuGe
 				continue;
 			}
 
-			logger.WriteWarning($"  {repository.Name} builds through {fallback} rather than {options.BuildWorkflowFileName}, so it should be renamed");
+			logger.WriteWarning($"  {repository.Name} builds through {fallback} rather than {options.BuildWorkflowFileName}, so it should be migrated");
 			return await gitHub
 				.GetLatestWorkflowRunAsync(options.Organization, repository.Name, fallback, repository.DefaultBranch, cancellationToken)
 				.ConfigureAwait(false);
