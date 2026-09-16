@@ -104,7 +104,7 @@ public class OrgProfileServiceTests
 	public async Task GatherAsync_UsesTheConventionalWorkflowWithoutListingWorkflows()
 	{
 		HaveRepositories(new GitHubRepository("Alpha", "main", false));
-		_gitHub.GetLatestWorkflowRunAsync(Arg.Any<string>(), "Alpha", "dotnet.yml", "main", Arg.Any<CancellationToken>())
+		_gitHub.GetLatestWorkflowRunAsync(Arg.Any<string>(), "Alpha", "ci.yml", "main", Arg.Any<CancellationToken>())
 			.Returns(Task.FromResult<GitHubWorkflowRun?>(new GitHubWorkflowRun("completed", "success")));
 
 		RepoFacts facts = (await _service.GatherAsync(Options).ConfigureAwait(false))[0];
@@ -129,11 +129,11 @@ public class OrgProfileServiceTests
 	{
 		HaveRepositories(new GitHubRepository("VST", "main", false));
 		_gitHub.ListActiveWorkflowFileNamesAsync(Arg.Any<string>(), "VST", Arg.Any<CancellationToken>())
-			.Returns(Task.FromResult<IReadOnlyList<string>>(["ci.yml"]));
-		_gitHub.GetLatestWorkflowRunAsync(Arg.Any<string>(), "VST", "ci.yml", "main", Arg.Any<CancellationToken>())
+			.Returns(Task.FromResult<IReadOnlyList<string>>(["dotnet.yml"]));
+		_gitHub.GetLatestWorkflowRunAsync(Arg.Any<string>(), "VST", "dotnet.yml", "main", Arg.Any<CancellationToken>())
 			.Returns(Task.FromResult<GitHubWorkflowRun?>(new GitHubWorkflowRun("completed", "success")));
 
-		RepoFacts facts = (await _service.GatherAsync(Options with { FallbackWorkflowFileNames = ["ci.yml"] }).ConfigureAwait(false))[0];
+		RepoFacts facts = (await _service.GatherAsync(Options with { FallbackWorkflowFileNames = ["dotnet.yml"] }).ConfigureAwait(false))[0];
 
 		Assert.AreEqual("success", facts.WorkflowConclusion);
 	}

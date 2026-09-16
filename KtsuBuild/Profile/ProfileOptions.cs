@@ -26,11 +26,14 @@ public sealed record ProfileOptions
 	/// for checking one repository's row without regenerating the whole profile.</summary>
 	public IReadOnlyList<string> OnlyRepositories { get; init; } = [];
 
-	/// <summary>Gets the build workflow file name every repository is expected to use.</summary>
-	public string BuildWorkflowFileName { get; init; } = "dotnet.yml";
+	/// <summary>Gets the build workflow file name every repository is expected to use. Repositories call
+	/// the organization's shared pipeline through <c>ci.yml</c>, so that is the file the status is read from
+	/// no matter which language or visibility the shared workflow ends up dispatching to.</summary>
+	public string BuildWorkflowFileName { get; init; } = "ci.yml";
 
 	/// <summary>Gets the workflow file names to try when a repository has no <see cref="BuildWorkflowFileName"/>.
-	/// Leave empty to report no status for repositories that break the convention.</summary>
+	/// Leave empty to report no status for repositories that break the convention. While repositories are still
+	/// being moved onto the shared pipeline, naming their old workflow here keeps their status visible.</summary>
 	public IReadOnlyList<string> FallbackWorkflowFileNames { get; init; } = [];
 
 	/// <summary>Gets how many days of commit history the activity count covers.</summary>

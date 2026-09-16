@@ -76,7 +76,7 @@ public interface IGitHubApiClient
 	/// </summary>
 	/// <param name="organization">The repository owner.</param>
 	/// <param name="repository">The repository name.</param>
-	/// <param name="workflowFileName">The workflow file name, such as <c>dotnet.yml</c>.</param>
+	/// <param name="workflowFileName">The workflow file name, such as <c>ci.yml</c>.</param>
 	/// <param name="branch">The branch to filter runs by. Without it the API returns runs from any branch,
 	/// so a failing feature branch would misreport the repository's status.</param>
 	/// <param name="cancellationToken">A cancellation token.</param>
