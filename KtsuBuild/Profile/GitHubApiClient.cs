@@ -21,6 +21,9 @@ public class GitHubApiClient(IProcessRunner processRunner, IBuildLogger logger) 
 {
 	private const int PageSize = 100;
 
+	/// <summary>The one HTTP failure that is an answer rather than an outage.</summary>
+	private const int NotFoundStatus = 404;
+
 	/// <inheritdoc/>
 	public async Task<IReadOnlyList<GitHubRepository>> ListOrganizationRepositoriesAsync(string organization, CancellationToken cancellationToken = default)
 	{
@@ -198,10 +201,33 @@ public class GitHubApiClient(IProcessRunner processRunner, IBuildLogger logger) 
 	/// <param name="cancellationToken">A cancellation token.</param>
 	/// <returns>The parsed response, or <see langword="null"/> when the call failed or returned nothing
 	/// parseable. A missing resource is an expected outcome here, not an error.</returns>
+	/// <remarks>
+	/// The caller cannot tell a failed call from a confirmed empty one, because both arrive as
+	/// <see langword="null"/>. Until it can, the log is the only place the difference exists, so a
+	/// failure is written as a warning rather than as verbose output: the daily profile job runs
+	/// without <c>--verbose</c>, and a rate limit or a transient 5xx on one repository's call would
+	/// otherwise drop that repository from the generated README with nothing said about why.
+	/// </remarks>
 	private async Task<JsonElement?> GetJsonAsync(string endpoint, CancellationToken cancellationToken)
 	{
 		ProcessResult result = await processRunner.RunAsync("gh", $"api \"{endpoint}\"", null, cancellationToken).ConfigureAwait(false);
-		if (!result.Success || string.IsNullOrWhiteSpace(result.StandardOutput))
+		if (!result.Success)
+		{
+			// A missing resource is an expected answer here: several of these calls ask for files a
+			// repository is free not to have. Anything else is the call not happening at all.
+			if (ReadHttpStatus(result.StandardError) == NotFoundStatus)
+			{
+				logger.WriteVerbose($"  gh api {endpoint} returned no data (HTTP 404)");
+			}
+			else
+			{
+				logger.WriteWarning($"  gh api {endpoint} failed{DescribeFailure(result)}, so this run is reading it as no data");
+			}
+
+			return null;
+		}
+
+		if (string.IsNullOrWhiteSpace(result.StandardOutput))
 		{
 			logger.WriteVerbose($"  gh api {endpoint} returned no data");
 			return null;
@@ -214,10 +240,60 @@ public class GitHubApiClient(IProcessRunner processRunner, IBuildLogger logger) 
 		}
 		catch (JsonException)
 		{
-			logger.WriteVerbose($"  gh api {endpoint} returned unparseable JSON");
+			// The call reported success, so an unreadable body is a truncated or corrupted response
+			// rather than a missing resource, and it costs the same data as an outright failure.
+			logger.WriteWarning($"  gh api {endpoint} returned unparseable JSON, so this run is reading it as no data");
 			return null;
 		}
 	}
+
+	/// <summary>
+	/// Describes why a <c>gh api</c> call failed, for the warning that reports it.
+	/// </summary>
+	/// <param name="result">The failed process result.</param>
+	/// <returns>A phrase naming the reason, or the exit code when <c>gh</c> said nothing.</returns>
+	private static string DescribeFailure(ProcessResult result)
+	{
+		string reason = FirstLine(result.StandardError);
+		return reason.Length == 0
+			? $" with exit code {result.ExitCode.ToString(CultureInfo.InvariantCulture)}"
+			: $": {reason}";
+	}
+
+	/// <summary>
+	/// Reads the HTTP status <c>gh</c> reports on a failed call.
+	/// </summary>
+	/// <param name="standardError">The standard error written by <c>gh</c>.</param>
+	/// <returns>The status code, or <see langword="null"/> when the output carries none, which is
+	/// what a failure short of a response looks like.</returns>
+	/// <remarks>
+	/// <c>gh</c> reports the status in its message rather than in its exit code, which is 1 for
+	/// every HTTP error alike, for example <c>gh: Not Found (HTTP 404)</c>.
+	/// </remarks>
+	private static int? ReadHttpStatus(string standardError)
+	{
+		const string marker = "(HTTP ";
+
+		int start = standardError.LastIndexOf(marker, StringComparison.Ordinal);
+		if (start < 0)
+		{
+			return null;
+		}
+
+		start += marker.Length;
+		int end = standardError.IndexOf(')', start);
+		return end > start && int.TryParse(standardError[start..end].Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out int status)
+			? status
+			: null;
+	}
+
+	/// <summary>
+	/// Returns the first non-empty line of some output, trimmed.
+	/// </summary>
+	/// <param name="text">The output to read.</param>
+	/// <returns>The first non-empty line, or an empty string when there is none.</returns>
+	private static string FirstLine(string text) =>
+		text.Split('\n').Select(static line => line.Trim()).FirstOrDefault(static line => line.Length > 0) ?? string.Empty;
 
 	private static int GetInt(JsonElement element, string propertyName) =>
 		element.ValueKind == JsonValueKind.Object &&

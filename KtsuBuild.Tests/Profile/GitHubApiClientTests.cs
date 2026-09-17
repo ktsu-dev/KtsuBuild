@@ -306,4 +306,101 @@ public class GitHubApiClientTests
 
 		Assert.AreEqual("Widget.csproj", string.Join(",", await _client.ListTreePathsAsync("ktsu-dev", "Widget", "main").ConfigureAwait(false)));
 	}
+
+	/// <summary>A client whose every <c>gh</c> call answers with <paramref name="result"/>.</summary>
+	/// <param name="result">The result to answer with.</param>
+	/// <returns>The client and the log it writes to.</returns>
+	private static (GitHubApiClient Client, RecordingBuildLogger Log) ClientAnswering(ProcessResult result)
+	{
+		IProcessRunner processRunner = Substitute.For<IProcessRunner>();
+		processRunner
+			.RunAsync("gh", Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+			.Returns(Task.FromResult(result));
+
+		RecordingBuildLogger log = new();
+		return (new GitHubApiClient(processRunner, log), log);
+	}
+
+	/// <summary>A failed <c>gh</c> invocation, as one looks from the caller's side.</summary>
+	private static ProcessResult Failure(string standardError, int exitCode = 1) => new()
+	{
+		ExitCode = exitCode,
+		StandardOutput = string.Empty,
+		StandardError = standardError,
+	};
+
+	[TestMethod]
+	public async Task GetJson_WithARateLimitedCall_WarnsRatherThanLoggingVerbosely()
+	{
+		// The daily profile job runs without --verbose. A rate limit on one repository's /releases call
+		// reads as "no stable release", drops a shipping library from the org README, and exits 0, so
+		// the warning is the only thing that separates an outage from an intentional exclusion.
+		(GitHubApiClient client, RecordingBuildLogger log) = ClientAnswering(Failure("gh: API rate limit exceeded for user ID 19528727. (HTTP 403)"));
+
+		Assert.IsEmpty(await client.ListReleasesAsync("ktsu-dev", "Extensions").ConfigureAwait(false));
+		Assert.IsTrue(RecordingBuildLogger.Any(log.Warnings, "/repos/ktsu-dev/Extensions/releases"), "The warning names the call that failed");
+		Assert.IsTrue(RecordingBuildLogger.Any(log.Warnings, "API rate limit exceeded"), "The warning carries gh's own reason");
+	}
+
+	[TestMethod]
+	public async Task GetJson_WithATransientServerError_Warns()
+	{
+		(GitHubApiClient client, RecordingBuildLogger log) = ClientAnswering(Failure("gh: Server Error (HTTP 502)"));
+
+		Assert.IsEmpty(await client.ListReleasesAsync("ktsu-dev", "Extensions").ConfigureAwait(false));
+		Assert.HasCount(1, log.Warnings);
+	}
+
+	[TestMethod]
+	public async Task GetJson_WithAFailureCarryingNoStatus_Warns()
+	{
+		// A network blip never reaches an HTTP status, and it costs exactly the same data as one that
+		// does, so an unrecognizable failure is a failure.
+		(GitHubApiClient client, RecordingBuildLogger log) = ClientAnswering(Failure("error connecting to api.github.com"));
+
+		Assert.IsEmpty(await client.ListReleasesAsync("ktsu-dev", "Extensions").ConfigureAwait(false));
+		Assert.IsTrue(RecordingBuildLogger.Any(log.Warnings, "error connecting to api.github.com"));
+	}
+
+	[TestMethod]
+	public async Task GetJson_WithASilentFailure_ReportsTheExitCode()
+	{
+		(GitHubApiClient client, RecordingBuildLogger log) = ClientAnswering(Failure(string.Empty, exitCode: 127));
+
+		Assert.IsEmpty(await client.ListReleasesAsync("ktsu-dev", "Extensions").ConfigureAwait(false));
+		Assert.IsTrue(RecordingBuildLogger.Any(log.Warnings, "exit code 127"), "With nothing on stderr, the exit code is all there is to report");
+	}
+
+	[TestMethod]
+	public async Task GetJson_WithAMissingResource_StaysVerbose()
+	{
+		// Several of these calls ask for files a repository is free not to have, so a 404 is an answer.
+		// Warning on it would put a line per absent file into every run and bury the failures that matter.
+		(GitHubApiClient client, RecordingBuildLogger log) = ClientAnswering(Failure("gh: Not Found (HTTP 404)"));
+
+		Assert.IsNull(await client.GetFileTextAsync("ktsu-dev", "Widget", "AUTHORS.md").ConfigureAwait(false));
+		Assert.IsEmpty(log.Warnings);
+		Assert.IsTrue(RecordingBuildLogger.Any(log.Verboses, "/repos/ktsu-dev/Widget/contents/AUTHORS.md"));
+	}
+
+	[TestMethod]
+	public async Task GetJson_WithAnEmptyResponseFromASuccessfulCall_StaysVerbose()
+	{
+		// Success and nothing to say is a confirmed empty, not a failure.
+		(GitHubApiClient client, RecordingBuildLogger log) = ClientAnswering(Success(string.Empty));
+
+		Assert.IsEmpty(await client.ListReleasesAsync("ktsu-dev", "Fresh").ConfigureAwait(false));
+		Assert.IsEmpty(log.Warnings);
+	}
+
+	[TestMethod]
+	public async Task GetJson_WithUnparseableResponse_Warns()
+	{
+		// The call reported success, so an unreadable body is a truncated or corrupted response, and it
+		// loses the same data a failed call does.
+		(GitHubApiClient client, RecordingBuildLogger log) = ClientAnswering(Success("not json at all"));
+
+		Assert.IsEmpty(await client.ListReleasesAsync("ktsu-dev", "Extensions").ConfigureAwait(false));
+		Assert.IsTrue(RecordingBuildLogger.Any(log.Warnings, "unparseable JSON"));
+	}
 }
