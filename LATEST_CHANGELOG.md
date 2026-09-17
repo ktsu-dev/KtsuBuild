@@ -1,9 +1,6 @@
-## v2.16.1 (patch)
+## v2.16.2 (patch)
 
-Changes since v2.16.0:
+Changes since v2.16.1:
 
-- fix: count every page of commits in the activity window [patch] ([@Claude](https://github.com/Claude))
-- Require the token at the call site, not an overload away ([@matt-edmondson](https://github.com/matt-edmondson))
-- Run the new handler tests under the test's own token ([@matt-edmondson](https://github.com/matt-edmondson))
-- Test the tool's command handlers directly [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
+- fix: warn when a gh api call fails instead of reading it as no data [patch] ([@Claude](https://github.com/Claude))
 
