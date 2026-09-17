@@ -1,6 +1,4 @@
-## v2.16.2 (patch)
+## v2.16.2
 
-Changes since v2.16.1:
-
-- fix: warn when a gh api call fails instead of reading it as no data [patch] ([@Claude](https://github.com/Claude))
+No significant changes detected since v2.16.2.
 
