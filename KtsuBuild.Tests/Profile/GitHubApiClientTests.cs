@@ -2,6 +2,7 @@
 
 namespace KtsuBuild.Tests.Profile;
 
+using System.Globalization;
 using KtsuBuild.Abstractions;
 using KtsuBuild.Profile;
 using KtsuBuild.Tests.Mocks;
@@ -15,20 +16,20 @@ public class GitHubApiClientTests
 	private IProcessRunner _processRunner = null!;
 	private GitHubApiClient _client = null!;
 	private readonly List<string> _requestedArguments = [];
-	private string _response = "[]";
+	private Func<string, string> _responder = null!;
 
 	[TestInitialize]
 	public void Setup()
 	{
 		_requestedArguments.Clear();
-		_response = "[]";
+		_responder = static _ => "[]";
 		_processRunner = Substitute.For<IProcessRunner>();
 
 		// Registered once. Registering the same call spec twice would run both Arg.Do callbacks per
 		// invocation and double-count the requests.
 		_processRunner
 			.RunAsync("gh", Arg.Do<string>(_requestedArguments.Add), Arg.Any<string?>(), Arg.Any<CancellationToken>())
-			.Returns(_ => Task.FromResult(Success(_response)));
+			.Returns(call => Task.FromResult(Success(_responder(call.ArgAt<string>(1)))));
 
 		_client = new GitHubApiClient(_processRunner, new MockBuildLogger());
 	}
@@ -40,7 +41,34 @@ public class GitHubApiClientTests
 		StandardError = string.Empty,
 	};
 
-	private void RespondWith(string output) => _response = output;
+	private void RespondWith(string output) => _responder = _ => output;
+
+	/// <summary>Answers each request from the <c>page=</c> value in its query string.</summary>
+	private void RespondByPage(Func<int, string> responseForPage) =>
+		_responder = arguments => responseForPage(ReadPage(arguments));
+
+	/// <summary>A commits response carrying <paramref name="commits"/> entries.</summary>
+	private static string CommitsPage(int commits) => $"[{string.Join(",", Enumerable.Repeat("{}", commits))}]";
+
+	private static int ReadPage(string arguments)
+	{
+		int start = arguments.IndexOf("page=", StringComparison.Ordinal);
+
+		// "per_page=" also ends in "page=", so keep looking until the match starts a query parameter.
+		while (start > 0 && arguments[start - 1] is not ('?' or '&'))
+		{
+			start = arguments.IndexOf("page=", start + 1, StringComparison.Ordinal);
+		}
+
+		if (start < 0)
+		{
+			return 1;
+		}
+
+		string value = arguments[(start + "page=".Length)..];
+		int end = value.IndexOfAny(['&', '"']);
+		return int.Parse(end < 0 ? value : value[..end], CultureInfo.InvariantCulture);
+	}
 
 	[TestMethod]
 	public async Task CountCommitsSinceAsync_SendsTheTimestampAsUtc()
@@ -60,6 +88,34 @@ public class GitHubApiClientTests
 		RespondWith("[{},{},{}]");
 
 		Assert.AreEqual(3, await _client.CountCommitsSinceAsync("ktsu-dev", "Extensions", DateTimeOffset.UtcNow).ConfigureAwait(false));
+	}
+
+	[TestMethod]
+	public async Task CountCommitsSinceAsync_CountsEveryPage()
+	{
+		// KtsuBuild itself had 136 commits in the default 30-day window: a full first page and 36 more.
+		// Reading only the first page reported 100, so the activity badge saturated and stopped moving
+		// for every repository above the threshold.
+		RespondByPage(static page => page switch
+		{
+			1 => CommitsPage(100),
+			2 => CommitsPage(36),
+			_ => "[]",
+		});
+
+		Assert.AreEqual(136, await _client.CountCommitsSinceAsync("ktsu-dev", "KtsuBuild", DateTimeOffset.UtcNow).ConfigureAwait(false));
+		Assert.HasCount(2, _requestedArguments, "A page shorter than the page size is the last page");
+	}
+
+	[TestMethod]
+	public async Task CountCommitsSinceAsync_WithExactlyOneFullPage_ReadsTheNextPageToConfirmTheEnd()
+	{
+		// A full page is indistinguishable from a truncated one, so the count is only known once the
+		// next page comes back empty.
+		RespondByPage(static page => page == 1 ? CommitsPage(100) : "[]");
+
+		Assert.AreEqual(100, await _client.CountCommitsSinceAsync("ktsu-dev", "KtsuBuild", DateTimeOffset.UtcNow).ConfigureAwait(false));
+		Assert.HasCount(2, _requestedArguments);
 	}
 
 	[TestMethod]
