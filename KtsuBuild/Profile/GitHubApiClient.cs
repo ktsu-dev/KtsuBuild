@@ -123,9 +123,31 @@ public class GitHubApiClient(IProcessRunner processRunner, IBuildLogger logger) 
 	public async Task<int> CountCommitsSinceAsync(string organization, string repository, DateTimeOffset since, CancellationToken cancellationToken = default)
 	{
 		string timestamp = since.UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture);
-		JsonElement? response = await GetJsonAsync($"/repos/{organization}/{repository}/commits?since={timestamp}&per_page={PageSize.ToString(CultureInfo.InvariantCulture)}", cancellationToken).ConfigureAwait(false);
 
-		return response is { ValueKind: JsonValueKind.Array } ? response.Value.GetArrayLength() : 0;
+		// The commits API truncates a response at the page size, so reading one page reports the cap
+		// rather than the count for any repository busy enough to fill it, and the activity number then
+		// stops moving for exactly the repositories the column exists to tell apart.
+		int count = 0;
+		bool hasMorePages = true;
+		int page = 1;
+		while (hasMorePages)
+		{
+			string endpoint = $"/repos/{organization}/{repository}/commits?since={timestamp}&page={page.ToString(CultureInfo.InvariantCulture)}&per_page={PageSize.ToString(CultureInfo.InvariantCulture)}";
+			JsonElement? response = await GetJsonAsync(endpoint, cancellationToken).ConfigureAwait(false);
+			if (response is not { ValueKind: JsonValueKind.Array })
+			{
+				break;
+			}
+
+			int pageLength = response.Value.GetArrayLength();
+			count += pageLength;
+
+			// A page shorter than the page size is the last one.
+			hasMorePages = pageLength == PageSize;
+			page++;
+		}
+
+		return count;
 	}
 
 	/// <inheritdoc/>
