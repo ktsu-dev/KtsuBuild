@@ -32,6 +32,11 @@ public class TestCommandTests
 	private readonly List<IReadOnlyList<string>?> _filteredProjects = [];
 	private int _testExitCode;
 
+	/// <summary>
+	/// Gets or sets the context MSTest injects, whose cancellation token the handlers run under.
+	/// </summary>
+	public TestContext TestContext { get; set; } = null!;
+
 	[TestInitialize]
 	public void Setup()
 	{
@@ -106,7 +111,7 @@ public class TestCommandTests
 	}
 
 	private Task<int> RunAll(params string[] exclude) =>
-		TestCommand.CreateAllHandler(_processRunner, _logger)(_workspace, "Release", exclude, false, CancellationToken.None);
+		TestCommand.CreateAllHandler(_processRunner, _logger)(_workspace, "Release", exclude, false, TestContext.CancellationToken);
 
 	/// <summary>
 	/// Reads the solution filter a <c>dotnet test</c> invocation was scoped to, as project paths.
@@ -315,7 +320,7 @@ public class TestCommandTests
 		WriteProject("Alpha.Test");
 		WriteSolution("Alpha.Test");
 
-		await TestCommand.CreateAllHandler(_processRunner, _logger)(_workspace, "Release", [], true, CancellationToken.None)
+		await TestCommand.CreateAllHandler(_processRunner, _logger)(_workspace, "Release", [], true, TestContext.CancellationToken)
 			.ConfigureAwait(false);
 
 		Assert.IsTrue(_logger.VerboseEnabled);
@@ -329,7 +334,7 @@ public class TestCommandTests
 		string project = WriteProject("Alpha.Test");
 
 		int exitCode = await TestCommand.CreateRunHandler(_processRunner, _logger)(
-			_workspace, "Release", Path.GetRelativePath(_workspace, project), false, false, CancellationToken.None)
+			_workspace, "Release", Path.GetRelativePath(_workspace, project), false, false, TestContext.CancellationToken)
 			.ConfigureAwait(false);
 
 		Assert.AreEqual(0, exitCode);
@@ -343,7 +348,7 @@ public class TestCommandTests
 		string project = WriteProject("Alpha.Test");
 
 		await TestCommand.CreateRunHandler(_processRunner, _logger)(
-			_workspace, "Release", Path.GetRelativePath(_workspace, project), false, false, CancellationToken.None)
+			_workspace, "Release", Path.GetRelativePath(_workspace, project), false, false, TestContext.CancellationToken)
 			.ConfigureAwait(false);
 
 		// A relative path left unresolved would be read against the process directory, where it does
@@ -358,7 +363,7 @@ public class TestCommandTests
 		_testExitCode = 2;
 
 		int exitCode = await TestCommand.CreateRunHandler(_processRunner, _logger)(
-			_workspace, "Release", project, false, false, CancellationToken.None)
+			_workspace, "Release", project, false, false, TestContext.CancellationToken)
 			.ConfigureAwait(false);
 
 		Assert.AreEqual(1, exitCode);
@@ -371,7 +376,7 @@ public class TestCommandTests
 		string project = WriteProject("Alpha.Test");
 
 		await TestCommand.CreateRunHandler(_processRunner, _logger)(
-			_workspace, "Release", project, true, false, CancellationToken.None)
+			_workspace, "Release", project, true, false, TestContext.CancellationToken)
 			.ConfigureAwait(false);
 
 		Assert.Contains("--no-build", _dotnetArguments[0]);
@@ -384,7 +389,7 @@ public class TestCommandTests
 	{
 		WriteProject("Alpha.Test");
 
-		int exitCode = await TestCommand.CreateListHandler(_processRunner, _logger)(_workspace, false, CancellationToken.None)
+		int exitCode = await TestCommand.CreateListHandler(_processRunner, _logger)(_workspace, false, TestContext.CancellationToken)
 			.ConfigureAwait(false);
 
 		Assert.AreEqual(0, exitCode);
@@ -396,7 +401,7 @@ public class TestCommandTests
 	{
 		string missing = Path.Combine(_workspace, "does-not-exist");
 
-		int exitCode = await TestCommand.CreateListHandler(_processRunner, _logger)(missing, false, CancellationToken.None)
+		int exitCode = await TestCommand.CreateListHandler(_processRunner, _logger)(missing, false, TestContext.CancellationToken)
 			.ConfigureAwait(false);
 
 		Assert.AreEqual(1, exitCode);
@@ -408,7 +413,7 @@ public class TestCommandTests
 	{
 		WriteProject("Alpha.Test");
 
-		await TestCommand.CreateListHandler(_processRunner, _logger)(_workspace, true, CancellationToken.None)
+		await TestCommand.CreateListHandler(_processRunner, _logger)(_workspace, true, TestContext.CancellationToken)
 			.ConfigureAwait(false);
 
 		Assert.IsTrue(_logger.VerboseEnabled);

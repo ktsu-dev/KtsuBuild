@@ -27,6 +27,11 @@ public class ProfileCommandTests
 	private string _tempDir = null!;
 	private string _response = "[]";
 
+	/// <summary>
+	/// Gets or sets the context MSTest injects, whose cancellation token the handler runs under.
+	/// </summary>
+	public TestContext TestContext { get; set; } = null!;
+
 	[TestInitialize]
 	public void Setup()
 	{
@@ -71,7 +76,9 @@ public class ProfileCommandTests
 		return path;
 	}
 
-	private Task<int> Run(ProfileCommand.ProfileOptionsInput input, CancellationToken cancellationToken = default) =>
+	private Task<int> Run(ProfileCommand.ProfileOptionsInput input) => Run(input, TestContext.CancellationToken);
+
+	private Task<int> Run(ProfileCommand.ProfileOptionsInput input, CancellationToken cancellationToken) =>
 		ProfileCommand.CreateReadmeHandler(_processRunner, _logger)(input, cancellationToken);
 
 	[TestMethod]
