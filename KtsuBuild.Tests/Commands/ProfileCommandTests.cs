@@ -76,8 +76,8 @@ public class ProfileCommandTests
 		return path;
 	}
 
-	private Task<int> Run(ProfileCommand.ProfileOptionsInput input) => Run(input, TestContext.CancellationToken);
-
+	// One method, its token required. A convenience overload that defaulted the token would be the
+	// shape MSTEST0049 objects to, and every call here has a token to give it.
 	private Task<int> Run(ProfileCommand.ProfileOptionsInput input, CancellationToken cancellationToken) =>
 		ProfileCommand.CreateReadmeHandler(_processRunner, _logger)(input, cancellationToken);
 
@@ -86,7 +86,7 @@ public class ProfileCommandTests
 	{
 		string missing = Path.Combine(_tempDir, "absent.template");
 
-		Assert.AreEqual(1, await Run(Input(missing)).ConfigureAwait(false));
+		Assert.AreEqual(1, await Run(Input(missing), TestContext.CancellationToken).ConfigureAwait(false));
 
 		// The FileNotFoundException branch reports the exception's own message, which names the path.
 		// A generic "failed to generate" here would leave the reader to guess which file.
@@ -114,7 +114,7 @@ public class ProfileCommandTests
 		_response = """[{"name":"Common","default_branch":"main","archived":true,"stargazers_count":0}]""";
 		string template = WriteTemplate("See [Common](https://github.com/ktsu-dev/Common).\n");
 
-		Assert.AreEqual(1, await Run(Input(template)).ConfigureAwait(false));
+		Assert.AreEqual(1, await Run(Input(template), TestContext.CancellationToken).ConfigureAwait(false));
 
 		// Anything that is neither a missing template nor a cancellation is reported with a prefix
 		// naming what was being attempted, since the exception alone need not say.
@@ -125,7 +125,7 @@ public class ProfileCommandTests
 	[TestMethod]
 	public async Task CreateReadmeHandler_AnyRun_HeadsTheOutputWithTheOrganization()
 	{
-		await Run(Input(Path.Combine(_tempDir, "absent.template"))).ConfigureAwait(false);
+		await Run(Input(Path.Combine(_tempDir, "absent.template")), TestContext.CancellationToken).ConfigureAwait(false);
 
 		Assert.Contains("Generating profile README for ktsu-dev", _logger.StepHeaders);
 	}
@@ -133,7 +133,7 @@ public class ProfileCommandTests
 	[TestMethod]
 	public async Task CreateReadmeHandler_Verbose_TurnsOnVerboseLogging()
 	{
-		await Run(Input(Path.Combine(_tempDir, "absent.template"), verbose: true)).ConfigureAwait(false);
+		await Run(Input(Path.Combine(_tempDir, "absent.template"), verbose: true), TestContext.CancellationToken).ConfigureAwait(false);
 
 		Assert.IsTrue(_logger.VerboseEnabled);
 	}
