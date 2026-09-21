@@ -68,11 +68,9 @@ public class GitHubService(IProcessRunner processRunner, IGitService gitService,
 
 		args.AddRange(ResolveAssetPaths(options.AssetPaths));
 
-		string argsString = string.Join(' ', args.Select(static a => a.Contains(' ') ? $"\"{a}\"" : a));
-
 		int exitCode = await processRunner.RunWithCallbackAsync(
 			"gh",
-			argsString,
+			args,
 			options.WorkingDirectory,
 			logger.WriteInfo,
 			logger.WriteError,
@@ -160,7 +158,7 @@ public class GitHubService(IProcessRunner processRunner, IGitService gitService,
 				continue;
 			}
 
-			string args = $"release upload {tagName} \"{assetPath}\"";
+			List<string> args = ["release", "upload", tagName, assetPath];
 
 			int exitCode = await processRunner.RunWithCallbackAsync(
 				"gh",
@@ -206,11 +204,9 @@ public class GitHubService(IProcessRunner processRunner, IGitService gitService,
 			args.Add($"names[]={topic}");
 		}
 
-		string argsString = string.Join(' ', args.Select(static a => a.Contains(' ') ? $"\"{a}\"" : a));
-
 		int exitCode = await processRunner.RunWithCallbackAsync(
 			"gh",
-			argsString,
+			args,
 			workingDirectory,
 			logger.WriteVerbose,
 			logger.WriteError,
