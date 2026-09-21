@@ -84,17 +84,26 @@ public class ProcessRunnerTests
 		CollectionAssert.AreEqual(expectedError, Trimmed(error));
 	}
 
+	/// <summary>
+	/// Gets a command that writes <c>content</c> to stdout with no trailing newline.
+	/// </summary>
+	/// <remarks>
+	/// <c>printf</c> on Unix. On Windows the <c>cmd</c> idiom for this is <c>&lt;nul set /p</c>, whose
+	/// quoting is delicate enough to be its own source of failure, so PowerShell writes the bytes
+	/// directly instead — both runners have it, and there is nothing to quote.
+	/// </remarks>
+	private static (string FileName, IReadOnlyList<string> Arguments) UnterminatedWrite() =>
+		OperatingSystem.IsWindows()
+			? ("powershell.exe", ["-NoProfile", "-Command", "[Console]::Out.Write('content')"])
+			: ("/bin/sh", ["-c", "printf 'content'"]);
+
 	[TestMethod]
 	public async Task RunWithCallbackAsync_FinalLineWithoutANewline_IsStillDelivered()
 	{
 		// RunCommand's own LineOutputHandler drops this; the caller would see no output at all for a
 		// process whose last line is unterminated. Assembling the lines here is what keeps it.
-		string script = OperatingSystem.IsWindows()
-			? "<nul set /p=content"
-			: "printf 'content'";
-
 		List<string> output = [];
-		(string fileName, IReadOnlyList<string> arguments) = Shell(script);
+		(string fileName, IReadOnlyList<string> arguments) = UnterminatedWrite();
 
 		int exitCode = await _runner.RunWithCallbackAsync(
 			fileName, arguments, _tempDir, output.Add).ConfigureAwait(false);
@@ -107,15 +116,39 @@ public class ProcessRunnerTests
 	[TestMethod]
 	public async Task RunAsync_FinalLineWithoutANewline_IsStillCaptured()
 	{
-		string script = OperatingSystem.IsWindows()
-			? "<nul set /p=content"
-			: "printf 'content'";
-
-		(string fileName, IReadOnlyList<string> arguments) = Shell(script);
+		(string fileName, IReadOnlyList<string> arguments) = UnterminatedWrite();
 		ProcessResult result = await _runner.RunAsync(fileName, arguments, _tempDir).ConfigureAwait(false);
 
 		Assert.AreEqual(0, result.ExitCode);
 		Assert.AreEqual("content", result.StandardOutput.Trim());
+	}
+
+	/// <summary>
+	/// Asserts the process reported a working directory that is the same directory as
+	/// <paramref name="expected"/>, whatever route either path took to get there.
+	/// </summary>
+	/// <remarks>
+	/// Comparing the strings does not work: on macOS the temp directory is reached through
+	/// <c>/var</c>, a symlink to <c>/private/var</c>, and the child reports the resolved form while
+	/// the test holds the unresolved one. A sentinel file settles which directory it actually is
+	/// without either side having to resolve anything.
+	/// </remarks>
+	private static void AssertSameDirectory(string expected, string reported)
+	{
+		string sentinel = $"sentinel-{Guid.NewGuid():N}";
+		string path = Path.Combine(expected, sentinel);
+		File.WriteAllText(path, "present");
+
+		try
+		{
+			Assert.IsTrue(
+				File.Exists(Path.Combine(reported.Trim(), sentinel)),
+				$"Expected the process to run in '{expected}', but it reported '{reported.Trim()}'.");
+		}
+		finally
+		{
+			File.Delete(path);
+		}
 	}
 
 	[TestMethod]
@@ -125,12 +158,7 @@ public class ProcessRunnerTests
 		ProcessResult result = await _runner.RunAsync(fileName, arguments, _tempDir).ConfigureAwait(false);
 
 		Assert.AreEqual(0, result.ExitCode);
-		// The temp directory may be reached through a symlink (macOS /var), so compare what the OS
-		// resolves rather than the string handed in.
-		Assert.AreEqual(
-			Path.GetFullPath(_tempDir).TrimEnd(Path.DirectorySeparatorChar),
-			new DirectoryInfo(result.StandardOutput.Trim()).FullName.TrimEnd(Path.DirectorySeparatorChar),
-			ignoreCase: OperatingSystem.IsWindows());
+		AssertSameDirectory(_tempDir, result.StandardOutput);
 	}
 
 	[TestMethod]
@@ -147,10 +175,7 @@ public class ProcessRunnerTests
 			ProcessResult result = await _runner.RunAsync(fileName, arguments, leaf).ConfigureAwait(false);
 
 			Assert.AreEqual(0, result.ExitCode);
-			Assert.AreEqual(
-				new DirectoryInfo(_tempDir).FullName.TrimEnd(Path.DirectorySeparatorChar),
-				new DirectoryInfo(result.StandardOutput.Trim()).FullName.TrimEnd(Path.DirectorySeparatorChar),
-				ignoreCase: OperatingSystem.IsWindows());
+			AssertSameDirectory(_tempDir, result.StandardOutput);
 		}
 		finally
 		{
