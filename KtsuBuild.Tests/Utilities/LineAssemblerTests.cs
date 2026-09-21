@@ -71,10 +71,17 @@ public class LineAssemblerTests
 		AssertLines(["done\r"], "done");
 
 	[TestMethod]
-	public void Append_NullCallback_DoesNotThrow()
+	public void Append_NullCallback_DiscardsTheLinesInsteadOfThrowing()
 	{
-		LineAssembler assembler = new(null);
-		assembler.Append("anything\nat all");
-		assembler.Flush();
+		// RunWithCallbackAsync's callbacks are optional, so a caller that wants only the exit code
+		// leaves both null and every line is assembled with nowhere to go. Dropping the null check
+		// makes these two calls throw, which fails this test before it reaches the assertion.
+		LineAssembler discarding = new(null);
+		discarding.Append("anything\nat all");
+		discarding.Flush();
+
+		// The same input through a real callback, so the lines that were discarded above are shown
+		// to have been there to discard.
+		AssertLines(["anything\nat all"], "anything", "at all");
 	}
 }

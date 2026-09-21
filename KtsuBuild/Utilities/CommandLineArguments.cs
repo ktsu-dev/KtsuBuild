@@ -79,31 +79,7 @@ internal static class CommandLineArguments
 
 		while (i < arguments.Length)
 		{
-			// A run of backslashes only means anything in terms of what follows it, so it is
-			// consumed as a run rather than a character at a time.
-			while (i < arguments.Length && arguments[i] == '\\')
-			{
-				int backslashes = 1;
-				while (++i < arguments.Length && arguments[i] == '\\')
-				{
-					backslashes++;
-				}
-
-				if (i < arguments.Length && arguments[i] == '"')
-				{
-					current.Append('\\', backslashes / 2);
-					if (backslashes % 2 != 0)
-					{
-						// The quote was escaped, so it is content rather than a delimiter.
-						current.Append('"');
-						i++;
-					}
-				}
-				else
-				{
-					current.Append('\\', backslashes);
-				}
-			}
+			ConsumeBackslashes(arguments, ref i, current);
 
 			if (i >= arguments.Length)
 			{
@@ -113,17 +89,7 @@ internal static class CommandLineArguments
 			char c = arguments[i];
 			if (c == '"')
 			{
-				if (inQuotes && i + 1 < arguments.Length && arguments[i + 1] == '"')
-				{
-					current.Append('"');
-					i++;
-				}
-				else
-				{
-					inQuotes = !inQuotes;
-				}
-
-				i++;
+				ConsumeQuote(arguments, ref i, current, ref inQuotes);
 				continue;
 			}
 
@@ -137,5 +103,66 @@ internal static class CommandLineArguments
 		}
 
 		return current.ToString();
+	}
+
+	/// <summary>
+	/// Consumes a run of backslashes, and the quote it escapes when it escapes one.
+	/// </summary>
+	/// <remarks>
+	/// A backslash only means anything in terms of what follows it, so the run is read whole rather
+	/// than a character at a time: <c>2n</c> before a quote give <c>n</c> backslashes and leave the
+	/// quote to delimit, <c>2n+1</c> give <c>n</c> and make the quote content, and a run before
+	/// anything else is literal.
+	/// </remarks>
+	/// <param name="arguments">The whole argument string.</param>
+	/// <param name="i">The read position, advanced past the run.</param>
+	/// <param name="current">The argument being built.</param>
+	private static void ConsumeBackslashes(string arguments, ref int i, StringBuilder current)
+	{
+		while (i < arguments.Length && arguments[i] == '\\')
+		{
+			int backslashes = 1;
+			while (++i < arguments.Length && arguments[i] == '\\')
+			{
+				backslashes++;
+			}
+
+			if (i < arguments.Length && arguments[i] == '"')
+			{
+				current.Append('\\', backslashes / 2);
+				if (backslashes % 2 != 0)
+				{
+					// The quote was escaped, so it is content rather than a delimiter.
+					current.Append('"');
+					i++;
+				}
+			}
+			else
+			{
+				current.Append('\\', backslashes);
+			}
+		}
+	}
+
+	/// <summary>
+	/// Consumes a quote, which either toggles grouping or, doubled inside a quoted run, is content.
+	/// </summary>
+	/// <param name="arguments">The whole argument string.</param>
+	/// <param name="i">The read position, advanced past the quote.</param>
+	/// <param name="current">The argument being built.</param>
+	/// <param name="inQuotes">Whether the read position is inside a quoted run.</param>
+	private static void ConsumeQuote(string arguments, ref int i, StringBuilder current, ref bool inQuotes)
+	{
+		if (inQuotes && i + 1 < arguments.Length && arguments[i + 1] == '"')
+		{
+			current.Append('"');
+			i++;
+		}
+		else
+		{
+			inQuotes = !inQuotes;
+		}
+
+		i++;
 	}
 }
