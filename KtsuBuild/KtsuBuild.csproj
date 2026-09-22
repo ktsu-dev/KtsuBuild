@@ -8,6 +8,12 @@
 
   <ItemGroup>
     <PackageReference Include="Polyfill" PrivateAssets="all" />
+    <PackageReference Include="ktsu.RunCommand" />
+    <!-- Direct references because ProcessRunner names these types itself: CommandOptions.WorkingDirectory
+         is an AbsoluteDirectoryPath, and As<T>() is the conversion onto it. KTSU0006 requires the
+         reference to be direct wherever the types are used directly. -->
+    <PackageReference Include="ktsu.Semantics.Paths" />
+    <PackageReference Include="ktsu.Semantics.Strings" />
     <PackageReference Include="YamlDotNet" />
     <PackageReference Include="Microsoft.Extensions.FileSystemGlobbing" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />

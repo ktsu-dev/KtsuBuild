@@ -46,8 +46,7 @@ public class GitHubServiceTests
 	[TestMethod]
 	public async Task CreateReleaseAsync_Success_CreatesTagAndRelease()
 	{
-		_processRunner.RunWithCallbackAsync("gh", Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
-			.Returns(0);
+		StubGh(0);
 
 		ReleaseOptions options = CreateReleaseOptions();
 		await _service.CreateReleaseAsync(options).ConfigureAwait(false);
@@ -59,23 +58,19 @@ public class GitHubServiceTests
 	[TestMethod]
 	public async Task CreateReleaseAsync_WithGenerateNotes_IncludesGenerateNotesFlag()
 	{
-		_processRunner.RunWithCallbackAsync("gh", Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
-			.Returns(0);
+		StubGh(0);
 
 		ReleaseOptions options = CreateReleaseOptions();
 		options.GenerateNotes = true;
 		await _service.CreateReleaseAsync(options).ConfigureAwait(false);
 
-		await _processRunner.Received(1).RunWithCallbackAsync("gh",
-			ArgMatch.NotNull<string>(a => a.Contains("--generate-notes")),
-			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+		await ReceivedGhWith(1, a => a.Contains("--generate-notes")).ConfigureAwait(false);
 	}
 
 	[TestMethod]
 	public async Task CreateReleaseAsync_WithLatestChangelogFile_UsesLatestChangelog()
 	{
-		_processRunner.RunWithCallbackAsync("gh", Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
-			.Returns(0);
+		StubGh(0);
 
 		string changelogFile = Path.Combine(_tempDir, "LATEST_CHANGELOG.md");
 		await File.WriteAllTextAsync(changelogFile, "## Changes\n- Fix bug").ConfigureAwait(false);
@@ -84,31 +79,25 @@ public class GitHubServiceTests
 		options.LatestChangelogFile = changelogFile;
 		await _service.CreateReleaseAsync(options).ConfigureAwait(false);
 
-		await _processRunner.Received(1).RunWithCallbackAsync("gh",
-			ArgMatch.NotNull<string>(a => a.Contains("--notes-file")),
-			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+		await ReceivedGhWith(1, a => a.Contains("--notes-file")).ConfigureAwait(false);
 	}
 
 	[TestMethod]
 	public async Task CreateReleaseAsync_WithPrerelease_IncludesPrereleaseFlag()
 	{
-		_processRunner.RunWithCallbackAsync("gh", Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
-			.Returns(0);
+		StubGh(0);
 
 		ReleaseOptions options = CreateReleaseOptions();
 		options.IsPrerelease = true;
 		await _service.CreateReleaseAsync(options).ConfigureAwait(false);
 
-		await _processRunner.Received(1).RunWithCallbackAsync("gh",
-			ArgMatch.NotNull<string>(a => a.Contains("--prerelease")),
-			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+		await ReceivedGhWith(1, a => a.Contains("--prerelease")).ConfigureAwait(false);
 	}
 
 	[TestMethod]
 	public async Task CreateReleaseAsync_WithAssetFiles_IncludesAssetPaths()
 	{
-		_processRunner.RunWithCallbackAsync("gh", Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
-			.Returns(0);
+		StubGh(0);
 
 		string assetFile = Path.Combine(_tempDir, "mypackage.nupkg");
 		await File.WriteAllTextAsync(assetFile, "fake-package").ConfigureAwait(false);
@@ -117,21 +106,56 @@ public class GitHubServiceTests
 		options.AssetPaths = [assetFile];
 		await _service.CreateReleaseAsync(options).ConfigureAwait(false);
 
-		await _processRunner.Received(1).RunWithCallbackAsync("gh",
-			ArgMatch.NotNull<string>(a => a.Contains("mypackage.nupkg")),
-			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+		await ReceivedGhWith(1, a => a.Contains(assetFile)).ConfigureAwait(false);
+	}
+
+	[TestMethod]
+	public async Task CreateReleaseAsync_AssetPathContainingSpaces_IsPassedAsOneUnquotedArgument()
+	{
+		// The release command used to be flattened into a single string, wrapping any value
+		// containing a space in quotes by hand. gh then received the quotes as part of the path and
+		// could not find the file. Each argument now travels as its own value, so the path arrives
+		// exactly as it is on disk — no quoting to add, and none to strip.
+		StubGh(0);
+
+		string spacedDir = Path.Combine(_tempDir, "release assets");
+		Directory.CreateDirectory(spacedDir);
+		string assetFile = Path.Combine(spacedDir, "my package.nupkg");
+		await File.WriteAllTextAsync(assetFile, "fake-package").ConfigureAwait(false);
+
+		ReleaseOptions options = CreateReleaseOptions();
+		options.AssetPaths = [assetFile];
+		await _service.CreateReleaseAsync(options).ConfigureAwait(false);
+
+		await ReceivedGhWith(1, a => a.Contains(assetFile) && !a.Any(v => v.Contains('"'))).ConfigureAwait(false);
 	}
 
 	[TestMethod]
 	public async Task CreateReleaseAsync_Failure_ThrowsInvalidOperationException()
 	{
-		_processRunner.RunWithCallbackAsync("gh", Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
-			.Returns(1);
+		StubGh(1);
 
 		ReleaseOptions options = CreateReleaseOptions();
 		await Assert.ThrowsExactlyAsync<InvalidOperationException>(
 			() => _service.CreateReleaseAsync(options)).ConfigureAwait(false);
 	}
+
+	/// <summary>Stubs the gh invocation, which takes its arguments as a list.</summary>
+	private void StubGh(int exitCode) =>
+		_processRunner.RunWithCallbackAsync("gh", Arg.Any<IReadOnlyList<string>>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
+			.Returns(exitCode);
+
+	/// <summary>Asserts gh was invoked <paramref name="times"/> times with arguments satisfying the predicate.</summary>
+	private Task<int> ReceivedGhWith(int times, Func<IReadOnlyList<string>, bool> predicate) =>
+		_processRunner.Received(times).RunWithCallbackAsync("gh",
+			ArgMatch.NotNull(predicate),
+			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>());
+
+	/// <summary>Asserts gh was not invoked at all.</summary>
+	private Task<int> DidNotReceiveGh() =>
+		_processRunner.DidNotReceive().RunWithCallbackAsync("gh",
+			Arg.Any<IReadOnlyList<string>>(),
+			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>());
 
 	// UploadReleaseAssetsAsync
 
@@ -140,16 +164,13 @@ public class GitHubServiceTests
 	{
 		await _service.UploadReleaseAssetsAsync("1.0.0", []).ConfigureAwait(false);
 
-		await _processRunner.DidNotReceive().RunWithCallbackAsync("gh",
-			Arg.Any<string>(),
-			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+		await DidNotReceiveGh().ConfigureAwait(false);
 	}
 
 	[TestMethod]
 	public async Task UploadReleaseAssetsAsync_WithAssets_UploadsEach()
 	{
-		_processRunner.RunWithCallbackAsync("gh", Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
-			.Returns(0);
+		StubGh(0);
 
 		string asset1 = Path.Combine(_tempDir, "file1.nupkg");
 		string asset2 = Path.Combine(_tempDir, "file2.nupkg");
@@ -158,9 +179,7 @@ public class GitHubServiceTests
 
 		await _service.UploadReleaseAssetsAsync("1.0.0", [asset1, asset2]).ConfigureAwait(false);
 
-		await _processRunner.Received(2).RunWithCallbackAsync("gh",
-			ArgMatch.NotNull<string>(a => a.Contains("release upload v1.0.0")),
-			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+		await ReceivedGhWith(2, a => a.Count == 4 && a[0] == "release" && a[1] == "upload" && a[2] == "v1.0.0").ConfigureAwait(false);
 	}
 
 	[TestMethod]
@@ -168,16 +187,13 @@ public class GitHubServiceTests
 	{
 		await _service.UploadReleaseAssetsAsync("1.0.0", ["/nonexistent/file.nupkg"]).ConfigureAwait(false);
 
-		await _processRunner.DidNotReceive().RunWithCallbackAsync("gh",
-			Arg.Any<string>(),
-			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+		await DidNotReceiveGh().ConfigureAwait(false);
 	}
 
 	[TestMethod]
 	public async Task UploadReleaseAssetsAsync_UploadFailure_ContinuesWithNext()
 	{
-		_processRunner.RunWithCallbackAsync("gh", Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
-			.Returns(1);
+		StubGh(1);
 
 		string asset = Path.Combine(_tempDir, "file.nupkg");
 		await File.WriteAllTextAsync(asset, "pkg").ConfigureAwait(false);
@@ -186,9 +202,7 @@ public class GitHubServiceTests
 		await _service.UploadReleaseAssetsAsync("1.0.0", [asset]).ConfigureAwait(false);
 
 		// The failing upload was still attempted.
-		await _processRunner.Received(1).RunWithCallbackAsync("gh",
-			ArgMatch.NotNull<string>(a => a.Contains("release upload v1.0.0")),
-			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+		await ReceivedGhWith(1, a => a.Count == 4 && a[0] == "release" && a[1] == "upload" && a[2] == "v1.0.0").ConfigureAwait(false);
 	}
 
 	// GetRepositoryInfoAsync
@@ -323,14 +337,11 @@ public class GitHubServiceTests
 		string json = """{"owner":{"login":"ktsu-dev"},"nameWithOwner":"ktsu-dev/KtsuBuild","isFork":false}""";
 		_processRunner.RunAsync("gh", Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
 			.Returns(TestHelpers.SuccessResult(json));
-		_processRunner.RunWithCallbackAsync("gh", Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
-			.Returns(0);
+		StubGh(0);
 
 		await _service.SetRepositoryTopicsAsync("/repo", ["dotnet", "csharp"]).ConfigureAwait(false);
 
-		await _processRunner.Received(1).RunWithCallbackAsync("gh",
-			ArgMatch.NotNull<string>(a => a.Contains("repos/ktsu-dev/KtsuBuild/topics") && a.Contains("names[]=dotnet") && a.Contains("names[]=csharp")),
-			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+		await ReceivedGhWith(1, a => a.Contains("repos/ktsu-dev/KtsuBuild/topics") && a.Contains("names[]=dotnet") && a.Contains("names[]=csharp")).ConfigureAwait(false);
 	}
 
 	[TestMethod]
@@ -338,9 +349,7 @@ public class GitHubServiceTests
 	{
 		await _service.SetRepositoryTopicsAsync("/repo", []).ConfigureAwait(false);
 
-		await _processRunner.DidNotReceive().RunWithCallbackAsync("gh",
-			Arg.Any<string>(),
-			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+		await DidNotReceiveGh().ConfigureAwait(false);
 	}
 
 	[TestMethod]
@@ -352,9 +361,7 @@ public class GitHubServiceTests
 		// Should not throw
 		await _service.SetRepositoryTopicsAsync("/repo", ["dotnet"]).ConfigureAwait(false);
 
-		await _processRunner.DidNotReceive().RunWithCallbackAsync("gh",
-			Arg.Any<string>(),
-			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+		await DidNotReceiveGh().ConfigureAwait(false);
 	}
 
 	[TestMethod]
@@ -363,16 +370,13 @@ public class GitHubServiceTests
 		string json = """{"owner":{"login":"ktsu-dev"},"nameWithOwner":"ktsu-dev/KtsuBuild","isFork":false}""";
 		_processRunner.RunAsync("gh", Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
 			.Returns(TestHelpers.SuccessResult(json));
-		_processRunner.RunWithCallbackAsync("gh", Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
-			.Returns(1);
+		StubGh(1);
 
 		// Should not throw even on API failure
 		await _service.SetRepositoryTopicsAsync("/repo", ["dotnet"]).ConfigureAwait(false);
 
 		// The failing topics call was still attempted.
-		await _processRunner.Received(1).RunWithCallbackAsync("gh",
-			ArgMatch.NotNull<string>(a => a.Contains("repos/ktsu-dev/KtsuBuild/topics")),
-			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+		await ReceivedGhWith(1, a => a.Contains("repos/ktsu-dev/KtsuBuild/topics")).ConfigureAwait(false);
 	}
 
 	private ReleaseOptions CreateReleaseOptions() => new()
