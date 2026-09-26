@@ -94,7 +94,10 @@ public class GitService(IProcessRunner processRunner, IBuildLogger logger) : IGi
 	{
 		Ensure.NotNull(workingDirectory);
 		Ensure.NotNull(range);
-		const string format = "%h|%s|%aN";
+		// Fields are separated by the ASCII unit separator, which cannot appear in a subject or an
+		// author name the way '|' can.
+		const string format = "%h%x1f%s%x1f%aN";
+		const char separator = '\u001f';
 		ProcessResult result = await processRunner.RunAsync("git", $"log --pretty=format:\"{format}\" \"{range}\"", workingDirectory, cancellationToken).ConfigureAwait(false);
 		if (!result.Success || string.IsNullOrWhiteSpace(result.StandardOutput))
 		{
@@ -104,7 +107,7 @@ public class GitService(IProcessRunner processRunner, IBuildLogger logger) : IGi
 		List<CommitInfo> commits = [];
 		foreach (string line in result.StandardOutput.Split('\n', StringSplitOptions.RemoveEmptyEntries).Select(static s => s.Trim()).Where(static s => !string.IsNullOrEmpty(s)))
 		{
-			string[] parts = line.Split('|');
+			string[] parts = line.Split(separator);
 			if (parts.Length >= 3)
 			{
 				commits.Add(new CommitInfo
