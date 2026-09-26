@@ -186,7 +186,7 @@ public class GitServiceTests
 	public async Task GetCommitsAsync_WithCommits_ReturnsParsedCommitInfoList()
 	{
 		_processRunner.RunAsync("git", ArgMatch.NotNull<string>(a => a.StartsWith("log")), Arg.Any<string>(), Arg.Any<CancellationToken>())
-			.Returns(TestHelpers.SuccessResult("abc123|Fix bug|Alice\ndef456|Add feature|Bob\n"));
+			.Returns(TestHelpers.SuccessResult("abc123\u001fFix bug\u001fAlice\ndef456\u001fAdd feature\u001fBob\n"));
 
 		IReadOnlyList<CommitInfo> commits = await _service.GetCommitsAsync("/repo", "abc..def").ConfigureAwait(false);
 
@@ -203,13 +203,40 @@ public class GitServiceTests
 	public async Task GetCommitsAsync_MalformedLine_SkipsIncompleteEntries()
 	{
 		_processRunner.RunAsync("git", ArgMatch.NotNull<string>(a => a.StartsWith("log")), Arg.Any<string>(), Arg.Any<CancellationToken>())
-			.Returns(TestHelpers.SuccessResult("abc123|Fix bug|Alice\nbadline\ndef456|Add feature|Bob\n"));
+			.Returns(TestHelpers.SuccessResult("abc123\u001fFix bug\u001fAlice\nbadline\ndef456\u001fAdd feature\u001fBob\n"));
 
 		IReadOnlyList<CommitInfo> commits = await _service.GetCommitsAsync("/repo", "abc..def").ConfigureAwait(false);
 
 		Assert.AreEqual(2, commits.Count);
 		Assert.AreEqual("abc123", commits[0].Hash);
 		Assert.AreEqual("def456", commits[1].Hash);
+	}
+
+	[TestMethod]
+	public async Task GetCommitsAsync_PipeInSubject_KeepsSubjectAndAuthorIntact()
+	{
+		_processRunner.RunAsync("git", ArgMatch.NotNull<string>(a => a.StartsWith("log")), Arg.Any<string>(), Arg.Any<CancellationToken>())
+			.Returns(TestHelpers.SuccessResult("abc123\u001fSupport a|b syntax\u001fMatt\n"));
+
+		IReadOnlyList<CommitInfo> commits = await _service.GetCommitsAsync("/repo", "abc..def").ConfigureAwait(false);
+
+		Assert.AreEqual(1, commits.Count);
+		Assert.AreEqual("abc123", commits[0].Hash);
+		Assert.AreEqual("Support a|b syntax", commits[0].Subject);
+		Assert.AreEqual("Matt", commits[0].Author);
+	}
+
+	[TestMethod]
+	public async Task GetCommitsAsync_AsksGitForUnitSeparatedFields()
+	{
+		_processRunner.RunAsync("git", Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+			.Returns(TestHelpers.SuccessResult(""));
+
+		await _service.GetCommitsAsync("/repo", "abc..def").ConfigureAwait(false);
+
+		await _processRunner.Received(1).RunAsync("git",
+			ArgMatch.NotNull<string>(a => a.Contains("%h%x1f%s%x1f%aN")),
+			Arg.Any<string>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
 	[TestMethod]
