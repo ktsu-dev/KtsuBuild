@@ -32,7 +32,7 @@ public class MetadataService(IGitService gitService, IBuildLogger logger) : IMet
 
 			// Generate version
 			logger.WriteInfo("Generating version information...");
-			VersionInfo versionInfo = await _versionCalculator.GetVersionInfoAsync(config.WorkspacePath, config.ReleaseHash, cancellationToken: cancellationToken).ConfigureAwait(false);
+			VersionInfo versionInfo = await _versionCalculator.GetVersionInfoAsync(config.WorkspacePath, config.ReleaseHash, forcedVersionType: options.ForcedVersionType, cancellationToken: cancellationToken).ConfigureAwait(false);
 			string version = versionInfo.Version;
 			logger.WriteInfo($"Version: {version}");
 
