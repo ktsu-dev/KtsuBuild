@@ -6,6 +6,7 @@ using KtsuBuild.Abstractions;
 using KtsuBuild.Git;
 using KtsuBuild.Tests.Helpers;
 using KtsuBuild.Tests.Mocks;
+using KtsuBuild.Utilities;
 
 using NSubstitute;
 
@@ -27,9 +28,7 @@ public class GitServiceTests
 	[TestMethod]
 	public async Task GetTagsAsync_SuccessWithTags_ReturnsTagList()
 	{
-		_processRunner.RunAsync("git", ArgMatch.NotNull<string>(a => a.StartsWith("config")), Arg.Any<string>(), Arg.Any<CancellationToken>())
-			.Returns(TestHelpers.SuccessResult());
-		_processRunner.RunAsync("git", "tag --list --sort=-v:refname", Arg.Any<string>(), Arg.Any<CancellationToken>())
+		_processRunner.RunAsync("git", GitService.ListTagsArguments, Arg.Any<string>(), Arg.Any<CancellationToken>())
 			.Returns(TestHelpers.SuccessResult("v2.0.0\nv1.1.0\nv1.0.0\n"));
 
 		IReadOnlyList<string> tags = await _service.GetTagsAsync("/repo").ConfigureAwait(false);
@@ -43,9 +42,7 @@ public class GitServiceTests
 	[TestMethod]
 	public async Task GetTagsAsync_NoTags_ReturnsEmptyList()
 	{
-		_processRunner.RunAsync("git", ArgMatch.NotNull<string>(a => a.StartsWith("config")), Arg.Any<string>(), Arg.Any<CancellationToken>())
-			.Returns(TestHelpers.SuccessResult());
-		_processRunner.RunAsync("git", "tag --list --sort=-v:refname", Arg.Any<string>(), Arg.Any<CancellationToken>())
+		_processRunner.RunAsync("git", GitService.ListTagsArguments, Arg.Any<string>(), Arg.Any<CancellationToken>())
 			.Returns(TestHelpers.SuccessResult(""));
 
 		IReadOnlyList<string> tags = await _service.GetTagsAsync("/repo").ConfigureAwait(false);
@@ -58,7 +55,7 @@ public class GitServiceTests
 	{
 		_processRunner.RunAsync("git", Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
 			.Returns(TestHelpers.SuccessResult());
-		_processRunner.RunAsync("git", "tag --list --sort=-v:refname", Arg.Any<string>(), Arg.Any<CancellationToken>())
+		_processRunner.RunAsync("git", GitService.ListTagsArguments, Arg.Any<string>(), Arg.Any<CancellationToken>())
 			.Returns(TestHelpers.FailureResult());
 
 		IReadOnlyList<string> tags = await _service.GetTagsAsync("/repo").ConfigureAwait(false);
@@ -67,18 +64,70 @@ public class GitServiceTests
 	}
 
 	[TestMethod]
-	public async Task GetTagsAsync_ConfiguresVersionSortSuffixes()
+	public async Task GetTagsAsync_PassesEveryVersionSortSuffixWithoutWritingConfig()
 	{
 		_processRunner.RunAsync("git", Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
 			.Returns(TestHelpers.SuccessResult());
 
 		await _service.GetTagsAsync("/repo").ConfigureAwait(false);
 
-		// Verify 4 config commands were called for versionsort suffixes
-		await _processRunner.Received(1).RunAsync("git", ArgMatch.NotNull<string>(a => a.Contains("-alpha")), Arg.Any<string>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
-		await _processRunner.Received(1).RunAsync("git", ArgMatch.NotNull<string>(a => a.Contains("-beta")), Arg.Any<string>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
-		await _processRunner.Received(1).RunAsync("git", ArgMatch.NotNull<string>(a => a.Contains("-rc")), Arg.Any<string>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
-		await _processRunner.Received(1).RunAsync("git", ArgMatch.NotNull<string>(a => a.Contains("-pre")), Arg.Any<string>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+		await _processRunner.Received(1).RunAsync("git", ArgMatch.NotNull<string>(a =>
+			a.Contains("-c versionsort.suffix=-alpha", StringComparison.Ordinal)
+			&& a.Contains("-c versionsort.suffix=-beta", StringComparison.Ordinal)
+			&& a.Contains("-c versionsort.suffix=-rc", StringComparison.Ordinal)
+			&& a.Contains("-c versionsort.suffix=-pre", StringComparison.Ordinal)
+			&& a.EndsWith("tag --list --sort=-v:refname", StringComparison.Ordinal)), Arg.Any<string>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+		await _processRunner.DidNotReceive().RunAsync("git", ArgMatch.NotNull<string>(a => a.StartsWith("config", StringComparison.Ordinal)), Arg.Any<string>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+	}
+
+	// Against a real repository: with only the last suffix kept, git sorted v1.2.3-rc.1 above v1.2.3,
+	// so the version calculator and changelog took the release candidate as the latest release.
+
+	[TestMethod]
+	[DataRow("rc")]
+	[DataRow("alpha")]
+	[DataRow("beta")]
+	[DataRow("pre")]
+	public async Task GetTagsAsync_RealRepository_SortsPrereleaseBelowItsRelease(string label)
+	{
+		string repo = Path.Combine(Path.GetTempPath(), $"ktsubuild-tags-{Guid.NewGuid():N}");
+		Directory.CreateDirectory(repo);
+
+		try
+		{
+			ProcessRunner runner = new();
+			await RunGitAsync(runner, repo, "init", "-q").ConfigureAwait(false);
+			await RunGitAsync(runner, repo, "-c", "user.name=test", "-c", "user.email=test@example.com", "commit", "-q", "--allow-empty", "-m", "initial").ConfigureAwait(false);
+			await RunGitAsync(runner, repo, "tag", "v1.2.2").ConfigureAwait(false);
+			await RunGitAsync(runner, repo, "tag", $"v1.2.3-{label}.1").ConfigureAwait(false);
+			await RunGitAsync(runner, repo, "tag", "v1.2.3").ConfigureAwait(false);
+
+			IReadOnlyList<string> tags = await new GitService(runner, new MockBuildLogger()).GetTagsAsync(repo).ConfigureAwait(false);
+
+			CollectionAssert.AreEqual(new[] { "v1.2.3", $"v1.2.3-{label}.1", "v1.2.2" }, tags.ToArray());
+			ProcessResult config = await runner.RunAsync("git", ["config", "--get-all", "versionsort.suffix"], repo).ConfigureAwait(false);
+			Assert.IsTrue(string.IsNullOrWhiteSpace(config.StandardOutput), $"GetTagsAsync wrote versionsort.suffix to the repository config: {config.StandardOutput}");
+		}
+		finally
+		{
+			DeleteDirectory(repo);
+		}
+	}
+
+	private static async Task RunGitAsync(ProcessRunner runner, string repo, params string[] arguments)
+	{
+		ProcessResult result = await runner.RunAsync("git", arguments, repo).ConfigureAwait(false);
+		Assert.IsTrue(result.Success, $"git {string.Join(' ', arguments)} failed: {result.StandardError}");
+	}
+
+	private static void DeleteDirectory(string path)
+	{
+		foreach (string file in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories))
+		{
+			File.SetAttributes(file, FileAttributes.Normal);
+		}
+
+		Directory.Delete(path, recursive: true);
 	}
 
 	// GetCurrentCommitHashAsync

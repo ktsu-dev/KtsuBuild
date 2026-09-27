@@ -189,7 +189,8 @@ public class ReleaseService(IDotNetService dotNetService, INuGetPublisher nuGetP
 			AssetPaths = config.AssetPatterns,
 			IsPrerelease = config.Version.Contains("-pre", StringComparison.OrdinalIgnoreCase)
 				|| config.Version.Contains("-alpha", StringComparison.OrdinalIgnoreCase)
-				|| config.Version.Contains("-beta", StringComparison.OrdinalIgnoreCase),
+				|| config.Version.Contains("-beta", StringComparison.OrdinalIgnoreCase)
+				|| config.Version.Contains("-rc", StringComparison.OrdinalIgnoreCase),
 			WorkingDirectory = workspace,
 		};
 

@@ -204,6 +204,19 @@ public class ReleaseServiceTests
 	}
 
 	[TestMethod]
+	public async Task ExecuteReleaseAsync_DetectsPrerelease_ReleaseCandidate()
+	{
+		BuildConfiguration config = CreateDefaultConfig();
+		config.Version = "2.0.0-rc.1";
+
+		await _service.ExecuteReleaseAsync(config, _tempDir, "Release").ConfigureAwait(false);
+
+		await _gitHubService.Received(1).CreateReleaseAsync(
+			ArgMatch.NotNull<ReleaseOptions>(o => o.IsPrerelease),
+			Arg.Any<CancellationToken>()).ConfigureAwait(false);
+	}
+
+	[TestMethod]
 	public async Task ExecuteReleaseAsync_NotPrerelease_ForStableVersion()
 	{
 		BuildConfiguration config = CreateDefaultConfig();
