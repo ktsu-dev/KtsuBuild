@@ -1,6 +1,4 @@
-## v2.17.4 (patch)
+## v2.17.4
 
-Changes since v2.17.3:
-
-- Keep changelog subjects and authors intact when a commit subject contains ' ([@'](https://github.com/'))
+No significant changes detected since v2.17.4.
 
