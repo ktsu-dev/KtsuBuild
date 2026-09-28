@@ -136,7 +136,7 @@ public class ChangelogGeneratorTests
 		}
 
 		_gitService.GetCommitsAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-			.Returns(call => Task.FromResult(commitsByRange.TryGetValue(call.ArgAt<string>(1), out IReadOnlyList<CommitInfo>? commits) ? commits : []));
+			.Returns(call => Task.FromResult(commitsByRange.GetValueOrDefault(call.ArgAt<string>(1)) ?? []));
 	}
 
 	private static string GetSection(string changelog, string tag)
