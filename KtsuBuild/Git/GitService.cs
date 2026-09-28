@@ -15,19 +15,21 @@ using static Polyfill;
 /// <param name="logger">The build logger.</param>
 public class GitService(IProcessRunner processRunner, IBuildLogger logger) : IGitService
 {
+	/// <summary>
+	/// Lists tags newest first, sorting each prerelease suffix below the release it precedes, so
+	/// <c>v1.2.3-rc.1</c> comes after <c>v1.2.3</c>. The suffixes are passed as repeated <c>-c</c>
+	/// options, which accumulate for this one invocation. Setting them with <c>git config</c> would
+	/// keep only the last suffix and rewrite the repository's config on every call.
+	/// </summary>
+	internal const string ListTagsArguments =
+		"-c versionsort.suffix=-alpha -c versionsort.suffix=-beta -c versionsort.suffix=-rc -c versionsort.suffix=-pre tag --list --sort=-v:refname";
+
 	/// <inheritdoc/>
 	public async Task<IReadOnlyList<string>> GetTagsAsync(string workingDirectory, CancellationToken cancellationToken = default)
 	{
 		Ensure.NotNull(workingDirectory);
 
-		// Configure versionsort for prerelease handling
-		string[] suffixes = ["-alpha", "-beta", "-rc", "-pre"];
-		foreach (string suffix in suffixes)
-		{
-			await processRunner.RunAsync("git", $"config versionsort.suffix \"{suffix}\"", workingDirectory, cancellationToken).ConfigureAwait(false);
-		}
-
-		ProcessResult result = await processRunner.RunAsync("git", "tag --list --sort=-v:refname", workingDirectory, cancellationToken).ConfigureAwait(false);
+		ProcessResult result = await processRunner.RunAsync("git", ListTagsArguments, workingDirectory, cancellationToken).ConfigureAwait(false);
 		if (!result.Success || string.IsNullOrWhiteSpace(result.StandardOutput))
 		{
 			return [];

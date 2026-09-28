@@ -338,7 +338,7 @@ public class PipelineServiceTests
 
 		if (fileName == "git")
 		{
-			if (arguments == "tag --list --sort=-v:refname")
+			if (arguments == GitService.ListTagsArguments)
 			{
 				return TestHelpers.SuccessResult(_tagList);
 			}
