@@ -145,10 +145,9 @@ public sealed class PipelineService
 	/// <see cref="ReleaseIfPermittedAsync"/> refuses to release a version nobody chose.
 	/// <para>
 	/// <c>ci</c> does not call this, and must not. Its version comes from the metadata result, which
-	/// is the version the same stage wrote to <c>VERSION.md</c> and the one the packages carry. A
-	/// forced <c>--version-bump major</c> makes the difference concrete: the analysis reports the
-	/// bumped version while <c>VERSION.md</c> still holds what metadata wrote, so assigning the
-	/// analyzed version over it would tag a release the packages do not match.
+	/// is the version the same stage wrote to <c>VERSION.md</c> and the one the packages carry. The
+	/// analysis here runs against the metadata commit rather than the commit metadata analyzed, so
+	/// assigning its version over the metadata result could tag a release the packages do not match.
 	/// </para>
 	/// </remarks>
 	/// <param name="context">The context this run was prepared with, with its version already resolved.</param>
@@ -183,13 +182,22 @@ public sealed class PipelineService
 	/// metadata failure in its own words. Throwing would put a catch-all handler's wording in
 	/// front of the message, which anything reading the log can see.
 	/// </para>
+	/// <para>
+	/// A forced bump is applied here as well as in <see cref="ResolveVersionAsync"/>. This stage
+	/// decides the version <c>VERSION.md</c>, the packages and the tag carry, so a bump that only
+	/// reached the version gate would publish the detected version instead. With no commits since
+	/// the last tag it would also re-release that tag's version while the forced gate stayed open,
+	/// and the release would fail on the existing tag.
+	/// </para>
 	/// </remarks>
 	/// <param name="context">The context this run was prepared with.</param>
+	/// <param name="versionBump">The forced version bump type, or anything else to detect it.</param>
 	/// <param name="cancellationToken">A cancellation token.</param>
 	/// <returns>The metadata result, carrying its error message when the update failed.</returns>
-	public async Task<MetadataUpdateResult> UpdateMetadataAsync(PipelineContext context, CancellationToken cancellationToken)
+	public async Task<MetadataUpdateResult> UpdateMetadataAsync(PipelineContext context, string versionBump, CancellationToken cancellationToken)
 	{
 		Ensure.NotNull(context);
+		Ensure.NotNull(versionBump);
 
 		BuildConfiguration buildConfig = context.Configuration;
 
@@ -204,6 +212,7 @@ public sealed class PipelineService
 		{
 			BuildConfiguration = buildConfig,
 			CommitChanges = shouldCommitMetadata,
+			ForcedVersionType = ParseVersionBump(versionBump),
 		}, cancellationToken).ConfigureAwait(false);
 
 		if (!metadataResult.Success)

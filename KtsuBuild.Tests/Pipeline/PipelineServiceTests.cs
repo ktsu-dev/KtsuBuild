@@ -4,6 +4,7 @@ namespace KtsuBuild.Tests.Pipeline;
 
 using KtsuBuild.Abstractions;
 using KtsuBuild.Git;
+using KtsuBuild.Metadata;
 using KtsuBuild.Pipeline;
 using KtsuBuild.Tests.Helpers;
 using KtsuBuild.Tests.Mocks;
@@ -186,6 +187,54 @@ public class PipelineServiceTests
 		Assert.AreEqual(expectedIncrement, context.VersionInfo.VersionIncrement);
 		Assert.AreEqual(expectedVersion, context.VersionInfo.Version);
 		Assert.IsFalse(context.ReleaseSuppressedByVersionGate);
+	}
+
+	// ci takes its version from the metadata stage, so a forced bump that only reached the version
+	// gate published the detected version: --version-bump major on top of v3.10.0 and a fix
+	// released 3.10.1.
+	[TestMethod]
+	[DataRow("major", "4.0.0")]
+	[DataRow("minor", "3.11.0")]
+	[DataRow("patch", "3.10.1")]
+	public async Task UpdateMetadataWritesTheForcedVersionBump(string versionBump, string expectedVersion)
+	{
+		PipelineContext context = await _pipeline.PrepareAsync(_tempDir, "Release", CancellationToken.None).ConfigureAwait(false);
+
+		MetadataUpdateResult result = await _pipeline.UpdateMetadataAsync(context, versionBump, CancellationToken.None).ConfigureAwait(false);
+
+		Assert.IsTrue(result.Success, result.Error);
+		Assert.AreEqual(expectedVersion, result.Version);
+		Assert.AreEqual(expectedVersion, context.Configuration.Version);
+		Assert.AreEqual(expectedVersion, (await File.ReadAllTextAsync(Path.Combine(_tempDir, "VERSION.md")).ConfigureAwait(false)).Trim());
+	}
+
+	// With no commits since the last tag, metadata detected Skip and kept 3.10.0 while the forced
+	// gate stayed open, so the release tried to create v3.10.0 again and failed on the existing tag.
+	[TestMethod]
+	public async Task ForcedBumpWithNoNewCommitsPublishesTheBumpedVersionThatTheGateApproves()
+	{
+		_commitMessages = string.Empty;
+		PipelineContext context = await _pipeline.PrepareAsync(_tempDir, "Release", CancellationToken.None).ConfigureAwait(false);
+
+		MetadataUpdateResult result = await _pipeline.UpdateMetadataAsync(context, "minor", CancellationToken.None).ConfigureAwait(false);
+		await _pipeline.ResolveVersionAsync(context, "minor", CancellationToken.None).ConfigureAwait(false);
+
+		Assert.IsTrue(result.Success, result.Error);
+		Assert.AreEqual("3.11.0", context.Configuration.Version);
+		Assert.IsNotNull(context.VersionInfo);
+		Assert.AreEqual(context.Configuration.Version, context.VersionInfo.Version);
+		Assert.IsFalse(context.ReleaseSuppressedByVersionGate);
+	}
+
+	[TestMethod]
+	public async Task UpdateMetadataDetectsTheIncrementWhenNoBumpIsForced()
+	{
+		PipelineContext context = await _pipeline.PrepareAsync(_tempDir, "Release", CancellationToken.None).ConfigureAwait(false);
+
+		MetadataUpdateResult result = await _pipeline.UpdateMetadataAsync(context, "auto", CancellationToken.None).ConfigureAwait(false);
+
+		Assert.IsTrue(result.Success, result.Error);
+		Assert.AreEqual("3.10.1", context.Configuration.Version);
 	}
 
 	[TestMethod]

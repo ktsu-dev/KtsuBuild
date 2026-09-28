@@ -108,7 +108,7 @@ public class CiCommand : Command
 			return 0;
 		}
 
-		MetadataUpdateResult metadataResult = await pipeline.UpdateMetadataAsync(context, cancellationToken).ConfigureAwait(false);
+		MetadataUpdateResult metadataResult = await pipeline.UpdateMetadataAsync(context, options.VersionBump, cancellationToken).ConfigureAwait(false);
 		if (!metadataResult.Success)
 		{
 			logger.WriteError($"Metadata update failed: {metadataResult.Error}");
