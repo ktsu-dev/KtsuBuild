@@ -303,7 +303,14 @@ public class ChangelogGenerator(IGitService gitService, IBuildLogger logger)
 		int searchPatch;
 		int searchPrerelease;
 
-		if (toPrerelease != 0)
+		if (toPrerelease == 1)
+		{
+			// The first prerelease of a series has no earlier prerelease to diff against. Searching for
+			// "prerelease 0" would match the stable X.Y.Z tag, which comes after it, and produce an empty
+			// range, so diff against the adjacent earlier tag instead.
+			return fromTag;
+		}
+		else if (toPrerelease != 0)
 		{
 			// Prerelease: look for previous prerelease in same series
 			searchMajor = toMajor;
