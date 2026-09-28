@@ -25,7 +25,6 @@ public class ChangelogGenerator(IGitService gitService, IBuildLogger logger)
 	/// </summary>
 	private const string InitialTag = "v0.0.0";
 
-	private static readonly string[] BotPatterns = ["[bot]", "github", "ProjectDirector", "SyncFileContents"];
 	private static readonly string[] MergePatterns = ["Merge pull request", "Merge branch 'main'", "Updated packages in"];
 	private static readonly string[] VersionUpdatePatterns = ["Update VERSION to"];
 
@@ -246,7 +245,7 @@ public class ChangelogGenerator(IGitService gitService, IBuildLogger logger)
 
 		// Level 1: Standard filtering - exclude bots AND merge/version-update commits
 		// For prerelease versions, don't filter "Update VERSION to" commits
-		List<CommitInfo> level1 = [.. commits.Where(c => !IsBotCommit(c) && !IsMergeCommit(c) && (isPrerelease || !IsVersionUpdateCommit(c)))];
+		List<CommitInfo> level1 = [.. commits.Where(c => !BotCommitFilter.IsBotCommit(c) && !IsMergeCommit(c) && (isPrerelease || !IsVersionUpdateCommit(c)))];
 		if (level1.Count > 0)
 		{
 			return level1;
@@ -267,10 +266,6 @@ public class ChangelogGenerator(IGitService gitService, IBuildLogger logger)
 		// levels 1 and 2 already keep version update commits when isPrerelease is set.
 		return commits;
 	}
-
-	private static bool IsBotCommit(CommitInfo commit) =>
-		BotPatterns.Any(p => commit.Subject.Contains(p, StringComparison.OrdinalIgnoreCase) ||
-							 commit.Author.Contains(p, StringComparison.OrdinalIgnoreCase));
 
 	private static bool IsMergeCommit(CommitInfo commit) =>
 		MergePatterns.Any(p => commit.Subject.Contains(p, StringComparison.OrdinalIgnoreCase));

@@ -40,8 +40,9 @@ public class VersionCalculatorTests
 
 		_gitService.GetFirstCommitAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
 			.Returns(Task.FromResult("000000"));
-		_gitService.GetCommitMessagesAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-			.Returns(Task.FromResult<IReadOnlyList<string>>(commitMessages ?? ["Some commit message"]));
+		_gitService.GetCommitsAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+			.Returns(Task.FromResult<IReadOnlyList<CommitInfo>>([.. (commitMessages ?? ["Some commit message"])
+				.Select(static (s, i) => new CommitInfo { Hash = $"c{i}", Subject = s, Author = "developer" })]));
 		_gitService.GetDiffAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
 			.Returns(Task.FromResult(string.Empty));
 	}
