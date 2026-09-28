@@ -223,6 +223,33 @@ public class BuildConfigurationProviderTests
 	}
 
 	[TestMethod]
+	[DataRow("https://github.com/ktsu-dev/.github.git", "ktsu-dev", "ktsu-dev/.github", DisplayName = "HTTPS .github repo")]
+	[DataRow("git@github.com:ktsu-dev/.github.git", "ktsu-dev", "ktsu-dev/.github", DisplayName = "SSH .github repo")]
+	[DataRow("https://github.com/ktsu-dev/.github", "ktsu-dev", "ktsu-dev/.github", DisplayName = "HTTPS .github repo, no suffix")]
+	[DataRow("git@github.com:ktsu-dev/ktsu-dev.github.io.git", "ktsu-dev", "ktsu-dev/ktsu-dev.github.io", DisplayName = "SSH github.io repo")]
+	[DataRow("https://github.com/owner/repo.GIT", "owner", "owner/repo", DisplayName = "upper-case suffix")]
+	[DataRow("https://github.com/owner/repo.git/", "owner", "owner/repo", DisplayName = "suffix then trailing slash")]
+	public async Task CreateFromEnvironmentAsync_RemoteContainingDotGit_StripsOnlyTheTrailingSuffix(string remote, string expectedOwner, string expectedRepo)
+	{
+		SetupDefaultMocks();
+		_gitService.GetRemoteUrlAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+			.Returns(Task.FromResult<string?>(remote));
+		Environment.SetEnvironmentVariable("GITHUB_REPOSITORY", null);
+
+		try
+		{
+			BuildConfiguration config = await _provider.CreateFromEnvironmentAsync(_tempDir).ConfigureAwait(false);
+
+			Assert.AreEqual(expectedOwner, config.GitHubOwner);
+			Assert.AreEqual(expectedRepo, config.GitHubRepo);
+		}
+		finally
+		{
+			Environment.SetEnvironmentVariable("GITHUB_REPOSITORY", null);
+		}
+	}
+
+	[TestMethod]
 	public async Task CreateFromEnvironmentAsync_SshRemote_ParsesCorrectly()
 	{
 		SetupDefaultMocks();
