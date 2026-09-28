@@ -1,7 +1,4 @@
-## v2.18.2 (patch)
+## v2.18.2
 
-Changes since v2.18.1:
-
-- Fall back to an empty commit list in the changelog test's range lookup ([@Claude](https://github.com/Claude))
-- Diff a -pre.1 changelog entry against the previous tag, not the stable release after it [patch] ([@Claude](https://github.com/Claude))
+No significant changes detected since v2.18.2.
 

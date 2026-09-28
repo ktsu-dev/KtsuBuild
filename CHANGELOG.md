@@ -1,16 +1,20 @@
+## v2.18.2
+
+No significant changes detected since v2.18.2.
+
 ## v2.18.2 (patch)
 
 Changes since v2.18.1:
 
 - Fall back to an empty commit list in the changelog test's range lookup ([@Claude](https://github.com/Claude))
 - Diff a -pre.1 changelog entry against the previous tag, not the stable release after it [patch] ([@Claude](https://github.com/Claude))
+- Match bot patterns against the author, so human commits mentioning GitHub still count [patch] ([@Claude](https://github.com/Claude))
 
 ## v2.18.1 (patch)
 
 Changes since v2.18.0:
 
 - Strip only a trailing .git from the remote URL, so ktsu-dev/.github no longer parses as ktsu-dev/hub [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
-- Bump Polyfill from 11.4.0 to 11.4.1 ([@dependabot[bot]](https://github.com/dependabot[bot]))
 
 ## v2.18.0 (minor)
 
@@ -278,6 +282,7 @@ Changes since v2.1.0:
 - docs: scope build badge to the default branch ([@matt-edmondson](https://github.com/matt-edmondson))
 - docs: correct README, DESCRIPTION and TAGS metadata ([@matt-edmondson](https://github.com/matt-edmondson))
 - [patch] Run build and test when the version increment is Skip ([@matt-edmondson](https://github.com/matt-edmondson))
+- Fix nullability handling in GitHubActionsOutput.Write method ([@matt-edmondson](https://github.com/matt-edmondson))
 
 ## v2.1.6 (patch)
 
@@ -314,22 +319,24 @@ Changes since v2.1.1:
 
 Changes since v2.1.0:
 
-- Bump Polyfill from 11.0.2 to 11.2.0 ([@dependabot[bot]](https://github.com/dependabot[bot]))
-- Bump the ktsu group with 9 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
 - Fix nullability handling in GitHubActionsOutput.Write method ([@matt-edmondson](https://github.com/matt-edmondson))
 
 ## v2.1.1-pre.1 (prerelease)
 
-No significant changes detected since v2.1.1.
+Changes since v2.1.0:
+
+- Fix nullability handling in GitHubActionsOutput.Write method ([@matt-edmondson](https://github.com/matt-edmondson))
 
 ## v2.1.0 (minor)
 
 Changes since v2.0.0:
 
+- Update copyright notices and enhance GitHub Actions output handling ([@matt-edmondson](https://github.com/matt-edmondson))
 - Sync .runsettings ([@KtsuTools](https://github.com/KtsuTools))
 - Sync .editorconfig ([@KtsuTools](https://github.com/KtsuTools))
 - Sync .gitattributes ([@KtsuTools](https://github.com/KtsuTools))
 - Sync global.json ([@KtsuTools](https://github.com/KtsuTools))
+- Sync .github\workflows\dotnet.yml ([@KtsuTools](https://github.com/KtsuTools))
 - Sync global.json ([@KtsuTools](https://github.com/KtsuTools))
 - [patch] Run CI from the installed KtsuBuild tool instead of a source clone ([@matt-edmondson](https://github.com/matt-edmondson))
 
@@ -693,6 +700,7 @@ Changes since v1.1.0:
 - Refactor CiCommand to extract pipeline execution logic into a separate method for improved readability and maintainability ([@matt-edmondson](https://github.com/matt-edmondson))
 - Refactor WingetService to streamline library project handling and improve logging ([@matt-edmondson](https://github.com/matt-edmondson))
 - Refactor WriteAuthorsFileAsync to use StringBuilder for improved performance ([@matt-edmondson](https://github.com/matt-edmondson))
+- Sync .github\workflows\dotnet.yml ([@KtsuTools](https://github.com/KtsuTools))
 - Refactor CI permissions for least-privilege access, add SonarLint configuration, and streamline version bump parsing ([@matt-edmondson](https://github.com/matt-edmondson))
 - Refactor CI command to use arguments array for backward compatibility ([@matt-edmondson](https://github.com/matt-edmondson))
 - Refactor CI command to improve backward compatibility for version bump handling ([@matt-edmondson](https://github.com/matt-edmondson))
@@ -714,10 +722,13 @@ Changes since v1.1.6:
 - Refactor CiCommand to extract pipeline execution logic into a separate method for improved readability and maintainability ([@matt-edmondson](https://github.com/matt-edmondson))
 - Refactor WingetService to streamline library project handling and improve logging ([@matt-edmondson](https://github.com/matt-edmondson))
 - Refactor WriteAuthorsFileAsync to use StringBuilder for improved performance ([@matt-edmondson](https://github.com/matt-edmondson))
+- Sync .github\workflows\dotnet.yml ([@KtsuTools](https://github.com/KtsuTools))
 
 ## v1.1.7-pre.1 (prerelease)
 
-No significant changes detected since v1.1.7.
+Changes since v1.1.6:
+
+- Sync .github\workflows\dotnet.yml ([@KtsuTools](https://github.com/KtsuTools))
 
 ## v1.1.6 (patch)
 
