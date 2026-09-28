@@ -16,11 +16,6 @@ using static Polyfill;
 public class CommitAnalyzer(IGitService gitService)
 {
 	/// <summary>
-	/// Patterns to exclude bot commits.
-	/// </summary>
-	private static readonly string[] BotPatterns = ["[bot]", "github", "ProjectDirector", "SyncFileContents"];
-
-	/// <summary>
 	/// Patterns to exclude PR merge commits.
 	/// </summary>
 	private static readonly string[] PrPatterns = ["Merge pull request", "Merge branch 'main'", "Updated packages in", "Update.*package version"];
@@ -52,7 +47,8 @@ public class CommitAnalyzer(IGitService gitService)
 		Ensure.NotNull(workingDirectory);
 		Ensure.NotNull(range);
 
-		IReadOnlyList<string> messages = await gitService.GetCommitMessagesAsync(workingDirectory, range, cancellationToken).ConfigureAwait(false);
+		IReadOnlyList<CommitInfo> commits = await gitService.GetCommitsAsync(workingDirectory, range, cancellationToken).ConfigureAwait(false);
+		IReadOnlyList<string> messages = [.. commits.Select(static c => c.Subject)];
 
 		if (messages.Count == 0)
 		{
@@ -72,7 +68,7 @@ public class CommitAnalyzer(IGitService gitService)
 		}
 
 		// Check for meaningful commits (not bot/PR merges)
-		if (!HasMeaningfulCommits(messages))
+		if (!HasMeaningfulCommits(commits))
 		{
 			return (VersionType.Prerelease, "No significant changes detected");
 		}
@@ -107,12 +103,12 @@ public class CommitAnalyzer(IGitService gitService)
 	/// <summary>
 	/// Determines whether any commit is something other than a bot commit or a PR merge.
 	/// </summary>
-	/// <param name="messages">The commit messages to scan.</param>
+	/// <param name="commits">The commits to scan.</param>
 	/// <returns><see langword="true"/> when at least one commit is meaningful.</returns>
-	private static bool HasMeaningfulCommits(IReadOnlyList<string> messages) =>
-		messages.Any(static m =>
-			!BotPatterns.Any(p => m.Contains(p, StringComparison.OrdinalIgnoreCase)) &&
-			!PrPatterns.Any(p => Regex.IsMatch(m, p, RegexOptions.IgnoreCase, RegexDefaults.MatchTimeout)));
+	private static bool HasMeaningfulCommits(IReadOnlyList<CommitInfo> commits) =>
+		commits.Any(static c =>
+			!BotCommitFilter.IsBotCommit(c) &&
+			!PrPatterns.Any(p => Regex.IsMatch(c.Subject, p, RegexOptions.IgnoreCase, RegexDefaults.MatchTimeout)));
 
 	private async Task<bool> CheckForApiChangesAsync(string workingDirectory, string range, CancellationToken cancellationToken)
 	{

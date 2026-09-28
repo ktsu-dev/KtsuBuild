@@ -106,7 +106,8 @@ public class ChangelogGeneratorTests
 		_gitService.GetCommitsAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
 			.Returns(Task.FromResult<IReadOnlyList<CommitInfo>>([
 				new CommitInfo { Hash = "aaa", Subject = "Real commit", Author = "developer" },
-				new CommitInfo { Hash = "bbb", Subject = "Update by [bot]", Author = "github-bot" },
+				new CommitInfo { Hash = "bbb", Subject = "Update by [bot]", Author = "github-actions[bot]" },
+				new CommitInfo { Hash = "ddd", Subject = "Bump Polyfill from 11.4.0 to 11.4.1", Author = "dependabot[bot]" },
 				new CommitInfo { Hash = "ccc", Subject = "Merge pull request #123", Author = "developer" },
 			]));
 
@@ -122,7 +123,36 @@ public class ChangelogGeneratorTests
 		string content = await File.ReadAllTextAsync(Path.Combine(_tempDir, "CHANGELOG.md")).ConfigureAwait(false);
 		Assert.IsTrue(content.Contains("Real commit"), "Should include real commit");
 		Assert.IsFalse(content.Contains("[bot]"), "Should filter bot commit");
+		Assert.IsFalse(content.Contains("Bump Polyfill"), "Should filter dependabot commit");
 		Assert.IsFalse(content.Contains("Merge pull request"), "Should filter PR merge");
+	}
+
+	[TestMethod]
+	public async Task GenerateAsync_KeepsHumanCommitMentioningGitHub()
+	{
+		// Arrange
+		_gitService.GetTagsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+			.Returns(Task.FromResult<IReadOnlyList<string>>(["v1.0.0"]));
+		_gitService.GetTagCommitHashAsync(Arg.Any<string>(), "v1.0.0", Arg.Any<CancellationToken>())
+			.Returns(Task.FromResult<string?>("abc111"));
+		_gitService.GetCommitsAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+			.Returns(Task.FromResult<IReadOnlyList<CommitInfo>>([
+				new CommitInfo { Hash = "aaa", Subject = "Fix GitHubApiClient retry", Author = "developer" },
+				new CommitInfo { Hash = "bbb", Subject = "Add feature X", Author = "developer" },
+			]));
+
+		// Act
+		await _generator.GenerateAsync(
+			version: "1.0.1",
+			commitHash: "abc123",
+			workingDirectory: "/repo",
+			outputPath: _tempDir,
+			lineEnding: "\n").ConfigureAwait(false);
+
+		// Assert
+		string content = await File.ReadAllTextAsync(Path.Combine(_tempDir, "CHANGELOG.md")).ConfigureAwait(false);
+		Assert.IsTrue(content.Contains("Fix GitHubApiClient retry"), "A human commit that mentions GitHub is not a bot commit");
+		Assert.IsTrue(content.Contains("Add feature X"));
 	}
 
 	[TestMethod]

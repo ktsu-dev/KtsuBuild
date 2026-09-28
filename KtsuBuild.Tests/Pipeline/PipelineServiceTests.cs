@@ -408,9 +408,12 @@ public class PipelineServiceTests
 				return TestHelpers.SuccessResult(TagCommit);
 			}
 
-			if (arguments.StartsWith("log --format=format:%s", StringComparison.Ordinal))
+			if (arguments.StartsWith("log --pretty=format:", StringComparison.Ordinal))
 			{
-				return TestHelpers.SuccessResult(_commitMessages);
+				// GetCommitsAsync reads hash, subject and author separated by the unit separator.
+				return TestHelpers.SuccessResult(string.Join("\n", _commitMessages
+					.Split('\n', StringSplitOptions.RemoveEmptyEntries)
+					.Select(static (subject, i) => $"c{i}\u001f{subject}\u001fdeveloper")));
 			}
 		}
 

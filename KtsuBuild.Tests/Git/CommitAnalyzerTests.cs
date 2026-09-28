@@ -20,12 +20,18 @@ public class CommitAnalyzerTests
 		_analyzer = new CommitAnalyzer(_gitService);
 	}
 
+	private void SetupSubjects(IEnumerable<string> subjects) =>
+		SetupCommits([.. subjects.Select(static (s, i) => new CommitInfo { Hash = $"c{i}", Subject = s, Author = "developer" })]);
+
+	private void SetupCommits(IReadOnlyList<CommitInfo> commits) =>
+		_gitService.GetCommitsAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+			.Returns(Task.FromResult(commits));
+
 	[TestMethod]
 	public async Task AnalyzeAsync_NoCommitsInRange_ReturnsSkip()
 	{
 		// Arrange
-		_gitService.GetCommitMessagesAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-			.Returns(Task.FromResult<IReadOnlyList<string>>([]));
+		SetupSubjects([]);
 
 		// Act
 		(VersionType type, string reason) = await _analyzer.AnalyzeAsync("/repo", "abc..def").ConfigureAwait(false);
@@ -44,8 +50,7 @@ public class CommitAnalyzerTests
 			"Fix typo [skip ci]",
 			"Update docs [ci skip]",
 		];
-		_gitService.GetCommitMessagesAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-			.Returns(Task.FromResult<IReadOnlyList<string>>(messages));
+		SetupSubjects(messages);
 
 		// Act
 		(VersionType type, string reason) = await _analyzer.AnalyzeAsync("/repo", "abc..def").ConfigureAwait(false);
@@ -64,8 +69,7 @@ public class CommitAnalyzerTests
 			"Breaking change [major]",
 			"Fix bug",
 		];
-		_gitService.GetCommitMessagesAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-			.Returns(Task.FromResult<IReadOnlyList<string>>(messages));
+		SetupSubjects(messages);
 
 		// Act
 		(VersionType type, string reason) = await _analyzer.AnalyzeAsync("/repo", "abc..def").ConfigureAwait(false);
@@ -84,8 +88,7 @@ public class CommitAnalyzerTests
 			"Add new feature [minor]",
 			"Fix bug",
 		];
-		_gitService.GetCommitMessagesAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-			.Returns(Task.FromResult<IReadOnlyList<string>>(messages));
+		SetupSubjects(messages);
 
 		// Act
 		(VersionType type, string reason) = await _analyzer.AnalyzeAsync("/repo", "abc..def").ConfigureAwait(false);
@@ -103,8 +106,7 @@ public class CommitAnalyzerTests
 		[
 			"Fix critical bug [patch]",
 		];
-		_gitService.GetCommitMessagesAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-			.Returns(Task.FromResult<IReadOnlyList<string>>(messages));
+		SetupSubjects(messages);
 
 		// Act
 		(VersionType type, string reason) = await _analyzer.AnalyzeAsync("/repo", "abc..def").ConfigureAwait(false);
@@ -122,8 +124,7 @@ public class CommitAnalyzerTests
 		[
 			"Experimental feature [pre]",
 		];
-		_gitService.GetCommitMessagesAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-			.Returns(Task.FromResult<IReadOnlyList<string>>(messages));
+		SetupSubjects(messages);
 
 		// Act
 		(VersionType type, string reason) = await _analyzer.AnalyzeAsync("/repo", "abc..def").ConfigureAwait(false);
@@ -142,8 +143,7 @@ public class CommitAnalyzerTests
 			"New feature [minor]",
 			"Breaking change [major]",
 		];
-		_gitService.GetCommitMessagesAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-			.Returns(Task.FromResult<IReadOnlyList<string>>(messages));
+		SetupSubjects(messages);
 
 		// Act
 		(VersionType type, string reason) = await _analyzer.AnalyzeAsync("/repo", "abc..def").ConfigureAwait(false);
@@ -157,14 +157,11 @@ public class CommitAnalyzerTests
 	public async Task AnalyzeAsync_BotCommitsAreFiltered_ReturnsPrerelease()
 	{
 		// Arrange
-		List<string> messages =
-		[
-			"Update by [bot]",
-			"github automated change",
-			"ProjectDirector update",
-		];
-		_gitService.GetCommitMessagesAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-			.Returns(Task.FromResult<IReadOnlyList<string>>(messages));
+		SetupCommits([
+			new CommitInfo { Hash = "a", Subject = "[bot][skip ci] Update Metadata", Author = "github-actions[bot]" },
+			new CommitInfo { Hash = "b", Subject = "Bump Polyfill from 11.4.0 to 11.4.1", Author = "dependabot[bot]" },
+			new CommitInfo { Hash = "c", Subject = "ProjectDirector update", Author = "developer" },
+		]);
 		_gitService.GetDiffAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
 			.Returns(Task.FromResult(string.Empty));
 
@@ -177,6 +174,23 @@ public class CommitAnalyzerTests
 	}
 
 	[TestMethod]
+	public async Task AnalyzeAsync_HumanCommitMentioningGitHub_ReturnsPatch()
+	{
+		// Arrange
+		SetupCommits([
+			new CommitInfo { Hash = "a", Subject = "Fix GitHubApiClient retry", Author = "developer" },
+		]);
+		_gitService.GetDiffAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+			.Returns(Task.FromResult(string.Empty));
+
+		// Act
+		(VersionType type, _) = await _analyzer.AnalyzeAsync("/repo", "abc..def").ConfigureAwait(false);
+
+		// Assert
+		Assert.AreEqual(VersionType.Patch, type);
+	}
+
+	[TestMethod]
 	public async Task AnalyzeAsync_PrMergeCommitsFiltered_ReturnsPrerelease()
 	{
 		// Arrange
@@ -185,8 +199,7 @@ public class CommitAnalyzerTests
 			"Merge pull request #123 from feature",
 			"Merge branch 'main' into release",
 		];
-		_gitService.GetCommitMessagesAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-			.Returns(Task.FromResult<IReadOnlyList<string>>(messages));
+		SetupSubjects(messages);
 		_gitService.GetDiffAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
 			.Returns(Task.FromResult(string.Empty));
 
@@ -211,8 +224,7 @@ public class CommitAnalyzerTests
 +    public void DoWork() { }
 +}
 ";
-		_gitService.GetCommitMessagesAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-			.Returns(Task.FromResult<IReadOnlyList<string>>(messages));
+		SetupSubjects(messages);
 		_gitService.GetDiffAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
 			.Returns(Task.FromResult(diff));
 
@@ -236,8 +248,7 @@ public class CommitAnalyzerTests
 -internal int Calculate() => x + y;
 +internal int Calculate() => x * 2 + y;
 ";
-		_gitService.GetCommitMessagesAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-			.Returns(Task.FromResult<IReadOnlyList<string>>(messages));
+		SetupSubjects(messages);
 		_gitService.GetDiffAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
 			.Returns(Task.FromResult(diff));
 
@@ -258,8 +269,7 @@ public class CommitAnalyzerTests
 			"Fix bug [patch]",
 			"Add feature [minor]",
 		];
-		_gitService.GetCommitMessagesAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-			.Returns(Task.FromResult<IReadOnlyList<string>>(messages));
+		SetupSubjects(messages);
 
 		// Act
 		(VersionType type, string reason) = await _analyzer.AnalyzeAsync("/repo", "abc..def").ConfigureAwait(false);
@@ -277,8 +287,7 @@ public class CommitAnalyzerTests
 			"Experimental [pre]",
 			"Important fix [patch]",
 		];
-		_gitService.GetCommitMessagesAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-			.Returns(Task.FromResult<IReadOnlyList<string>>(messages));
+		SetupSubjects(messages);
 
 		// Act
 		(VersionType type, string reason) = await _analyzer.AnalyzeAsync("/repo", "abc..def").ConfigureAwait(false);
@@ -295,8 +304,7 @@ public class CommitAnalyzerTests
 		[
 			"Breaking change [MAJOR]",
 		];
-		_gitService.GetCommitMessagesAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-			.Returns(Task.FromResult<IReadOnlyList<string>>(messages));
+		SetupSubjects(messages);
 
 		// Act
 		(VersionType type, string reason) = await _analyzer.AnalyzeAsync("/repo", "abc..def").ConfigureAwait(false);
