@@ -173,7 +173,13 @@ public class BuildConfigurationProvider(IGitService gitService, IGitHubService g
 			startIndex++;
 		}
 
-		string ownerRepo = remoteUrl[startIndex..].TrimEnd('/').Replace(".git", string.Empty);
+		// Strip only a trailing ".git": the name itself may contain one, as in "ktsu-dev/.github".
+		string ownerRepo = remoteUrl[startIndex..].TrimEnd('/');
+		if (ownerRepo.EndsWith(".git", StringComparison.OrdinalIgnoreCase))
+		{
+			ownerRepo = ownerRepo[..^".git".Length];
+		}
+
 		string[] parts = ownerRepo.Split('/');
 		return parts.Length == 2 ? (parts[0], ownerRepo) : (string.Empty, string.Empty);
 	}
