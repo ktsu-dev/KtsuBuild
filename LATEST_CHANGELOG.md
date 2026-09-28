@@ -1,9 +1,7 @@
-## v2.18.0 (minor)
+## v2.18.1 (patch)
 
-Changes since v2.17.0:
+Changes since v2.18.0:
 
-- Test that ci passes --version-bump to the metadata stage ([@matt-edmondson](https://github.com/matt-edmondson))
-- Apply a forced --version-bump to the version ci publishes ([@matt-edmondson](https://github.com/matt-edmondson))
-- Sort -alpha, -beta and -rc tags below their release ([@matt-edmondson](https://github.com/matt-edmondson))
-- Keep changelog subjects and authors intact when a commit subject contains '|' ([@Claude](https://github.com/Claude))
+- Strip only a trailing .git from the remote URL, so ktsu-dev/.github no longer parses as ktsu-dev/hub [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
+- Bump Polyfill from 11.4.0 to 11.4.1 ([@dependabot[bot]](https://github.com/dependabot[bot]))
 
