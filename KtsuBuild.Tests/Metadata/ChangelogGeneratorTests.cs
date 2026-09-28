@@ -127,6 +127,89 @@ public class ChangelogGeneratorTests
 		Assert.IsFalse(content.Contains("Merge pull request"), "Should filter PR merge");
 	}
 
+	private void SetupTaggedHistory(IReadOnlyList<string> tagsNewestFirst, Dictionary<string, IReadOnlyList<CommitInfo>> commitsByRange)
+	{
+		_gitService.GetTagsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+			.Returns(Task.FromResult(tagsNewestFirst));
+		foreach (string tag in tagsNewestFirst)
+		{
+			_gitService.GetTagCommitHashAsync(Arg.Any<string>(), tag, Arg.Any<CancellationToken>())
+				.Returns(Task.FromResult<string?>($"sha-{tag}"));
+		}
+
+		_gitService.GetCommitsAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+			.Returns(call => Task.FromResult(commitsByRange.GetValueOrDefault(call.ArgAt<string>(1)) ?? []));
+	}
+
+	private static string GetSection(string changelog, string tag)
+	{
+		int start = changelog.IndexOf($"## {tag} ", StringComparison.Ordinal);
+		Assert.IsTrue(start >= 0, $"Changelog should have an entry for {tag}");
+		int end = changelog.IndexOf("## ", start + 3, StringComparison.Ordinal);
+		return end < 0 ? changelog[start..] : changelog[start..end];
+	}
+
+	[TestMethod]
+	public async Task GenerateAsync_FirstPrereleaseListsCommitsSinceThePreviousTagOnceItsStableTagExists()
+	{
+		// Arrange: v1.0.0, then "Add feature A" tagged v1.0.1-pre.1, then "Fix bug B" tagged v1.0.1.
+		SetupTaggedHistory(
+			["v1.0.1", "v1.0.1-pre.1", "v1.0.0"],
+			new Dictionary<string, IReadOnlyList<CommitInfo>>
+			{
+				["sha-v1.0.0..sha-v1.0.1-pre.1"] = [new CommitInfo { Hash = "aaa", Subject = "Add feature A", Author = "developer" }],
+				["sha-v1.0.1-pre.1..sha-v1.0.1"] = [new CommitInfo { Hash = "bbb", Subject = "Fix bug B", Author = "developer" }],
+				["sha-v1.0.0..sha-v1.0.1"] =
+				[
+					new CommitInfo { Hash = "bbb", Subject = "Fix bug B", Author = "developer" },
+					new CommitInfo { Hash = "aaa", Subject = "Add feature A", Author = "developer" },
+				],
+			});
+
+		// Act
+		await _generator.GenerateAsync(
+			version: "1.0.2",
+			commitHash: "head",
+			workingDirectory: "/repo",
+			outputPath: _tempDir,
+			lineEnding: "\n").ConfigureAwait(false);
+
+		// Assert
+		string content = await File.ReadAllTextAsync(Path.Combine(_tempDir, "CHANGELOG.md")).ConfigureAwait(false);
+		string prerelease = GetSection(content, "v1.0.1-pre.1");
+		Assert.IsTrue(prerelease.Contains("Changes since v1.0.0:"), prerelease);
+		Assert.IsTrue(prerelease.Contains("Add feature A"), prerelease);
+		Assert.IsFalse(prerelease.Contains("No significant changes"), prerelease);
+	}
+
+	[TestMethod]
+	public async Task GenerateAsync_LaterPrereleaseDiffsAgainstThePreviousPrerelease()
+	{
+		// Arrange
+		SetupTaggedHistory(
+			["v1.0.1-pre.2", "v1.0.1-pre.1", "v1.0.0"],
+			new Dictionary<string, IReadOnlyList<CommitInfo>>
+			{
+				["sha-v1.0.0..sha-v1.0.1-pre.1"] = [new CommitInfo { Hash = "aaa", Subject = "Add feature A", Author = "developer" }],
+				["sha-v1.0.1-pre.1..sha-v1.0.1-pre.2"] = [new CommitInfo { Hash = "bbb", Subject = "Add feature B", Author = "developer" }],
+			});
+
+		// Act
+		await _generator.GenerateAsync(
+			version: "1.0.1-pre.3",
+			commitHash: "head",
+			workingDirectory: "/repo",
+			outputPath: _tempDir,
+			lineEnding: "\n").ConfigureAwait(false);
+
+		// Assert
+		string content = await File.ReadAllTextAsync(Path.Combine(_tempDir, "CHANGELOG.md")).ConfigureAwait(false);
+		string second = GetSection(content, "v1.0.1-pre.2");
+		Assert.IsTrue(second.Contains("Changes since v1.0.1-pre.1:"), second);
+		Assert.IsTrue(second.Contains("Add feature B"), second);
+		Assert.IsFalse(second.Contains("Add feature A"), second);
+	}
+
 	[TestMethod]
 	public async Task GenerateAsync_KeepsHumanCommitMentioningGitHub()
 	{
