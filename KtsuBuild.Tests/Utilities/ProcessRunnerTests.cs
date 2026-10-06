@@ -238,7 +238,9 @@ public class ProcessRunnerTests
 		await Task.Delay(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
 		await cts.CancelAsync().ConfigureAwait(false);
 
-		await Assert.ThrowsExactlyAsync<TaskCanceledException>(() => running).ConfigureAwait(false);
+		// ktsu.RunCommand reports cancellation from ThrowIfCancellationRequested, which throws the base
+		// OperationCanceledException rather than TaskCanceledException, so accept any cancellation.
+		await Assert.ThrowsAsync<OperationCanceledException>(() => running).ConfigureAwait(false);
 
 		// Well past the point the child would have written the marker had it been left alone.
 		await Task.Delay(TimeSpan.FromSeconds(6)).ConfigureAwait(false);
