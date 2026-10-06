@@ -1,6 +1,7 @@
-## v2.18.4-pre.1 (prerelease)
+## v2.18.4 (patch)
 
 Changes since v2.18.3:
 
-- Bump Polyfill from 11.4.1 to 11.4.2 ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Accept OperationCanceledException from a cancelled ProcessRunner run ([@Claude](https://github.com/Claude))
+- Accept OperationCanceledException from a cancelled ProcessRunner run ([@Claude](https://github.com/Claude))
 
