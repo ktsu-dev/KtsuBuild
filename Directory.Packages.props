@@ -3,7 +3,7 @@
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
   </PropertyGroup>
   <ItemGroup>
-    <PackageVersion Include="Polyfill" Version="11.4.2" />
+    <PackageVersion Include="Polyfill" Version="11.4.3" />
     <PackageVersion Include="ktsu.RunCommand" Version="1.9.1" />
     <PackageVersion Include="ktsu.Semantics.Paths" Version="5.8.3" />
     <PackageVersion Include="ktsu.Semantics.Strings" Version="5.8.3" />
