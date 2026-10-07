@@ -1,7 +1,6 @@
-## v2.18.4 (patch)
+## v2.18.5-pre.1 (prerelease)
 
-Changes since v2.18.3:
+Changes since v2.18.4:
 
-- Accept OperationCanceledException from a cancelled ProcessRunner run ([@Claude](https://github.com/Claude))
-- Accept OperationCanceledException from a cancelled ProcessRunner run ([@Claude](https://github.com/Claude))
+- Bump the ktsu group with 3 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
 
