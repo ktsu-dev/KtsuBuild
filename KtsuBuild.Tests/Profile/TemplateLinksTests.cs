@@ -110,6 +110,24 @@ public class TemplateLinksTests
 			[Live("Sdk")]));
 
 	[TestMethod]
+	public void FindRetired_DoesNotFlagALinkInOtherCasing() =>
+		// GitHub URLs ignore case, so this link works. Flagging it failed the whole profile run with an
+		// "archived or no longer public" error naming a live repository.
+		Assert.IsEmpty(TemplateLinks.FindRetired(
+			"See [Semantics](https://github.com/ktsu-dev/semantics).",
+			"ktsu-dev",
+			[Live("Semantics")]));
+
+	[TestMethod]
+	public void FindRetired_FlagsAnArchivedRepositoryLinkedInOtherCasing() =>
+		Assert.AreEqual(
+			"persistenceprovider",
+			string.Join(",", TemplateLinks.FindRetired(
+				"[a](https://github.com/ktsu-dev/persistenceprovider)",
+				"ktsu-dev",
+				[Archived("PersistenceProvider")])));
+
+	[TestMethod]
 	public void FindRetired_WithNoLinks_ReturnsNothing() =>
 		Assert.IsEmpty(TemplateLinks.FindRetired("no links here", "ktsu-dev", [Live("Semantics")]));
 }
