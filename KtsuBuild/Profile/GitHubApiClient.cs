@@ -175,7 +175,9 @@ public class GitHubApiClient(IProcessRunner processRunner, IBuildLogger logger) 
 	/// <inheritdoc/>
 	public async Task<GitHubWorkflowRun?> GetLatestWorkflowRunAsync(string organization, string repository, string workflowFileName, string branch, CancellationToken cancellationToken = default)
 	{
-		string endpoint = $"/repos/{organization}/{repository}/actions/workflows/{workflowFileName}/runs?per_page=1";
+		// Only completed runs: a queued or in-progress run has no conclusion yet, and would hide the
+		// result of the last run that finished.
+		string endpoint = $"/repos/{organization}/{repository}/actions/workflows/{workflowFileName}/runs?per_page=1&status=completed";
 		if (!string.IsNullOrEmpty(branch))
 		{
 			endpoint += $"&branch={branch}";
