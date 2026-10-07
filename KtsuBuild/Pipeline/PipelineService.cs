@@ -446,7 +446,7 @@ public sealed class PipelineService
 #pragma warning disable CA1031 // Topic update is non-fatal
 		try
 		{
-			IReadOnlyList<string> topics = await TagsParser.ParseAsync(tagsFile, cancellationToken).ConfigureAwait(false);
+			IReadOnlyList<string> topics = await TagsParser.ParseAsync(tagsFile, _logger, cancellationToken).ConfigureAwait(false);
 			if (topics.Count > 0)
 			{
 				await _gitHubService.SetRepositoryTopicsAsync(workspace, topics, cancellationToken).ConfigureAwait(false);
