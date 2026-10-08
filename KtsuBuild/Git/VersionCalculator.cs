@@ -177,13 +177,21 @@ public class VersionCalculator(IGitService gitService, IBuildLogger logger)
 		switch (incrementType)
 		{
 			case VersionType.Major:
-				newMajor = lastVersion.Major + 1;
+				// A prerelease of X.0.0 releases as X.0.0, as semver inc does
+				if (!(lastVersion.IsPrerelease && lastVersion.Minor == 0 && lastVersion.Patch == 0))
+				{
+					newMajor = lastVersion.Major + 1;
+				}
 				newMinor = 0;
 				newPatch = 0;
 				break;
 
 			case VersionType.Minor:
-				newMinor = lastVersion.Minor + 1;
+				// A prerelease of X.Y.0 releases as X.Y.0, as semver inc does
+				if (!(lastVersion.IsPrerelease && lastVersion.Patch == 0))
+				{
+					newMinor = lastVersion.Minor + 1;
+				}
 				newPatch = 0;
 				break;
 

@@ -62,6 +62,42 @@ public class VersionCalculatorTests
 	}
 
 	[TestMethod]
+	[DataRow("New feature [minor]", "1.0.0", "1.0.0")]
+	[DataRow("Breaking change [major]", "1.0.0", "1.0.0")]
+	[DataRow("New feature [minor]", "0.1.0", "0.1.0")]
+	public async Task GetVersionInfoAsync_NoTags_FirstReleaseIsInitialVersion(string commitMessage, string initialVersion, string expectedVersion)
+	{
+		// Arrange
+		SetupGitServiceForVersion(null, [commitMessage]);
+
+		// Act
+		VersionInfo result = await _calculator.GetVersionInfoAsync("/repo", "abc123", initialVersion).ConfigureAwait(false);
+
+		// Assert
+		Assert.IsTrue(result.UsingFallbackTag);
+		Assert.AreEqual(expectedVersion, result.Version);
+		Assert.IsFalse(result.IsPrerelease);
+	}
+
+	[TestMethod]
+	[DataRow("v1.3.0-pre.2", "New feature [minor]", "1.3.0")]
+	[DataRow("v2.0.0-pre.1", "Breaking change [major]", "2.0.0")]
+	[DataRow("v1.2.4-pre.3", "New feature [minor]", "1.3.0")]
+	[DataRow("v1.3.0-pre.2", "Breaking change [major]", "2.0.0")]
+	public async Task GetVersionInfoAsync_BumpFromPrerelease(string lastTag, string commitMessage, string expectedVersion)
+	{
+		// Arrange
+		SetupGitServiceForVersion(lastTag, [commitMessage]);
+
+		// Act
+		VersionInfo result = await _calculator.GetVersionInfoAsync("/repo", "abc123").ConfigureAwait(false);
+
+		// Assert
+		Assert.AreEqual(expectedVersion, result.Version);
+		Assert.IsFalse(result.IsPrerelease);
+	}
+
+	[TestMethod]
 	public async Task GetVersionInfoAsync_MajorBump()
 	{
 		// Arrange
