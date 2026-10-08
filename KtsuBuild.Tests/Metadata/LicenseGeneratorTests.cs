@@ -167,4 +167,65 @@ public class LicenseGeneratorTests
 		Assert.IsTrue(content.Contains("WITHOUT WARRANTY"), "Should contain warranty disclaimer");
 		Assert.IsTrue(content.Contains("THE SOFTWARE IS PROVIDED"), "Should contain software provision clause");
 	}
+
+	[TestMethod]
+	public async Task GenerateAsync_NewYear_KeepsExistingCopyright()
+	{
+		// Arrange
+		const string Existing = "Copyright (c) 2023-2026 testowner contributors";
+		await File.WriteAllTextAsync(Path.Combine(_tempDir, "COPYRIGHT.md"), Existing + "\n").ConfigureAwait(false);
+
+		// Act
+		await LicenseGenerator.GenerateAsync(
+			serverUrl: "https://github.com/testowner",
+			owner: "testowner",
+			repository: "testrepo",
+			outputPath: _tempDir,
+			lineEnding: "\n",
+			currentYear: 2027).ConfigureAwait(false);
+
+		// Assert
+		string copyrightContent = await File.ReadAllTextAsync(Path.Combine(_tempDir, "COPYRIGHT.md")).ConfigureAwait(false);
+		string licenseContent = await File.ReadAllTextAsync(Path.Combine(_tempDir, "LICENSE.md")).ConfigureAwait(false);
+		Assert.AreEqual(Existing + "\n", copyrightContent, "An existing COPYRIGHT.md must not move to the new year");
+		Assert.IsTrue(licenseContent.Contains(Existing), "LICENSE.md should carry the existing copyright line");
+		Assert.IsFalse(licenseContent.Contains("2027"), "LICENSE.md should not move to the new year");
+	}
+
+	[TestMethod]
+	public async Task GenerateAsync_NoCopyrightFile_GeneratesOneForTheCurrentYear()
+	{
+		// Act
+		await LicenseGenerator.GenerateAsync(
+			serverUrl: "https://github.com/testowner",
+			owner: "testowner",
+			repository: "testrepo",
+			outputPath: _tempDir,
+			lineEnding: "\n",
+			currentYear: 2027).ConfigureAwait(false);
+
+		// Assert
+		string copyrightContent = await File.ReadAllTextAsync(Path.Combine(_tempDir, "COPYRIGHT.md")).ConfigureAwait(false);
+		Assert.AreEqual("Copyright (c) 2023-2027 testowner contributors\n", copyrightContent);
+	}
+
+	[TestMethod]
+	public async Task GenerateAsync_EmptyCopyrightFile_IsRegenerated()
+	{
+		// Arrange
+		await File.WriteAllTextAsync(Path.Combine(_tempDir, "COPYRIGHT.md"), "  \n").ConfigureAwait(false);
+
+		// Act
+		await LicenseGenerator.GenerateAsync(
+			serverUrl: "https://github.com/testowner",
+			owner: "testowner",
+			repository: "testrepo",
+			outputPath: _tempDir,
+			lineEnding: "\n",
+			currentYear: 2027).ConfigureAwait(false);
+
+		// Assert
+		string copyrightContent = await File.ReadAllTextAsync(Path.Combine(_tempDir, "COPYRIGHT.md")).ConfigureAwait(false);
+		Assert.AreEqual("Copyright (c) 2023-2027 testowner contributors\n", copyrightContent);
+	}
 }
