@@ -68,7 +68,8 @@ public static partial class TemplateLinks
 	{
 		Ensure.NotNull(repositories);
 
-		Dictionary<string, GitHubRepository> known = [];
+		// GitHub resolves repository names ignoring case, so a link written in other casing still works.
+		Dictionary<string, GitHubRepository> known = new(StringComparer.OrdinalIgnoreCase);
 		foreach (GitHubRepository repository in repositories)
 		{
 			known[repository.Name] = repository;
