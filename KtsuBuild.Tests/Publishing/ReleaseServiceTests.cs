@@ -388,7 +388,7 @@ public class ReleaseServiceTests
 	{
 		string projPath = Path.Combine(_tempDir, relativeDirectory, fileName);
 		Directory.CreateDirectory(Path.GetDirectoryName(projPath)!);
-		await File.WriteAllTextAsync(projPath, "<Project />").ConfigureAwait(false);
+		await File.WriteAllTextAsync(projPath, "<Project />", TestContext.CancellationToken).ConfigureAwait(false);
 		return projPath;
 	}
 
