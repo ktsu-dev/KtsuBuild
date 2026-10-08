@@ -204,16 +204,35 @@ public class ProfileGeneratorTests
 	}
 
 	[TestMethod]
-	public async Task GenerateAsync_WithAnEmptyListing_WritesRatherThanBlockingOnAFailedLookup()
+	public async Task GenerateAsync_WithAnEmptyListing_FailsAndLeavesTheReadmeUntouched()
 	{
-		// A listing that could not be read is a transient failure, not evidence of a bad template.
+		// Writing it would publish the profile page with no repository table at all.
 		_gitHub.ListOrganizationRepositoriesAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
 			.Returns(Task.FromResult<IReadOnlyList<GitHubRepository>>([]));
-		string template = WriteTemplate("- [Whatever](https://github.com/ktsu-dev/Whatever)\n## Project Status\n");
+		string template = WriteTemplate("## Project Status\n");
 		string output = Path.Combine(_tempDir, "README.md");
+		await File.WriteAllTextAsync(output, "previous README").ConfigureAwait(false);
 
-		await _generator.GenerateAsync(Options, template, output).ConfigureAwait(false);
+		await Assert
+			.ThrowsExactlyAsync<InvalidOperationException>(() => _generator.GenerateAsync(Options, template, output))
+			.ConfigureAwait(false);
 
-		Assert.IsTrue(File.Exists(output));
+		Assert.AreEqual("previous README", await File.ReadAllTextAsync(output).ConfigureAwait(false));
+	}
+
+	[TestMethod]
+	public async Task GenerateAsync_WithAFailedListing_FailsAndLeavesTheReadmeUntouched()
+	{
+		_gitHub.ListOrganizationRepositoriesAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+			.Returns(Task.FromException<IReadOnlyList<GitHubRepository>>(new InvalidOperationException("listing failed")));
+		string template = WriteTemplate("## Project Status\n");
+		string output = Path.Combine(_tempDir, "README.md");
+		await File.WriteAllTextAsync(output, "previous README").ConfigureAwait(false);
+
+		await Assert
+			.ThrowsExactlyAsync<InvalidOperationException>(() => _generator.GenerateAsync(Options, template, output))
+			.ConfigureAwait(false);
+
+		Assert.AreEqual("previous README", await File.ReadAllTextAsync(output).ConfigureAwait(false));
 	}
 }

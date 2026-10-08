@@ -17,6 +17,8 @@ public interface IGitHubApiClient
 	/// <param name="organization">The organization login.</param>
 	/// <param name="cancellationToken">A cancellation token.</param>
 	/// <returns>Every public repository, including archived ones.</returns>
+	/// <exception cref="InvalidOperationException">Any page of the listing failed. A partial listing is
+	/// never returned, because it cannot be told apart from a complete one.</exception>
 	public Task<IReadOnlyList<GitHubRepository>> ListOrganizationRepositoriesAsync(string organization, CancellationToken cancellationToken = default);
 
 	/// <summary>

@@ -37,9 +37,13 @@ public class GitHubApiClient(IProcessRunner processRunner, IBuildLogger logger) 
 		{
 			string endpoint = $"/orgs/{organization}/repos?type=public&sort=full_name&direction=asc&page={page.ToString(CultureInfo.InvariantCulture)}&per_page={PageSize.ToString(CultureInfo.InvariantCulture)}";
 			JsonElement? response = await GetJsonAsync(endpoint, cancellationToken).ConfigureAwait(false);
+
+			// Every other call here degrades to no data, but this one cannot: a partial or empty listing
+			// would publish a profile README with repositories missing, or with no table at all.
 			if (response is not { ValueKind: JsonValueKind.Array })
 			{
-				break;
+				throw new InvalidOperationException(
+					$"Could not list the repositories in {organization}: page {page.ToString(CultureInfo.InvariantCulture)} of the listing failed or was unreadable.");
 			}
 
 			JsonElement[] items = [.. response.Value.EnumerateArray()];
