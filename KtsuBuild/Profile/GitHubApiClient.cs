@@ -62,19 +62,33 @@ public class GitHubApiClient(IProcessRunner processRunner, IBuildLogger logger) 
 	/// <inheritdoc/>
 	public async Task<IReadOnlyList<GitHubRelease>> ListReleasesAsync(string organization, string repository, CancellationToken cancellationToken = default)
 	{
-		JsonElement? response = await GetJsonAsync($"/repos/{organization}/{repository}/releases", cancellationToken).ConfigureAwait(false);
-		if (response is not { ValueKind: JsonValueKind.Array })
-		{
-			return [];
-		}
+		// The releases API returns 30 entries unless asked for more, so reading one default page drops a
+		// repository whose newest releases are all prereleases and whose latest stable one sits further back.
+		List<GitHubRelease> releases = [];
 
-		return
-		[
-			.. response.Value.EnumerateArray()
+		bool hasMorePages = true;
+		int page = 1;
+		while (hasMorePages)
+		{
+			string endpoint = $"/repos/{organization}/{repository}/releases?page={page.ToString(CultureInfo.InvariantCulture)}&per_page={PageSize.ToString(CultureInfo.InvariantCulture)}";
+			JsonElement? response = await GetJsonAsync(endpoint, cancellationToken).ConfigureAwait(false);
+			if (response is not { ValueKind: JsonValueKind.Array })
+			{
+				break;
+			}
+
+			JsonElement[] items = [.. response.Value.EnumerateArray()];
+			releases.AddRange(items
 				.Select(static item => GetString(item, "tag_name"))
 				.OfType<string>()
-				.Select(static tag => new GitHubRelease(tag)),
-		];
+				.Select(static tag => new GitHubRelease(tag)));
+
+			// A page shorter than the page size is the last one.
+			hasMorePages = items.Length == PageSize;
+			page++;
+		}
+
+		return releases;
 	}
 
 	/// <inheritdoc/>

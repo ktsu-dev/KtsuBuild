@@ -291,6 +291,40 @@ public class GitHubApiClientTests
 		Assert.IsEmpty(await _client.ListReleasesAsync("ktsu-dev", "Missing").ConfigureAwait(false));
 	}
 
+	/// <summary>A releases response carrying <paramref name="count"/> prerelease tags.</summary>
+	private static string PrereleasesPage(int count) =>
+		$"[{string.Join(",", Enumerable.Range(1, count).Select(static n => $$"""{"tag_name":"v1.1.0-pre.{{n.ToString(CultureInfo.InvariantCulture)}}"}"""))}]";
+
+	[TestMethod]
+	public async Task ListReleasesAsync_ReadsPastAFullPageOfPrereleases()
+	{
+		// A run of dependabot bumps can push the latest stable release off the first page. Reading only
+		// that page dropped the repository from the profile as having "no stable release".
+		RespondByPage(static page => page switch
+		{
+			1 => PrereleasesPage(100),
+			2 => """[{"tag_name":"v1.0.0"}]""",
+			_ => "[]",
+		});
+
+		IReadOnlyList<GitHubRelease> releases = await _client.ListReleasesAsync("ktsu-dev", "Busy").ConfigureAwait(false);
+
+		Assert.HasCount(101, releases);
+		Assert.AreEqual("v1.0.0", releases[^1].TagName);
+		Assert.HasCount(2, _requestedArguments, "A page shorter than the page size is the last page");
+		Assert.Contains("per_page=100", _requestedArguments[0]);
+	}
+
+	[TestMethod]
+	public async Task ListReleasesAsync_WithFewerThanAPageOfReleases_MakesOneCall()
+	{
+		RespondWith("""[{"tag_name":"v2.3.1"},{"tag_name":"v2.3.0"}]""");
+
+		await _client.ListReleasesAsync("ktsu-dev", "Essentials").ConfigureAwait(false);
+
+		Assert.HasCount(1, _requestedArguments);
+	}
+
 	[TestMethod]
 	public async Task GetFileTextAsync_WithContentThatIsNotBase64_ReturnsNull()
 	{
