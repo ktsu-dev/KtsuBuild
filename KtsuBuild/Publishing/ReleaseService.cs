@@ -32,7 +32,7 @@ public class ReleaseService(IDotNetService dotNetService, INuGetPublisher nuGetP
 		Ensure.NotNull(configuration);
 
 		// Pack NuGet packages
-		await dotNetService.PackAsync(workspace, config.StagingPath, configuration, config.LatestChangelogFile, cancellationToken).ConfigureAwait(false);
+		await dotNetService.PackAsync(workspace, config.StagingPath, configuration, ResolveInWorkspace(workspace, config.LatestChangelogFile), cancellationToken).ConfigureAwait(false);
 
 		await PublishApplicationsAsync(config, workspace, configuration, cancellationToken).ConfigureAwait(false);
 		await WriteArchiveHashesAsync(config, cancellationToken).ConfigureAwait(false);
@@ -184,8 +184,8 @@ public class ReleaseService(IDotNetService dotNetService, INuGetPublisher nuGetP
 			Version = config.Version,
 			CommitHash = config.ReleaseHash,
 			GithubToken = config.GithubToken,
-			ChangelogFile = config.ChangelogFile,
-			LatestChangelogFile = config.LatestChangelogFile,
+			ChangelogFile = ResolveInWorkspace(workspace, config.ChangelogFile),
+			LatestChangelogFile = ResolveInWorkspace(workspace, config.LatestChangelogFile),
 			AssetPaths = config.AssetPatterns,
 			IsPrerelease = config.Version.Contains("-pre", StringComparison.OrdinalIgnoreCase)
 				|| config.Version.Contains("-alpha", StringComparison.OrdinalIgnoreCase)
@@ -196,4 +196,15 @@ public class ReleaseService(IDotNetService dotNetService, INuGetPublisher nuGetP
 
 		await gitHubService.CreateReleaseAsync(releaseOptions, cancellationToken).ConfigureAwait(false);
 	}
+
+	/// <summary>
+	/// Resolves a configured file name against the workspace, the directory the metadata step wrote it to.
+	/// </summary>
+	/// <remarks>
+	/// The changelog names are bare file names by default. Left relative, they resolve against the
+	/// process's current directory, so a run with <c>--workspace</c> pointing elsewhere shipped packages
+	/// and releases with no notes, or with the changelog of whatever directory it was started from.
+	/// </remarks>
+	private static string ResolveInWorkspace(string workspace, string fileName) =>
+		string.IsNullOrEmpty(fileName) || Path.IsPathRooted(fileName) ? fileName : Path.Combine(workspace, fileName);
 }
