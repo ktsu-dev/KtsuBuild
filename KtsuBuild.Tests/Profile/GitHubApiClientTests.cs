@@ -143,6 +143,21 @@ public class GitHubApiClientTests
 	}
 
 	[TestMethod]
+	public async Task GetLatestWorkflowRunAsync_SkipsRunsThatHaveNotCompleted()
+	{
+		// The newest run is still in progress, and the one before it failed. The API only leaves out
+		// the in-progress run when asked for completed runs.
+		_responder = arguments => arguments.Contains("status=completed", StringComparison.Ordinal)
+			? """{"workflow_runs":[{"status":"completed","conclusion":"failure"}]}"""
+			: """{"workflow_runs":[{"status":"in_progress","conclusion":null}]}""";
+
+		GitHubWorkflowRun? run = await _client.GetLatestWorkflowRunAsync("ktsu-dev", "TUI", "ci.yml", "main").ConfigureAwait(false);
+
+		Assert.AreEqual("completed", run?.Status);
+		Assert.AreEqual("failure", run?.Conclusion);
+	}
+
+	[TestMethod]
 	public async Task GetLatestWorkflowRunAsync_WithNoRuns_ReturnsNull()
 	{
 		RespondWith("""{"workflow_runs":[]}""");
