@@ -211,6 +211,37 @@ public class ChangelogGeneratorTests
 	}
 
 	[TestMethod]
+	public async Task GenerateAsync_VersionAlreadyTagged_WritesItsEntryOnceWithItsRealNotes()
+	{
+		// Arrange: HEAD is the released v1.0.1, as on a scheduled run with nothing new since.
+		SetupTaggedHistory(
+			["v1.0.1", "v1.0.0"],
+			new Dictionary<string, IReadOnlyList<CommitInfo>>
+			{
+				["sha-v1.0.0..sha-v1.0.1"] = [new CommitInfo { Hash = "aaa", Subject = "Fix bug B", Author = "developer" }],
+			});
+
+		// Act
+		await _generator.GenerateAsync(
+			version: "1.0.1",
+			commitHash: "sha-v1.0.1",
+			workingDirectory: "/repo",
+			outputPath: _tempDir,
+			lineEnding: "\n").ConfigureAwait(false);
+
+		// Assert
+		string content = await File.ReadAllTextAsync(Path.Combine(_tempDir, "CHANGELOG.md")).ConfigureAwait(false);
+		int headings = content.Split('\n').Count(static line => line.StartsWith("## v1.0.1", StringComparison.Ordinal));
+		Assert.AreEqual(1, headings, content);
+		Assert.IsFalse(content.Contains("no significant changes", StringComparison.OrdinalIgnoreCase), content);
+
+		string latest = await File.ReadAllTextAsync(Path.Combine(_tempDir, "LATEST_CHANGELOG.md")).ConfigureAwait(false);
+		Assert.IsTrue(latest.StartsWith("## v1.0.1 ", StringComparison.Ordinal), latest);
+		Assert.IsTrue(latest.Contains("Fix bug B"), latest);
+		Assert.IsFalse(latest.Contains("## v1.0.0", StringComparison.Ordinal), latest);
+	}
+
+	[TestMethod]
 	public async Task GenerateAsync_KeepsHumanCommitMentioningGitHub()
 	{
 		// Arrange
