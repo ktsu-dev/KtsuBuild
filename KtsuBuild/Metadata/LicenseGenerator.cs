@@ -16,6 +16,12 @@ public static class LicenseGenerator
 	/// <summary>
 	/// Generates LICENSE.md and COPYRIGHT.md files.
 	/// </summary>
+	/// <remarks>
+	/// An existing COPYRIGHT.md is kept as it is, and its text is what LICENSE.md carries. ktsu.Sdk derives
+	/// every source file's required header from COPYRIGHT.md, so rewriting it from the clock would fail
+	/// every file in the repository against IDE0073 the first time a run lands in a new year. Moving the
+	/// year on is a deliberate change that also rewrites the headers, not a side effect of a build.
+	/// </remarks>
 	/// <param name="serverUrl">The GitHub server URL.</param>
 	/// <param name="owner">The repository owner.</param>
 	/// <param name="repository">The repository name.</param>
@@ -29,6 +35,26 @@ public static class LicenseGenerator
 		string repository,
 		string outputPath,
 		string lineEnding,
+		CancellationToken cancellationToken = default) =>
+		await GenerateAsync(serverUrl, owner, repository, outputPath, lineEnding, DateTime.UtcNow.Year, cancellationToken).ConfigureAwait(false);
+
+	/// <summary>
+	/// Generates LICENSE.md and COPYRIGHT.md files, taking the current year from the caller.
+	/// </summary>
+	/// <param name="serverUrl">The GitHub server URL.</param>
+	/// <param name="owner">The repository owner.</param>
+	/// <param name="repository">The repository name.</param>
+	/// <param name="outputPath">The output directory.</param>
+	/// <param name="lineEnding">The line ending to use.</param>
+	/// <param name="currentYear">The year a newly created COPYRIGHT.md runs to.</param>
+	/// <param name="cancellationToken">A cancellation token.</param>
+	internal static async Task GenerateAsync(
+		string serverUrl,
+		string owner,
+		string repository,
+		string outputPath,
+		string lineEnding,
+		int currentYear,
 		CancellationToken cancellationToken = default)
 	{
 		Ensure.NotNull(serverUrl);
@@ -38,13 +64,18 @@ public static class LicenseGenerator
 		Ensure.NotNull(lineEnding);
 
 		string template = LicenseTemplate;
-		int year = DateTime.UtcNow.Year;
 
 		// Build project URL
 		string projectUrl = $"{serverUrl}/{repository}";
 
-		// Build copyright string
-		string copyright = $"Copyright (c) 2023-{year} {owner} contributors";
+		// Keep an existing copyright line, and make one up only for a repository that has none
+		string copyrightPath = Path.Combine(outputPath, "COPYRIGHT.md");
+		string? existingCopyright = File.Exists(copyrightPath)
+			? (await File.ReadAllTextAsync(copyrightPath, cancellationToken).ConfigureAwait(false)).Trim()
+			: null;
+		string copyright = string.IsNullOrEmpty(existingCopyright)
+			? $"Copyright (c) 2023-{currentYear} {owner} contributors"
+			: existingCopyright!;
 
 		// Replace placeholders
 		string licenseContent = template
@@ -56,7 +87,6 @@ public static class LicenseGenerator
 		await LineEndingHelper.WriteFileAsync(licensePath, licenseContent, lineEnding, cancellationToken).ConfigureAwait(false);
 
 		// Write COPYRIGHT.md
-		string copyrightPath = Path.Combine(outputPath, "COPYRIGHT.md");
 		await LineEndingHelper.WriteFileAsync(copyrightPath, copyright + lineEnding, lineEnding, cancellationToken).ConfigureAwait(false);
 	}
 
