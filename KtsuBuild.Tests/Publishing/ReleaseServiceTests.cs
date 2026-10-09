@@ -19,6 +19,8 @@ public class ReleaseServiceTests
 	private ReleaseService _service = null!;
 	private string _tempDir = null!;
 
+	public TestContext TestContext { get; set; } = null!;
+
 	[TestInitialize]
 	public void Setup()
 	{
@@ -54,6 +56,50 @@ public class ReleaseServiceTests
 
 		await _dotNetService.Received(1).PackAsync(
 			_tempDir, config.StagingPath, "Release", Arg.Any<string?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+	}
+
+	[TestMethod]
+	[DoNotParallelize]
+	public async Task ExecuteReleaseAsync_ResolvesChangelogsAgainstTheWorkspace_NotTheCurrentDirectory()
+	{
+		// Run from a directory that has its own LATEST_CHANGELOG.md, as running from the KtsuBuild
+		// checkout does: neither that file nor the bare name may reach the pack or the release.
+		string elsewhere = TestHelpers.CreateTempDir("ReleaseSvcCwd");
+		await File.WriteAllTextAsync(Path.Combine(elsewhere, "LATEST_CHANGELOG.md"), "someone else's notes", TestContext.CancellationToken).ConfigureAwait(false);
+		string original = Directory.GetCurrentDirectory();
+		ReleaseOptions? captured = null;
+		_gitHubService.CreateReleaseAsync(Arg.Do<ReleaseOptions>(o => captured = o), Arg.Any<CancellationToken>())
+			.Returns(Task.CompletedTask);
+
+		try
+		{
+			Directory.SetCurrentDirectory(elsewhere);
+			await _service.ExecuteReleaseAsync(CreateDefaultConfig(), _tempDir, "Release", TestContext.CancellationToken).ConfigureAwait(false);
+		}
+		finally
+		{
+			Directory.SetCurrentDirectory(original);
+			Directory.Delete(elsewhere, recursive: true);
+		}
+
+		await _dotNetService.Received(1).PackAsync(
+			_tempDir, Arg.Any<string>(), "Release", Path.Combine(_tempDir, "LATEST_CHANGELOG.md"), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+		Assert.IsNotNull(captured);
+		Assert.AreEqual(Path.Combine(_tempDir, "LATEST_CHANGELOG.md"), captured.LatestChangelogFile);
+		Assert.AreEqual(Path.Combine(_tempDir, "CHANGELOG.md"), captured.ChangelogFile);
+	}
+
+	[TestMethod]
+	public async Task ExecuteReleaseAsync_KeepsRootedChangelogPathsAsGiven()
+	{
+		string rooted = Path.Combine(_tempDir, "notes", "NOTES.md");
+		BuildConfiguration config = CreateDefaultConfig();
+		config.LatestChangelogFile = rooted;
+
+		await _service.ExecuteReleaseAsync(config, _tempDir, "Release", TestContext.CancellationToken).ConfigureAwait(false);
+
+		await _dotNetService.Received(1).PackAsync(
+			_tempDir, Arg.Any<string>(), "Release", rooted, Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
 	[TestMethod]
@@ -342,7 +388,7 @@ public class ReleaseServiceTests
 	{
 		string projPath = Path.Combine(_tempDir, relativeDirectory, fileName);
 		Directory.CreateDirectory(Path.GetDirectoryName(projPath)!);
-		await File.WriteAllTextAsync(projPath, "<Project />").ConfigureAwait(false);
+		await File.WriteAllTextAsync(projPath, "<Project />", TestContext.CancellationToken).ConfigureAwait(false);
 		return projPath;
 	}
 
