@@ -61,21 +61,33 @@ public class ChangelogGenerator(IGitService gitService, IBuildLogger logger)
 		logger.WriteInfo($"Generating changelog from {previousTag} to {currentTag} (commit: {commitHash})");
 
 		StringBuilder changelog = new();
-		string latestVersionNotes = string.Empty;
+		string latestVersionNotes;
 
-		// Generate entry for current version
-		string versionNotes = await GetVersionNotesAsync(workingDirectory, tags, previousTag, currentTag, commitHash, lineEnding, cancellationToken).ConfigureAwait(false);
-
-		if (!string.IsNullOrWhiteSpace(versionNotes))
+		// When the version is already released (a scheduled or manual run on a tagged HEAD), the
+		// history below renders its entry from the tag. Writing a separate current-version entry as
+		// well put the same heading in CHANGELOG.md twice, the first a "no significant changes" stub
+		// diffed from the tag to itself, and that stub replaced the real notes in LATEST_CHANGELOG.md.
+		int currentTagIndex = IndexOfTag(tags, currentTag);
+		if (currentTagIndex >= 0)
 		{
-			changelog.Append(versionNotes);
-			latestVersionNotes = versionNotes;
+			latestVersionNotes = await GetTagNotesAsync(workingDirectory, tags, currentTagIndex, lineEnding, cancellationToken).ConfigureAwait(false);
 		}
 		else
 		{
-			string minimalEntry = $"## {currentTag}{lineEnding}{lineEnding}Initial release or no significant changes since {previousTag}.{lineEnding}{lineEnding}";
-			changelog.Append(minimalEntry);
-			latestVersionNotes = minimalEntry;
+			// Generate entry for current version
+			string versionNotes = await GetVersionNotesAsync(workingDirectory, tags, previousTag, currentTag, commitHash, lineEnding, cancellationToken).ConfigureAwait(false);
+
+			if (!string.IsNullOrWhiteSpace(versionNotes))
+			{
+				changelog.Append(versionNotes);
+				latestVersionNotes = versionNotes;
+			}
+			else
+			{
+				string minimalEntry = $"## {currentTag}{lineEnding}{lineEnding}Initial release or no significant changes since {previousTag}.{lineEnding}{lineEnding}";
+				changelog.Append(minimalEntry);
+				latestVersionNotes = minimalEntry;
+			}
 		}
 
 		// Add entries for all previous versions
@@ -106,22 +118,49 @@ public class ChangelogGenerator(IGitService gitService, IBuildLogger logger)
 		StringBuilder notes = new();
 		for (int i = 0; i < tags.Count; i++)
 		{
-			string tag = tags[i];
-			if (!tag.StartsWith('v'))
-			{
-				continue;
-			}
-
-			string fromTag = i < tags.Count - 1 ? tags[i + 1] : InitialTag;
-			if (!fromTag.StartsWith('v'))
-			{
-				fromTag = InitialTag;
-			}
-
-			notes.Append(await GetVersionNotesAsync(workingDirectory, tags, fromTag, tag, null, lineEnding, cancellationToken).ConfigureAwait(false));
+			notes.Append(await GetTagNotesAsync(workingDirectory, tags, i, lineEnding, cancellationToken).ConfigureAwait(false));
 		}
 
 		return notes.ToString();
+	}
+
+	/// <summary>
+	/// Builds the changelog entry for one already-released tag, diffed from the tag before it.
+	/// </summary>
+	/// <param name="workingDirectory">The repository directory.</param>
+	/// <param name="tags">The tags, newest first.</param>
+	/// <param name="index">The index of the tag in <paramref name="tags"/>.</param>
+	/// <param name="lineEnding">The line ending to use.</param>
+	/// <param name="cancellationToken">A cancellation token.</param>
+	/// <returns>The entry, empty when the tag is not a version tag.</returns>
+	private async Task<string> GetTagNotesAsync(string workingDirectory, IReadOnlyList<string> tags, int index, string lineEnding, CancellationToken cancellationToken)
+	{
+		string tag = tags[index];
+		if (!tag.StartsWith('v'))
+		{
+			return string.Empty;
+		}
+
+		string fromTag = index < tags.Count - 1 ? tags[index + 1] : InitialTag;
+		if (!fromTag.StartsWith('v'))
+		{
+			fromTag = InitialTag;
+		}
+
+		return await GetVersionNotesAsync(workingDirectory, tags, fromTag, tag, null, lineEnding, cancellationToken).ConfigureAwait(false);
+	}
+
+	private static int IndexOfTag(IReadOnlyList<string> tags, string tag)
+	{
+		for (int i = 0; i < tags.Count; i++)
+		{
+			if (string.Equals(tags[i], tag, StringComparison.Ordinal))
+			{
+				return i;
+			}
+		}
+
+		return -1;
 	}
 
 	/// <summary>
