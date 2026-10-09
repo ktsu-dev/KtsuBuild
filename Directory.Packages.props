@@ -5,8 +5,8 @@
   <ItemGroup>
     <PackageVersion Include="Polyfill" Version="11.4.3" />
     <PackageVersion Include="ktsu.RunCommand" Version="1.9.5" />
-    <PackageVersion Include="ktsu.Semantics.Paths" Version="5.11.2" />
-    <PackageVersion Include="ktsu.Semantics.Strings" Version="5.11.2" />
+    <PackageVersion Include="ktsu.Semantics.Paths" Version="5.11.3" />
+    <PackageVersion Include="ktsu.Semantics.Strings" Version="5.11.3" />
     <PackageVersion Include="System.CommandLine" Version="2.0.12" />
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.12" />
     <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.12" />
