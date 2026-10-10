@@ -31,8 +31,10 @@ public class ProfileGenerator(OrgProfileService service, IGitHubApiClient gitHub
 	/// <returns>The repositories that were listed.</returns>
 	/// <exception cref="FileNotFoundException">The template does not exist. Writing a README without
 	/// it would silently discard everything the profile page says about the organization.</exception>
-	/// <exception cref="InvalidOperationException">The template links a repository that is archived or
-	/// no longer public. Publishing a page that promotes retired work is worse than failing loudly.</exception>
+	/// <exception cref="InvalidOperationException">The organization could not be listed, or listed no
+	/// public repositories, so the README would be written without its table. Or the template links a
+	/// repository that is archived or no longer public. Publishing a page that promotes retired work is
+	/// worse than failing loudly.</exception>
 	public async Task<IReadOnlyList<RepoFacts>> GenerateAsync(
 		ProfileOptions options,
 		string templatePath,
@@ -76,7 +78,8 @@ public class ProfileGenerator(OrgProfileService service, IGitHubApiClient gitHub
 	/// <param name="template">The template content.</param>
 	/// <param name="options">The gathering settings.</param>
 	/// <param name="cancellationToken">A cancellation token.</param>
-	/// <exception cref="InvalidOperationException">A linked repository is archived or no longer public.</exception>
+	/// <exception cref="InvalidOperationException">The organization listed no public repositories, or a
+	/// linked repository is archived or no longer public.</exception>
 	/// <remarks>
 	/// This costs one listing request that the gather then makes again. That duplication buys a clean
 	/// split, where the generator owns the template and the service owns the facts, for about half a
@@ -88,10 +91,12 @@ public class ProfileGenerator(OrgProfileService service, IGitHubApiClient gitHub
 			.ListOrganizationRepositoriesAsync(options.Organization, cancellationToken)
 			.ConfigureAwait(false);
 
+		// An organization with no public repositories has no profile table to show, so an empty listing
+		// is far more likely an outage than the truth. Writing it would wipe the table from the page.
 		if (repositories.Count == 0)
 		{
-			logger.WriteWarning("  Could not list the organization, so the template's links went unchecked");
-			return;
+			throw new InvalidOperationException(
+				$"{options.Organization} listed no public repositories, so the README was not written.");
 		}
 
 		IReadOnlyList<string> retired = TemplateLinks.FindRetired(template, options.Organization, repositories);

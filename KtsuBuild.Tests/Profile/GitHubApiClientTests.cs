@@ -269,7 +269,31 @@ public class GitHubApiClientTests
 	{
 		RespondWith("not json at all");
 
-		Assert.IsEmpty(await _client.ListOrganizationRepositoriesAsync("ktsu-dev").ConfigureAwait(false));
+		Assert.IsEmpty(await _client.ListReleasesAsync("ktsu-dev", "Extensions").ConfigureAwait(false));
+	}
+
+	[TestMethod]
+	public async Task ListOrganizationRepositoriesAsync_WithAFailedFirstPage_Throws()
+	{
+		// An empty listing would publish the profile README with no table, so it must not degrade.
+		(GitHubApiClient client, _) = ClientAnswering(Failure("gh: Server Error (HTTP 502)"));
+
+		await Assert
+			.ThrowsExactlyAsync<InvalidOperationException>(() => client.ListOrganizationRepositoriesAsync("ktsu-dev"))
+			.ConfigureAwait(false);
+	}
+
+	[TestMethod]
+	public async Task ListOrganizationRepositoriesAsync_WithAFailedLaterPage_ThrowsRatherThanReturningAPartialList()
+	{
+		string fullPage = $"[{string.Join(",", Enumerable.Range(0, 100).Select(static i => $"{{\"name\":\"Repo{i.ToString(CultureInfo.InvariantCulture)}\"}}"))}]";
+		RespondByPage(page => page == 1 ? fullPage : "not json at all");
+
+		InvalidOperationException error = await Assert
+			.ThrowsExactlyAsync<InvalidOperationException>(() => _client.ListOrganizationRepositoriesAsync("ktsu-dev"))
+			.ConfigureAwait(false);
+
+		Assert.Contains("page 2", error.Message);
 	}
 
 	[TestMethod]
