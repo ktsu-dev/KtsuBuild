@@ -16,6 +16,8 @@ public class IosServiceTests
 	private IosService _service = null!;
 	private string _tempDir = null!;
 
+	public TestContext TestContext { get; set; } = null!;
+
 	[TestInitialize]
 	public void Setup()
 	{
@@ -60,6 +62,85 @@ public class IosServiceTests
 	}
 
 	// UploadAsync — signing gate
+
+	// PackageAsync — marketing version
+
+	[TestMethod]
+	public void ResolveMarketingVersion_Prerelease_ReportsTheSubstitution()
+	{
+		RecordingBuildLogger logger = new();
+
+		string marketing = IosService.ResolveMarketingVersion("1.4.3-pre.1", logger);
+
+		Assert.AreEqual("1.4.3", marketing);
+		Assert.HasCount(1, logger.Infos);
+		Assert.Contains("1.4.3-pre.1", logger.Infos[0]);
+	}
+
+	[TestMethod]
+	public void ResolveMarketingVersion_Release_IsUnchangedAndSilent()
+	{
+		RecordingBuildLogger logger = new();
+
+		string marketing = IosService.ResolveMarketingVersion("1.4.3", logger);
+
+		Assert.AreEqual("1.4.3", marketing);
+		Assert.IsEmpty(logger.Infos);
+	}
+
+	[TestMethod]
+	[DataRow("2.0.0-beta.1")]
+	[DataRow("1.4.3-pre.1")]
+	[DataRow("1.2.3.4")]
+	[DataRow("v1.2.3")]
+	[DataRow("")]
+	public async Task PackageAsync_InvalidShortVersion_ThrowsBeforeAnyProcessCalls(string version)
+	{
+		await Assert.ThrowsExactlyAsync<ArgumentException>(() => _service.PackageAsync(new IosPackageOptions
+		{
+			WorkingDirectory = _tempDir,
+			ShortVersion = version,
+			SigningAvailable = true,
+		}, TestContext.CancellationToken)).ConfigureAwait(false);
+
+		// The version is rejected before any head is resolved or the toolchain and keychain are touched.
+		_dotNetService.DidNotReceive().GetIosHeads(Arg.Any<string>());
+		await _processRunner.DidNotReceive().RunWithCallbackAsync(
+			Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+		await _processRunner.DidNotReceive().RunAsync(
+			Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+	}
+
+	[TestMethod]
+	[DataRow("1")]
+	[DataRow("1.4")]
+	[DataRow("1.4.3")]
+	[DataRow("10.0.12")]
+	public void IsValidShortVersion_AcceptsOneToThreeIntegers(string version) =>
+		Assert.IsTrue(IosService.IsValidShortVersion(version));
+
+	[TestMethod]
+	[DataRow("1.4.3-pre.1")]
+	[DataRow("2.0.0-beta.1")]
+	[DataRow("1.2.3.4")]
+	[DataRow("1..3")]
+	[DataRow(" 1.2.3")]
+	[DataRow(null)]
+	public void IsValidShortVersion_RejectsAnythingElse(string? version) =>
+		Assert.IsFalse(IosService.IsValidShortVersion(version));
+
+	[TestMethod]
+	[DataRow("1.4.3-pre.1", "1.4.3")]
+	[DataRow("2.1.1-pre.1", "2.1.1")]
+	[DataRow("1.0.0+build.5", "1.0.0")]
+	[DataRow("1.4.3", "1.4.3")]
+	public void ToMarketingVersion_DropsPrereleaseAndBuildMetadata(string computed, string expected)
+	{
+		string marketing = IosService.ToMarketingVersion(computed);
+
+		Assert.AreEqual(expected, marketing);
+		Assert.IsTrue(IosService.IsValidShortVersion(marketing));
+	}
 
 	[TestMethod]
 	public async Task UploadAsync_SigningUnavailable_SkipsWithoutAnyProcessCalls()

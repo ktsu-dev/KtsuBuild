@@ -169,8 +169,10 @@ The `ios package` command is the signed release path (plan phase 3). It gates on
 also safe to call unconditionally (forks and contributors without secrets still
 get a green run). When signing is available it selects the pinned Xcode and
 installs the pinned iOS workload (both optional, via `IOS_XCODE_VERSION` /
-`IOS_WORKLOAD_VERSION`), stamps `CFBundleShortVersionString` (KtsuBuild's computed
-version) and `CFBundleVersion` (the build number, defaulting to
+`IOS_WORKLOAD_VERSION`), stamps `CFBundleShortVersionString` (the numeric core of
+KtsuBuild's computed version, since App Store Connect rejects a prerelease such as
+`1.4.3-pre.1`; an explicit `--version` that is not one to three integers fails before any
+provisioning) and `CFBundleVersion` (the build number, defaulting to
 `GITHUB_RUN_NUMBER`) into each head's `Info.plist` with `PlistBuddy`, imports the
 distribution certificate into a temporary `build.keychain` (with the OpenSSL 3DES
 transcode fallback for stubborn `.p12` files), installs the provisioning profile,

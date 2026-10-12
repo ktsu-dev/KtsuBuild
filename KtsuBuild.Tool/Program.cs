@@ -637,14 +637,15 @@ internal sealed class Program
 
 	/// <summary>
 	/// Resolves the marketing version stamped into the archive when the caller did not
-	/// pass one, using KtsuBuild's computed version.
+	/// pass one, using the numeric core of KtsuBuild's computed version. App Store Connect
+	/// rejects a prerelease such as <c>1.4.3-pre.1</c>, so the label is dropped.
 	/// </summary>
 	private static async Task<string> ResolveIosShortVersionAsync(KtsuBuild.Git.GitService gitService, IBuildLogger logger, string workspace, CancellationToken cancellationToken)
 	{
 		KtsuBuild.Git.VersionCalculator versionCalculator = new(gitService, logger);
 		string commitHash = await gitService.GetCurrentCommitHashAsync(workspace, cancellationToken).ConfigureAwait(false);
 		KtsuBuild.Git.VersionInfo versionInfo = await versionCalculator.GetVersionInfoAsync(workspace, commitHash, cancellationToken: cancellationToken).ConfigureAwait(false);
-		return versionInfo.Version;
+		return KtsuBuild.Ios.IosService.ResolveMarketingVersion(versionInfo.Version, logger);
 	}
 
 	/// <summary>

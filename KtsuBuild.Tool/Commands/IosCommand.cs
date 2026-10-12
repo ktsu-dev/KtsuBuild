@@ -83,7 +83,7 @@ public class IosCommand : Command
 		private static readonly Option<string?> VersionOption = new(
 			"--version", "-V")
 		{
-			Description = "The marketing version stamped into CFBundleShortVersionString. Defaults to KtsuBuild's computed version.",
+			Description = "The marketing version stamped into CFBundleShortVersionString. Must be one to three period-separated integers. Defaults to the numeric core of KtsuBuild's computed version.",
 		};
 
 		private static readonly Option<string?> BuildNumberOption = new(
