@@ -105,8 +105,9 @@ public sealed class PipelineService
 	/// </para>
 	/// </remarks>
 	/// <param name="context">The context this run was prepared with.</param>
-	/// <param name="versionBump">The forced version bump type, or anything else to detect it.</param>
+	/// <param name="versionBump">The forced version bump type (<c>patch</c>, <c>minor</c> or <c>major</c>), or <c>auto</c> to detect it.</param>
 	/// <param name="cancellationToken">A cancellation token.</param>
+	/// <exception cref="ArgumentException"><paramref name="versionBump"/> is not auto, patch, minor or major.</exception>
 	public async Task ResolveVersionAsync(PipelineContext context, string versionBump, CancellationToken cancellationToken)
 	{
 		Ensure.NotNull(context);
@@ -191,14 +192,16 @@ public sealed class PipelineService
 	/// </para>
 	/// </remarks>
 	/// <param name="context">The context this run was prepared with.</param>
-	/// <param name="versionBump">The forced version bump type, or anything else to detect it.</param>
+	/// <param name="versionBump">The forced version bump type (<c>patch</c>, <c>minor</c> or <c>major</c>), or <c>auto</c> to detect it.</param>
 	/// <param name="cancellationToken">A cancellation token.</param>
 	/// <returns>The metadata result, carrying its error message when the update failed.</returns>
+	/// <exception cref="ArgumentException"><paramref name="versionBump"/> is not auto, patch, minor or major.</exception>
 	public async Task<MetadataUpdateResult> UpdateMetadataAsync(PipelineContext context, string versionBump, CancellationToken cancellationToken)
 	{
 		Ensure.NotNull(context);
 		Ensure.NotNull(versionBump);
 
+		VersionType? forcedVersionType = ParseVersionBump(versionBump);
 		BuildConfiguration buildConfig = context.Configuration;
 
 		bool shouldCommitMetadata = buildConfig.IsOfficial && buildConfig.IsMain;
@@ -212,7 +215,7 @@ public sealed class PipelineService
 		{
 			BuildConfiguration = buildConfig,
 			CommitChanges = shouldCommitMetadata,
-			ForcedVersionType = ParseVersionBump(versionBump),
+			ForcedVersionType = forcedVersionType,
 		}, cancellationToken).ConfigureAwait(false);
 
 		if (!metadataResult.Success)
@@ -459,11 +462,14 @@ public sealed class PipelineService
 #pragma warning restore CA1031
 	}
 
+	// Anything unrecognised used to mean automatic detection, so a typo published the detected
+	// version instead of the forced one. Only "auto" means that now.
 	private static VersionType? ParseVersionBump(string versionBump) => versionBump.ToLowerInvariant() switch
 	{
+		"auto" => null,
 		"major" => VersionType.Major,
 		"minor" => VersionType.Minor,
 		"patch" => VersionType.Patch,
-		_ => null,
+		_ => throw new ArgumentException($"'{versionBump}' is not a valid version bump. Use auto, patch, minor or major.", nameof(versionBump)),
 	};
 }
