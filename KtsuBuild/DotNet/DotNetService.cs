@@ -302,7 +302,13 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger, st
 			solutionContextArgs += $" -p:SolutionName=\"{Path.GetFileNameWithoutExtension(solutionFile)}\"";
 		}
 
-		// Pack each non-test project individually
+		// Pack each non-test project individually. A failure is collected rather than thrown at once,
+		// so one run reports every project that failed, and it fails the pack after the loop. Logging
+		// it as a warning and carrying on let the release tag and publish without that package, on
+		// a green run, and the next run then had no commits to release it from. A project that is
+		// legitimately not packable (IsPackable=false) is a no-op that exits 0, so a non-zero exit
+		// is always a real failure.
+		List<string> failures = [];
 		foreach (string project in packableProjects)
 		{
 			string projectName = Path.GetFileNameWithoutExtension(project);
@@ -320,8 +326,14 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger, st
 
 			if (exitCode != 0)
 			{
-				logger.WriteWarning($"Pack failed for {projectName} with exit code {exitCode}");
+				logger.WriteError($"Pack failed for {projectName} with exit code {exitCode}");
+				failures.Add($"{projectName} (exit code {exitCode})");
 			}
+		}
+
+		if (failures.Count > 0)
+		{
+			throw new InvalidOperationException($"Pack failed for {failures.Count} project(s): {string.Join(", ", failures)}");
 		}
 
 		// Report on created packages
