@@ -513,25 +513,51 @@ public class DotNetServiceTests
 			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
+	// A failed pack used to be logged as a warning and skipped, so the release tagged and published
+	// without that package on a green run, and the next run had no commits to release it from. Every
+	// project is still attempted, so one run names every failure, and then the pack fails.
 	[TestMethod]
-	public async Task PackAsync_PackFailure_LogsWarningButContinues()
+	public async Task PackAsync_PackFailure_PacksTheRestThenThrowsNamingEveryFailure()
 	{
-		string libDir = Path.Combine(_tempDir, "MyLib");
+		foreach (string name in new[] { "Alpha", "Beta", "Gamma" })
+		{
+			string dir = Path.Combine(_tempDir, name);
+			Directory.CreateDirectory(dir);
+			await File.WriteAllTextAsync(Path.Combine(dir, $"{name}.csproj"),
+				"<Project><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>").ConfigureAwait(false);
+		}
+
+		string outputPath = Path.Combine(_tempDir, "output");
+		_processRunner.RunWithCallbackAsync("dotnet", Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
+			.Returns(call => ((string)call[1]).Contains("Gamma.csproj") ? 0 : 1);
+
+		InvalidOperationException exception = await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+			() => _service.PackAsync(_tempDir, outputPath)).ConfigureAwait(false);
+
+		StringAssert.Contains(exception.Message, "Alpha (exit code 1)");
+		StringAssert.Contains(exception.Message, "Beta (exit code 1)");
+		Assert.DoesNotContain("Gamma", exception.Message);
+		await _processRunner.Received(3).RunWithCallbackAsync("dotnet",
+			ArgMatch.NotNull<string>(a => a.StartsWith("pack ", StringComparison.Ordinal)),
+			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+	}
+
+	[TestMethod]
+	public async Task PackAsync_SuccessfulPackThatProducesNoPackage_DoesNotThrow()
+	{
+		string libDir = Path.Combine(_tempDir, "NotPackable");
 		Directory.CreateDirectory(libDir);
-		await File.WriteAllTextAsync(Path.Combine(libDir, "MyLib.csproj"),
+		await File.WriteAllTextAsync(Path.Combine(libDir, "NotPackable.csproj"),
 			"<Project><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>").ConfigureAwait(false);
 
 		string outputPath = Path.Combine(_tempDir, "output");
 		_processRunner.RunWithCallbackAsync("dotnet", Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
-			.Returns(1);
+			.Returns(0);
 
-		// Should NOT throw - pack failures are logged as warnings
+		// IsPackable=false makes dotnet pack a no-op that exits 0, which is not a failure.
 		await _service.PackAsync(_tempDir, outputPath).ConfigureAwait(false);
 
-		// The failing pack was still attempted, and the run continued past it.
-		await _processRunner.Received(1).RunWithCallbackAsync("dotnet",
-			ArgMatch.NotNull<string>(a => a.Contains("pack") && a.Contains("MyLib.csproj")),
-			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+		Assert.IsEmpty(Directory.GetFiles(outputPath, "*.nupkg"));
 	}
 
 	[TestMethod]

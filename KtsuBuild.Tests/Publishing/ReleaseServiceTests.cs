@@ -138,6 +138,35 @@ public class ReleaseServiceTests
 			Arg.Any<string>(), config.GitHubOwner, config.GithubToken, Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
+	// A pack that fails has to stop the release before anything public happens: a package already
+	// pushed or a tag and release already created for the version cannot be taken back, and a
+	// release missing one of its packages is never retried.
+	[TestMethod]
+	public async Task ExecuteReleaseAsync_FailedPack_PublishesNothingAndCreatesNoRelease()
+	{
+		BuildConfiguration config = CreateDefaultConfig();
+		config.GithubToken = "token123";
+		config.NuGetApiKey = "nuget-key";
+		config.KtsuPackageKey = "ktsu-key";
+		Directory.CreateDirectory(config.StagingPath);
+		await File.WriteAllTextAsync(Path.Combine(config.StagingPath, "Foo.1.3.0.nupkg"), "fake").ConfigureAwait(false);
+		string project = Path.Combine(_tempDir, "App", "App.csproj");
+		_dotNetService.GetProjectFiles(Arg.Any<string>()).Returns([project]);
+		_dotNetService.IsExecutableProject(project).Returns(true);
+		_dotNetService.PackAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+			.Returns(Task.FromException(new InvalidOperationException("Pack failed for 1 project(s): Foo.Extensions (exit code 1)")));
+
+		await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+			() => _service.ExecuteReleaseAsync(config, _tempDir, "Release")).ConfigureAwait(false);
+
+		await _dotNetService.DidNotReceive().PublishAsync(Arg.Any<PublishOptions>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+		await _nuGetPublisher.DidNotReceive().PublishToGitHubAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+		await _nuGetPublisher.DidNotReceive().PublishToNuGetOrgAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+		await _nuGetPublisher.DidNotReceive().PublishToSourceAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+		await _gitHubService.DidNotReceive().CreateReleaseAsync(Arg.Any<ReleaseOptions>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+		await _gitHubService.DidNotReceive().UploadReleaseAssetsAsync(Arg.Any<string>(), Arg.Any<IEnumerable<string>>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+	}
+
 	[TestMethod]
 	public async Task ExecuteReleaseAsync_PublishesToNuGetOrg_WhenApiKeyAvailable()
 	{

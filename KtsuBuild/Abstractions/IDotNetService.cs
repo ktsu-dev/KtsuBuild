@@ -92,6 +92,10 @@ public interface IDotNetService
 	/// <param name="configuration">The build configuration.</param>
 	/// <param name="releaseNotesFile">Optional path to release notes file.</param>
 	/// <param name="cancellationToken">A cancellation token.</param>
+	/// <exception cref="InvalidOperationException">
+	/// One or more projects failed to pack. Every project is attempted first, and the message names
+	/// each one that failed.
+	/// </exception>
 	public Task PackAsync(string workingDirectory, string outputPath, string configuration = "Release", string? releaseNotesFile = null, CancellationToken cancellationToken = default);
 
 	/// <summary>
