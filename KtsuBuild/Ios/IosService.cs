@@ -352,6 +352,26 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 	}
 
 	/// <summary>
+	/// Resolves the marketing version for a computed version with <see cref="ToMarketingVersion"/>,
+	/// and reports when that drops a prerelease label or build metadata, so the stamped version
+	/// can be traced back to the computed one.
+	/// </summary>
+	/// <param name="computedVersion">KtsuBuild's computed version.</param>
+	/// <param name="logger">The build logger the substitution is reported to.</param>
+	/// <returns>The version's <c>Major.Minor.Patch</c> core.</returns>
+	public static string ResolveMarketingVersion(string computedVersion, IBuildLogger logger)
+	{
+		Ensure.NotNull(logger);
+		string marketingVersion = ToMarketingVersion(computedVersion);
+		if (!string.Equals(marketingVersion, computedVersion, StringComparison.Ordinal))
+		{
+			logger.WriteInfo($"Using marketing version {marketingVersion} for computed version {computedVersion}.");
+		}
+
+		return marketingVersion;
+	}
+
+	/// <summary>
 	/// Stamps the marketing version and build number into a head's <c>Info.plist</c> with
 	/// <c>PlistBuddy</c>. Editing the plist directly is authoritative for a plain
 	/// <c>Microsoft.NET.Sdk</c> iOS head: an explicit <c>Info.plist</c> value wins over the

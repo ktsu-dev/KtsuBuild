@@ -66,6 +66,29 @@ public class IosServiceTests
 	// PackageAsync — marketing version
 
 	[TestMethod]
+	public void ResolveMarketingVersion_Prerelease_ReportsTheSubstitution()
+	{
+		RecordingBuildLogger logger = new();
+
+		string marketing = IosService.ResolveMarketingVersion("1.4.3-pre.1", logger);
+
+		Assert.AreEqual("1.4.3", marketing);
+		Assert.HasCount(1, logger.Infos);
+		Assert.Contains("1.4.3-pre.1", logger.Infos[0]);
+	}
+
+	[TestMethod]
+	public void ResolveMarketingVersion_Release_IsUnchangedAndSilent()
+	{
+		RecordingBuildLogger logger = new();
+
+		string marketing = IosService.ResolveMarketingVersion("1.4.3", logger);
+
+		Assert.AreEqual("1.4.3", marketing);
+		Assert.IsEmpty(logger.Infos);
+	}
+
+	[TestMethod]
 	[DataRow("2.0.0-beta.1")]
 	[DataRow("1.4.3-pre.1")]
 	[DataRow("1.2.3.4")]

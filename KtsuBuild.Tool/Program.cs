@@ -645,13 +645,7 @@ internal sealed class Program
 		KtsuBuild.Git.VersionCalculator versionCalculator = new(gitService, logger);
 		string commitHash = await gitService.GetCurrentCommitHashAsync(workspace, cancellationToken).ConfigureAwait(false);
 		KtsuBuild.Git.VersionInfo versionInfo = await versionCalculator.GetVersionInfoAsync(workspace, commitHash, cancellationToken: cancellationToken).ConfigureAwait(false);
-		string marketingVersion = KtsuBuild.Ios.IosService.ToMarketingVersion(versionInfo.Version);
-		if (!string.Equals(marketingVersion, versionInfo.Version, StringComparison.Ordinal))
-		{
-			logger.WriteInfo($"Using marketing version {marketingVersion} for computed version {versionInfo.Version}.");
-		}
-
-		return marketingVersion;
+		return KtsuBuild.Ios.IosService.ResolveMarketingVersion(versionInfo.Version, logger);
 	}
 
 	/// <summary>
