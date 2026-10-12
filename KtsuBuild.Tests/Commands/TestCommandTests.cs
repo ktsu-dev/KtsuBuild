@@ -28,6 +28,7 @@ public class TestCommandTests
 	private IProcessRunner _processRunner = null!;
 	private RecordingBuildLogger _logger = null!;
 	private string _workspace = null!;
+	private string _workspaceFromParent = null!;
 	private readonly List<string> _dotnetArguments = [];
 	private readonly List<IReadOnlyList<string>?> _filteredProjects = [];
 	private int _testExitCode;
@@ -114,12 +115,18 @@ public class TestCommandTests
 	/// Runs <paramref name="run"/> with the process directory set to the workspace's parent, so the
 	/// workspace can be named relatively, and puts the directory back afterwards.
 	/// </summary>
+	/// <remarks>
+	/// Records the workspace as the process directory reports it in
+	/// <see cref="_workspaceFromParent"/>. On macOS the temp path is reached through a symlink
+	/// (<c>/var</c> to <c>/private/var</c>), so it can differ from <see cref="_workspace"/>.
+	/// </remarks>
 	private async Task<int> InWorkspaceParent(Func<Task<int>> run)
 	{
 		string original = Directory.GetCurrentDirectory();
 		try
 		{
 			Directory.SetCurrentDirectory(Path.GetDirectoryName(_workspace)!);
+			_workspaceFromParent = Path.Combine(Directory.GetCurrentDirectory(), Path.GetFileName(_workspace));
 			return await run().ConfigureAwait(false);
 		}
 		finally
@@ -212,7 +219,7 @@ public class TestCommandTests
 
 		Assert.AreEqual(0, exitCode);
 		Assert.HasCount(1, _dotnetArguments);
-		Assert.Contains($"--solution \"{FilterPath}\"", _dotnetArguments[0]);
+		Assert.Contains($"--solution \"{Path.Combine(_workspaceFromParent, "ktsubuild.filtered.slnf")}\"", _dotnetArguments[0]);
 	}
 
 	[TestMethod]
@@ -405,7 +412,7 @@ public class TestCommandTests
 			.ConfigureAwait(false);
 
 		Assert.HasCount(1, _dotnetArguments);
-		Assert.Contains($"\"{project}\"", _dotnetArguments[0]);
+		Assert.Contains($"\"{Path.Combine(_workspaceFromParent, "Alpha.Test", "Alpha.Test.csproj")}\"", _dotnetArguments[0]);
 	}
 
 	[TestMethod]

@@ -658,14 +658,17 @@ public class DotNetServiceTests
 	{
 		string dir = Path.Combine(_tempDir, "MyProject");
 		Directory.CreateDirectory(dir);
-		string project = Path.Combine(dir, "MyProject.csproj");
-		File.WriteAllText(project, "<Project />");
+		File.WriteAllText(Path.Combine(dir, "MyProject.csproj"), "<Project />");
 		string original = Directory.GetCurrentDirectory();
 
+		// Expected as the process directory reports it: on macOS the temp path is reached through a
+		// symlink (/var to /private/var), so it can differ from _tempDir.
+		string project;
 		IReadOnlyList<string> files;
 		try
 		{
 			Directory.SetCurrentDirectory(Path.GetDirectoryName(_tempDir)!);
+			project = Path.Combine(Directory.GetCurrentDirectory(), Path.GetFileName(_tempDir), "MyProject", "MyProject.csproj");
 			files = _service.GetProjectFiles(Path.GetFileName(_tempDir));
 		}
 		finally

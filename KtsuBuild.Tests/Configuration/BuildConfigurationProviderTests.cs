@@ -14,6 +14,7 @@ public class BuildConfigurationProviderTests
 	private IGitHubService _gitHubService = null!;
 	private BuildConfigurationProvider _provider = null!;
 	private string _tempDir = null!;
+	private string _tempDirFromParent = null!;
 
 	[TestInitialize]
 	public void Setup()
@@ -190,9 +191,9 @@ public class BuildConfigurationProviderTests
 
 		BuildConfiguration config = await InWorkspaceParent(() => _provider.CreateAsync(options)).ConfigureAwait(false);
 
-		Assert.AreEqual(_tempDir, config.WorkspacePath);
-		Assert.AreEqual(Path.Combine(_tempDir, "output"), config.OutputPath);
-		Assert.IsTrue(config.StagingPath.StartsWith(_tempDir + Path.DirectorySeparatorChar, StringComparison.Ordinal), config.StagingPath);
+		Assert.AreEqual(_tempDirFromParent, config.WorkspacePath);
+		Assert.AreEqual(Path.Combine(_tempDirFromParent, "output"), config.OutputPath);
+		Assert.IsTrue(config.StagingPath.StartsWith(_tempDirFromParent + Path.DirectorySeparatorChar, StringComparison.Ordinal), config.StagingPath);
 		Assert.IsTrue(config.PackagePattern.StartsWith(config.StagingPath, StringComparison.Ordinal), config.PackagePattern);
 	}
 
@@ -207,11 +208,11 @@ public class BuildConfigurationProviderTests
 		{
 			BuildConfiguration config = await InWorkspaceParent(() => _provider.CreateFromEnvironmentAsync(Path.GetFileName(_tempDir))).ConfigureAwait(false);
 
-			Assert.AreEqual(_tempDir, config.WorkspacePath);
+			Assert.AreEqual(_tempDirFromParent, config.WorkspacePath);
 			Assert.IsNotEmpty(config.AssetPatterns);
 			foreach (string pattern in config.AssetPatterns)
 			{
-				Assert.IsTrue(pattern.StartsWith(_tempDir + Path.DirectorySeparatorChar, StringComparison.Ordinal), pattern);
+				Assert.IsTrue(pattern.StartsWith(_tempDirFromParent + Path.DirectorySeparatorChar, StringComparison.Ordinal), pattern);
 			}
 		}
 		finally
@@ -437,12 +438,18 @@ public class BuildConfigurationProviderTests
 	/// Runs <paramref name="create"/> with the process directory set to the workspace's parent, so
 	/// the workspace can be named relatively, and puts the directory back afterwards.
 	/// </summary>
+	/// <remarks>
+	/// Records the workspace as the process directory reports it in
+	/// <see cref="_tempDirFromParent"/>. On macOS the temp path is reached through a symlink
+	/// (<c>/var</c> to <c>/private/var</c>), so it can differ from <see cref="_tempDir"/>.
+	/// </remarks>
 	private async Task<BuildConfiguration> InWorkspaceParent(Func<Task<BuildConfiguration>> create)
 	{
 		string original = Directory.GetCurrentDirectory();
 		try
 		{
 			Directory.SetCurrentDirectory(Path.GetDirectoryName(_tempDir)!);
+			_tempDirFromParent = Path.Combine(Directory.GetCurrentDirectory(), Path.GetFileName(_tempDir));
 			return await create().ConfigureAwait(false);
 		}
 		finally
