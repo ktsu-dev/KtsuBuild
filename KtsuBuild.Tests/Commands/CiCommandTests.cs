@@ -2,6 +2,7 @@
 
 namespace KtsuBuild.Tests.Commands;
 
+using System.CommandLine;
 using KtsuBuild.Abstractions;
 using KtsuBuild.Tests.Helpers;
 using KtsuBuild.Tests.Mocks;
@@ -109,6 +110,25 @@ public class CiCommandTests
 		string versionFile = Path.Combine(_workspace, "VERSION.md");
 		Assert.IsTrue(File.Exists(versionFile), string.Join(Environment.NewLine, _logger.Errors));
 		Assert.AreEqual("4.0.0", (await File.ReadAllTextAsync(versionFile, TestContext.CancellationToken).ConfigureAwait(false)).Trim());
+	}
+
+	// A relative --workspace stayed relative, and the child processes that start inside the
+	// workspace resolved every path built from it a second time.
+	[TestMethod]
+	public void WorkspaceIsMadeAbsoluteAtParseTime()
+	{
+		ParseResult result = new CiCommand().Parse(["--workspace", "repo"]);
+
+		Assert.IsEmpty(result.Errors);
+		Assert.AreEqual(Path.GetFullPath("repo"), result.GetValue(GlobalOptions.Workspace));
+	}
+
+	[TestMethod]
+	public void WorkspaceDefaultsToTheCurrentDirectory()
+	{
+		ParseResult result = new CiCommand().Parse([]);
+
+		Assert.AreEqual(Directory.GetCurrentDirectory(), result.GetValue(GlobalOptions.Workspace));
 	}
 
 	/// <summary>

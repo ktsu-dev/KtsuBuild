@@ -104,11 +104,15 @@ public class TestCommand : Command
 		IProcessRunner processRunner,
 		IBuildLogger logger)
 	{
-		return async (workspace, configuration, project, noBuild, verbose, cancellationToken) =>
+		return async (workspaceArgument, configuration, project, noBuild, verbose, cancellationToken) =>
 		{
 			logger.VerboseEnabled = verbose;
 			BuildEnvironment.Initialize();
 			DotNetService dotNetService = new(processRunner, logger);
+
+			// dotnet runs inside the workspace, so a path left relative to this process would be
+			// resolved against the workspace a second time.
+			string workspace = Path.GetFullPath(workspaceArgument);
 
 #pragma warning disable CA1031 // Top-level command handler must catch all exceptions
 			try
@@ -137,11 +141,15 @@ public class TestCommand : Command
 		IProcessRunner processRunner,
 		IBuildLogger logger)
 	{
-		return async (workspace, configuration, exclude, verbose, cancellationToken) =>
+		return async (workspaceArgument, configuration, exclude, verbose, cancellationToken) =>
 		{
 			logger.VerboseEnabled = verbose;
 			BuildEnvironment.Initialize();
 			DotNetService dotNetService = new(processRunner, logger);
+
+			// dotnet runs inside the workspace, so a path left relative to this process would be
+			// resolved against the workspace a second time.
+			string workspace = Path.GetFullPath(workspaceArgument);
 
 #pragma warning disable CA1031 // Top-level command handler must catch all exceptions
 			try
