@@ -452,12 +452,12 @@ public class DotNetServiceTests
 		Directory.CreateDirectory(Path.Combine(_tempDir, "Foo.Tests"));
 		await File.WriteAllTextAsync(
 			Path.Combine(_tempDir, "Foo.Tests", "Foo.Tests.csproj"),
-			"<Project><PropertyGroup><IsTestProject>true</IsTestProject><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>").ConfigureAwait(false);
+			"<Project><PropertyGroup><IsTestProject>true</IsTestProject><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>", TestContext.CancellationToken).ConfigureAwait(false);
 		string? captured = null;
 		_processRunner.RunWithCallbackAsync("dotnet", Arg.Do<string>(a => captured = a), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
 			.Returns(0);
 
-		await _service.TestAsync(_tempDir, "Release", "coverage", hostRuntimeOnly).ConfigureAwait(false);
+		await _service.TestAsync(_tempDir, "Release", "coverage", hostRuntimeOnly, cancellationToken: TestContext.CancellationToken).ConfigureAwait(false);
 
 		Assert.IsNotNull(captured);
 		return captured;
@@ -470,7 +470,7 @@ public class DotNetServiceTests
 		_processRunner.RunWithCallbackAsync("dotnet", Arg.Do<string>(a => captured = a), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
 			.Returns(0);
 
-		await _service.TestProjectAsync(project, _tempDir, "Release", "coverage", noBuild, hostRuntimeOnly).ConfigureAwait(false);
+		await _service.TestProjectAsync(project, _tempDir, "Release", "coverage", noBuild, hostRuntimeOnly, cancellationToken: TestContext.CancellationToken).ConfigureAwait(false);
 
 		Assert.IsNotNull(captured);
 		return captured;
