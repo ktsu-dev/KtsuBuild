@@ -16,6 +16,8 @@ public class IosServiceTests
 	private IosService _service = null!;
 	private string _tempDir = null!;
 
+	public TestContext TestContext { get; set; } = null!;
+
 	[TestInitialize]
 	public void Setup()
 	{
@@ -76,7 +78,7 @@ public class IosServiceTests
 			WorkingDirectory = _tempDir,
 			ShortVersion = version,
 			SigningAvailable = true,
-		})).ConfigureAwait(false);
+		}, TestContext.CancellationToken)).ConfigureAwait(false);
 
 		// The version is rejected before any head is resolved or the toolchain and keychain are touched.
 		_dotNetService.DidNotReceive().GetIosHeads(Arg.Any<string>());
