@@ -35,6 +35,7 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 
 #pragma warning disable SYSLIB1045 // GeneratedRegex not available in netstandard2.0/2.1
 	private static readonly Regex TargetFrameworkRegex = new(@"<TargetFrameworks?>\s*([^<]+?)\s*</TargetFrameworks?>", RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexDefaults.MatchTimeout);
+	private static readonly Regex ShortVersionRegex = new(@"^[0-9]+(\.[0-9]+){0,2}$", RegexOptions.CultureInvariant | RegexOptions.Compiled, RegexDefaults.MatchTimeout);
 #pragma warning restore SYSLIB1045
 
 	/// <inheritdoc/>
@@ -50,6 +51,15 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 			string reason = "iOS signing material is not available. Skipping the package step.";
 			logger.WriteInfo(reason);
 			return new IosPackageResult { Success = true, Skipped = true, SkipReason = reason };
+		}
+
+		// App Store Connect rejects anything else in CFBundleShortVersionString (ITMS-90060), and
+		// only at upload, so a bad version fails here before any toolchain or keychain work.
+		if (!IsValidShortVersion(options.ShortVersion))
+		{
+			throw new ArgumentException(
+				$"'{options.ShortVersion}' is not a valid CFBundleShortVersionString. Apple accepts one to three period-separated non-negative integers, such as 1.4.3.",
+				nameof(options));
 		}
 
 		// iOS archives only on macOS (the Xcode toolchain and the iOS workload are
@@ -316,6 +326,29 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 		{
 			await InstallIosWorkloadAsync(workloadVersion, cancellationToken).ConfigureAwait(false);
 		}
+	}
+
+	/// <summary>
+	/// Determines whether a version is acceptable as <c>CFBundleShortVersionString</c>: one to
+	/// three period-separated non-negative integers, such as <c>1.4.3</c>.
+	/// </summary>
+	/// <param name="version">The candidate marketing version.</param>
+	/// <returns><see langword="true"/> if App Store Connect accepts the version; otherwise <see langword="false"/>.</returns>
+	public static bool IsValidShortVersion(string? version) =>
+		!string.IsNullOrEmpty(version) && ShortVersionRegex.IsMatch(version);
+
+	/// <summary>
+	/// Reduces a computed SemVer version to the numeric core App Store Connect accepts as the
+	/// marketing version, dropping any prerelease label and build metadata. A computed
+	/// <c>1.4.3-pre.1</c> becomes <c>1.4.3</c>.
+	/// </summary>
+	/// <param name="version">The computed version.</param>
+	/// <returns>The version's <c>Major.Minor.Patch</c> core.</returns>
+	public static string ToMarketingVersion(string version)
+	{
+		Ensure.NotNull(version);
+		int suffix = version.IndexOfAny(['-', '+']);
+		return suffix < 0 ? version : version[..suffix];
 	}
 
 	/// <summary>
