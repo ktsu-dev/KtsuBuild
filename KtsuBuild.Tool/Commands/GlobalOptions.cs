@@ -46,13 +46,15 @@ public static class GlobalOptions
 	};
 
 	/// <summary>
+	/// Gets the values <see cref="VersionBump"/> accepts, compared ignoring case. Declared before
+	/// it because static initializers run in declaration order.
+	/// </summary>
+	internal static IReadOnlyList<string> VersionBumpValues { get; } = ["auto", "patch", "minor", "major"];
+
+	/// <summary>
 	/// Gets the version-bump option.
 	/// </summary>
-	public static Option<string> VersionBump { get; } = new("--version-bump")
-	{
-		Description = "Force a specific version bump type (auto, patch, minor, major)",
-		DefaultValueFactory = _ => "auto",
-	};
+	public static Option<string> VersionBump { get; } = CreateVersionBumpOption();
 
 	/// <summary>
 	/// Gets the no-test option.
@@ -71,4 +73,28 @@ public static class GlobalOptions
 		Description = "Skip the release step, leaving the release to a later step or job",
 		DefaultValueFactory = _ => false,
 	};
+
+	// A value outside the list used to fall through to automatic detection, so a typo such as
+	// "majr" published the detected version instead of the intended one, and a published NuGet
+	// version cannot be taken back. Rejecting it at parse time fails the run before any stage.
+	private static Option<string> CreateVersionBumpOption()
+	{
+		Option<string> option = new("--version-bump")
+		{
+			Description = "Force a specific version bump type (auto, patch, minor, major)",
+			DefaultValueFactory = _ => "auto",
+		};
+
+		option.Validators.Add(result =>
+		{
+			string? value = result.GetValueOrDefault<string>();
+			if (!VersionBumpValues.Contains(value, StringComparer.OrdinalIgnoreCase))
+			{
+				result.AddError($"'{value}' is not a valid --version-bump value. Use one of: {string.Join(", ", VersionBumpValues)}.");
+			}
+		});
+		option.CompletionSources.Add([.. VersionBumpValues]);
+
+		return option;
+	}
 }

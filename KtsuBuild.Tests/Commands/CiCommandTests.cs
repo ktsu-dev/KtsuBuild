@@ -2,6 +2,7 @@
 
 namespace KtsuBuild.Tests.Commands;
 
+using System.CommandLine;
 using KtsuBuild.Abstractions;
 using KtsuBuild.Tests.Helpers;
 using KtsuBuild.Tests.Mocks;
@@ -109,6 +110,42 @@ public class CiCommandTests
 		string versionFile = Path.Combine(_workspace, "VERSION.md");
 		Assert.IsTrue(File.Exists(versionFile), string.Join(Environment.NewLine, _logger.Errors));
 		Assert.AreEqual("4.0.0", (await File.ReadAllTextAsync(versionFile, TestContext.CancellationToken).ConfigureAwait(false)).Trim());
+	}
+
+	// --version-bump had no validator, so a typo fell through to automatic detection and published
+	// the detected version: "majr" on top of v3.10.0 and a fix released 3.10.1, not 4.0.0.
+	[TestMethod]
+	[DataRow("majr")]
+	[DataRow("pre")]
+	[DataRow("")]
+	public void VersionBumpRejectsAnUnknownValueAtParseTime(string versionBump)
+	{
+		ParseResult result = new CiCommand().Parse(["--version-bump", versionBump]);
+
+		Assert.HasCount(1, result.Errors);
+		StringAssert.Contains(result.Errors[0].Message, "--version-bump");
+	}
+
+	[TestMethod]
+	[DataRow("auto")]
+	[DataRow("patch")]
+	[DataRow("Minor")]
+	[DataRow("MAJOR")]
+	public void VersionBumpAcceptsTheKnownValuesIgnoringCase(string versionBump)
+	{
+		ParseResult result = new CiCommand().Parse(["--version-bump", versionBump]);
+
+		Assert.IsEmpty(result.Errors);
+		Assert.AreEqual(versionBump, result.GetValue(GlobalOptions.VersionBump));
+	}
+
+	[TestMethod]
+	public void VersionBumpDefaultsToAuto()
+	{
+		ParseResult result = new CiCommand().Parse([]);
+
+		Assert.IsEmpty(result.Errors);
+		Assert.AreEqual("auto", result.GetValue(GlobalOptions.VersionBump));
 	}
 
 	/// <summary>

@@ -189,6 +189,42 @@ public class PipelineServiceTests
 		Assert.IsFalse(context.ReleaseSuppressedByVersionGate);
 	}
 
+	// An unrecognised value used to mean automatic detection, so a typo published the detected
+	// version instead of the forced one.
+	[TestMethod]
+	[DataRow("majr")]
+	[DataRow("prerelease")]
+	public async Task ResolveVersionRejectsAnUnknownVersionBump(string versionBump)
+	{
+		PipelineContext context = await _pipeline.PrepareAsync(_tempDir, "Release", CancellationToken.None).ConfigureAwait(false);
+
+		await Assert.ThrowsExactlyAsync<ArgumentException>(
+			() => _pipeline.ResolveVersionAsync(context, versionBump, CancellationToken.None)).ConfigureAwait(false);
+		Assert.IsNull(context.VersionInfo);
+	}
+
+	[TestMethod]
+	[DataRow("majr")]
+	[DataRow("prerelease")]
+	public async Task UpdateMetadataRejectsAnUnknownVersionBumpBeforeWritingAnything(string versionBump)
+	{
+		PipelineContext context = await _pipeline.PrepareAsync(_tempDir, "Release", CancellationToken.None).ConfigureAwait(false);
+
+		await Assert.ThrowsExactlyAsync<ArgumentException>(
+			() => _pipeline.UpdateMetadataAsync(context, versionBump, CancellationToken.None)).ConfigureAwait(false);
+		Assert.IsFalse(File.Exists(Path.Combine(_tempDir, "VERSION.md")));
+	}
+
+	[TestMethod]
+	[DataRow("AUTO")]
+	[DataRow("Major")]
+	public async Task ResolveVersionReadsTheVersionBumpIgnoringCase(string versionBump)
+	{
+		PipelineContext context = await ResolveAsync(versionBump).ConfigureAwait(false);
+
+		Assert.IsNotNull(context.VersionInfo);
+	}
+
 	// ci takes its version from the metadata stage, so a forced bump that only reached the version
 	// gate published the detected version: --version-bump major on top of v3.10.0 and a fix
 	// released 3.10.1.
