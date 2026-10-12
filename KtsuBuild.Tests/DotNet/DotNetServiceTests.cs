@@ -135,6 +135,30 @@ public class DotNetServiceTests
 	}
 
 	[TestMethod]
+	public async Task BuildAsync_RetryIsVerboseAndIncremental()
+	{
+		List<string> invocations = [];
+		_processRunner.RunWithCallbackAsync("dotnet", Arg.Do<string>(invocations.Add), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
+			.Returns(1, 0);
+
+		await _service.BuildAsync(_tempDir, additionalArgs: "-maxCpuCount:1").ConfigureAwait(false);
+
+		Assert.HasCount(2, invocations);
+		Assert.Contains("Verbosity=quiet", invocations[0]);
+		Assert.Contains("--no-incremental", invocations[0]);
+
+		// The retry announces detailed verbosity, so it has to deliver it, and the first pass already did
+		// the full rebuild, so repeating --no-incremental would only cost time.
+		string retry = invocations[1];
+		Assert.Contains("-v:detailed", retry);
+		Assert.DoesNotContain("Verbosity=quiet", retry);
+		Assert.DoesNotContain("--no-incremental", retry);
+		Assert.Contains("--configuration Release", retry);
+		Assert.Contains("--no-restore", retry);
+		Assert.Contains("-maxCpuCount:1", retry);
+	}
+
+	[TestMethod]
 	public async Task BuildAsync_BothAttemptsFail_ThrowsInvalidOperationException()
 	{
 		_processRunner.RunWithCallbackAsync("dotnet", Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())

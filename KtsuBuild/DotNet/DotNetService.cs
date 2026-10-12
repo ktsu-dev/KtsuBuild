@@ -78,11 +78,8 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger, st
 		Ensure.NotNull(workingDirectory);
 		logger.WriteStepHeader("Building Solution");
 
-		string args = $"build --configuration {configuration} {QuietLogger} --no-incremental --no-restore";
-		if (!string.IsNullOrEmpty(additionalArgs))
-		{
-			args += $" {additionalArgs}";
-		}
+		string extraArgs = string.IsNullOrEmpty(additionalArgs) ? string.Empty : $" {additionalArgs}";
+		string args = $"build --configuration {configuration} {QuietLogger} --no-incremental --no-restore{extraArgs}";
 
 		int exitCode = await processRunner.RunWithCallbackAsync(
 			DotNetCli,
@@ -96,10 +93,13 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger, st
 		{
 			logger.WriteWarning($"Build failed with exit code {exitCode}. Retrying with detailed verbosity...");
 
-			// Retry with more verbose output
+			// The retry exists only to show why the build failed, so it drops the quiet logger for
+			// detailed console output. It is incremental, because the first pass already compiled
+			// everything that could compile and a second full rebuild would add minutes, not detail.
+			string retryArgs = $"build --configuration {configuration} -v:detailed --no-restore{extraArgs}";
 			exitCode = await processRunner.RunWithCallbackAsync(
 				DotNetCli,
-				args,
+				retryArgs,
 				workingDirectory,
 				logger.WriteInfo,
 				logger.WriteError,
