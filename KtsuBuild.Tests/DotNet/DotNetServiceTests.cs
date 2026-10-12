@@ -19,6 +19,8 @@ public class DotNetServiceTests
 	private string _toolsDir = null!;
 	private string? _mergeArguments;
 
+	public TestContext TestContext { get; set; } = null!;
+
 	[TestInitialize]
 	public void Setup()
 	{
@@ -141,7 +143,7 @@ public class DotNetServiceTests
 		_processRunner.RunWithCallbackAsync("dotnet", Arg.Do<string>(invocations.Add), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
 			.Returns(1, 0);
 
-		await _service.BuildAsync(_tempDir, additionalArgs: "-maxCpuCount:1").ConfigureAwait(false);
+		await _service.BuildAsync(_tempDir, additionalArgs: "-maxCpuCount:1", cancellationToken: TestContext.CancellationToken).ConfigureAwait(false);
 
 		Assert.HasCount(2, invocations);
 		Assert.Contains("Verbosity=quiet", invocations[0]);
