@@ -148,6 +148,25 @@ public class CiCommandTests
 		Assert.AreEqual("auto", result.GetValue(GlobalOptions.VersionBump));
 	}
 
+	// A relative --workspace stayed relative, and the child processes that start inside the
+	// workspace resolved every path built from it a second time.
+	[TestMethod]
+	public void WorkspaceIsMadeAbsoluteAtParseTime()
+	{
+		ParseResult result = new CiCommand().Parse(["--workspace", "repo"]);
+
+		Assert.IsEmpty(result.Errors);
+		Assert.AreEqual(Path.GetFullPath("repo"), result.GetValue(GlobalOptions.Workspace));
+	}
+
+	[TestMethod]
+	public void WorkspaceDefaultsToTheCurrentDirectory()
+	{
+		ParseResult result = new CiCommand().Parse([]);
+
+		Assert.AreEqual(Directory.GetCurrentDirectory(), result.GetValue(GlobalOptions.Workspace));
+	}
+
 	/// <summary>
 	/// Answers the git commands version calculation runs: one tag, <c>v3.10.0</c>, with a single fix
 	/// since it. Everything else succeeds with no output.

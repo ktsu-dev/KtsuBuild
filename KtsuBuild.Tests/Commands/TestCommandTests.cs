@@ -28,6 +28,7 @@ public class TestCommandTests
 	private IProcessRunner _processRunner = null!;
 	private RecordingBuildLogger _logger = null!;
 	private string _workspace = null!;
+	private string _workspaceFromParent = null!;
 	private readonly List<string> _dotnetArguments = [];
 	private readonly List<IReadOnlyList<string>?> _filteredProjects = [];
 	private int _testExitCode;
@@ -110,6 +111,30 @@ public class TestCommandTests
 		File.WriteAllText(Path.Combine(_workspace, "Sample.slnx"), $"<Solution>\n  {projects}\n</Solution>\n");
 	}
 
+	/// <summary>
+	/// Runs <paramref name="run"/> with the process directory set to the workspace's parent, so the
+	/// workspace can be named relatively, and puts the directory back afterwards.
+	/// </summary>
+	/// <remarks>
+	/// Records the workspace as the process directory reports it in
+	/// <see cref="_workspaceFromParent"/>. On macOS the temp path is reached through a symlink
+	/// (<c>/var</c> to <c>/private/var</c>), so it can differ from <see cref="_workspace"/>.
+	/// </remarks>
+	private async Task<int> InWorkspaceParent(Func<Task<int>> run)
+	{
+		string original = Directory.GetCurrentDirectory();
+		try
+		{
+			Directory.SetCurrentDirectory(Path.GetDirectoryName(_workspace)!);
+			_workspaceFromParent = Path.Combine(Directory.GetCurrentDirectory(), Path.GetFileName(_workspace));
+			return await run().ConfigureAwait(false);
+		}
+		finally
+		{
+			Directory.SetCurrentDirectory(original);
+		}
+	}
+
 	private Task<int> RunAll(params string[] exclude) =>
 		TestCommand.CreateAllHandler(_processRunner, _logger)(_workspace, "Release", exclude, false, TestContext.CancellationToken);
 
@@ -178,6 +203,23 @@ public class TestCommandTests
 		Assert.Contains("Alpha.Test/Alpha.Test.csproj", kept);
 		Assert.DoesNotContain("Beta.Test/Beta.Test.csproj", kept);
 		Assert.IsTrue(RecordingBuildLogger.Any(_logger.Infos, "Excluding Beta.Test/Beta.Test.csproj from the test run."));
+	}
+
+	[TestMethod]
+	[DoNotParallelize]
+	public async Task CreateAllHandler_RelativeWorkspace_PassesAnAbsoluteSolutionFilter()
+	{
+		WriteProject("Alpha.Test");
+		WriteProject("Beta.Test");
+		WriteSolution("Alpha.Test", "Beta.Test");
+
+		int exitCode = await InWorkspaceParent(() => TestCommand.CreateAllHandler(_processRunner, _logger)(
+			Path.GetFileName(_workspace), "Release", ["Beta.Test/**"], false, TestContext.CancellationToken))
+			.ConfigureAwait(false);
+
+		Assert.AreEqual(0, exitCode);
+		Assert.HasCount(1, _dotnetArguments);
+		Assert.Contains($"--solution \"{Path.Combine(_workspaceFromParent, "ktsubuild.filtered.slnf")}\"", _dotnetArguments[0]);
 	}
 
 	[TestMethod]
@@ -354,6 +396,23 @@ public class TestCommandTests
 		// A relative path left unresolved would be read against the process directory, where it does
 		// not exist.
 		Assert.Contains(project, _dotnetArguments[0]);
+	}
+
+	// dotnet starts inside the workspace, so a relative workspace prefixed onto the project path was
+	// resolved a second time there: --workspace repo --project tests/X.Tests.csproj ran
+	// repo/repo/tests/X.Tests.csproj.
+	[TestMethod]
+	[DoNotParallelize]
+	public async Task CreateRunHandler_RelativeWorkspace_PassesAnAbsoluteProjectPath()
+	{
+		string project = WriteProject("Alpha.Test");
+
+		await InWorkspaceParent(() => TestCommand.CreateRunHandler(_processRunner, _logger)(
+			Path.GetFileName(_workspace), "Release", Path.GetRelativePath(_workspace, project), false, false, TestContext.CancellationToken))
+			.ConfigureAwait(false);
+
+		Assert.HasCount(1, _dotnetArguments);
+		Assert.Contains($"\"{Path.Combine(_workspaceFromParent, "Alpha.Test", "Alpha.Test.csproj")}\"", _dotnetArguments[0]);
 	}
 
 	[TestMethod]

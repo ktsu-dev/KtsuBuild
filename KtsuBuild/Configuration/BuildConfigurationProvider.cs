@@ -36,20 +36,24 @@ public class BuildConfigurationProvider(IGitService gitService, IGitHubService g
 	{
 		Ensure.NotNull(options);
 
+		// Every path below is handed to a child process that starts inside the workspace, which
+		// would resolve a relative one a second time.
+		string workspacePath = Path.GetFullPath(options.WorkspacePath);
+
 		// Check if official repository
-		bool isOfficial = await gitHubService.IsOfficialRepositoryAsync(options.WorkspacePath, options.ExpectedOwner, cancellationToken).ConfigureAwait(false);
+		bool isOfficial = await gitHubService.IsOfficialRepositoryAsync(workspacePath, options.ExpectedOwner, cancellationToken).ConfigureAwait(false);
 
 		// Check branch and tag status
 		bool isMain = options.GitRef == "refs/heads/main";
-		bool isTagged = await gitService.IsCommitTaggedAsync(options.WorkspacePath, options.GitSha, cancellationToken).ConfigureAwait(false);
+		bool isTagged = await gitService.IsCommitTaggedAsync(workspacePath, options.GitSha, cancellationToken).ConfigureAwait(false);
 		bool shouldRelease = isMain && !isTagged && isOfficial;
 
 		// Check for .csx files
-		bool useDotnetScript = Directory.GetFiles(options.WorkspacePath, "*.csx", SearchOption.AllDirectories).Length > 0;
+		bool useDotnetScript = Directory.GetFiles(workspacePath, "*.csx", SearchOption.AllDirectories).Length > 0;
 
 		// Setup paths
-		string outputPath = Path.Combine(options.WorkspacePath, "output");
-		string stagingPath = Path.Combine(options.WorkspacePath, StagingDirectoryName);
+		string outputPath = Path.Combine(workspacePath, "output");
+		string stagingPath = Path.Combine(workspacePath, StagingDirectoryName);
 
 		return new BuildConfiguration
 		{
@@ -64,7 +68,7 @@ public class BuildConfigurationProvider(IGitService gitService, IGitHubService g
 			SymbolsPattern = Path.Combine(stagingPath, "*.snupkg"),
 			ApplicationPattern = Path.Combine(stagingPath, "*.zip"),
 			BuildArgs = useDotnetScript ? "-maxCpuCount:1" : string.Empty,
-			WorkspacePath = options.WorkspacePath,
+			WorkspacePath = workspacePath,
 			ServerUrl = options.ServerUrl,
 			GitRef = options.GitRef,
 			GitSha = options.GitSha,
@@ -87,6 +91,7 @@ public class BuildConfigurationProvider(IGitService gitService, IGitHubService g
 	public async Task<BuildConfiguration> CreateFromEnvironmentAsync(string workspacePath, CancellationToken cancellationToken = default)
 	{
 		Ensure.NotNull(workspacePath);
+		workspacePath = Path.GetFullPath(workspacePath);
 
 		// Read from environment variables (GitHub Actions style)
 		string serverUrl = Environment.GetEnvironmentVariable("GITHUB_SERVER_URL") ?? DefaultServerUrl;

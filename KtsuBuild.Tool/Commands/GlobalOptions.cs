@@ -12,10 +12,16 @@ public static class GlobalOptions
 	/// <summary>
 	/// Gets the workspace option.
 	/// </summary>
+	/// <remarks>
+	/// A relative value is made absolute against the current directory here, once. Paths built from
+	/// a relative workspace stayed relative, and the child processes that start inside the workspace
+	/// resolved them a second time, so <c>--workspace repo</c> packed <c>repo/repo/...</c>.
+	/// </remarks>
 	public static Option<string> Workspace { get; } = new("--workspace", "-w")
 	{
 		Description = "The workspace/repository path",
 		DefaultValueFactory = _ => Directory.GetCurrentDirectory(),
+		CustomParser = result => Path.GetFullPath(result.Tokens.Single().Value),
 	};
 
 	/// <summary>

@@ -14,6 +14,7 @@ public class BuildConfigurationProviderTests
 	private IGitHubService _gitHubService = null!;
 	private BuildConfigurationProvider _provider = null!;
 	private string _tempDir = null!;
+	private string _tempDirFromParent = null!;
 
 	[TestInitialize]
 	public void Setup()
@@ -176,6 +177,48 @@ public class BuildConfigurationProviderTests
 		BuildConfiguration config = await _provider.CreateAsync(options).ConfigureAwait(false);
 
 		Assert.AreEqual("1.0.0-pre.0", config.Version);
+	}
+
+	// Every path the configuration carries goes to a child process that starts inside the
+	// workspace, so a relative one was resolved there a second time: pack wrote to repo/repo/staging.
+	[TestMethod]
+	[DoNotParallelize]
+	public async Task CreateAsync_RelativeWorkspace_MakesEveryPathAbsolute()
+	{
+		SetupDefaultMocks();
+		BuildConfigurationOptions options = CreateDefaultOptions();
+		options.WorkspacePath = Path.GetFileName(_tempDir);
+
+		BuildConfiguration config = await InWorkspaceParent(() => _provider.CreateAsync(options)).ConfigureAwait(false);
+
+		Assert.AreEqual(_tempDirFromParent, config.WorkspacePath);
+		Assert.AreEqual(Path.Combine(_tempDirFromParent, "output"), config.OutputPath);
+		Assert.IsTrue(config.StagingPath.StartsWith(_tempDirFromParent + Path.DirectorySeparatorChar, StringComparison.Ordinal), config.StagingPath);
+		Assert.IsTrue(config.PackagePattern.StartsWith(config.StagingPath, StringComparison.Ordinal), config.PackagePattern);
+	}
+
+	[TestMethod]
+	[DoNotParallelize]
+	public async Task CreateFromEnvironmentAsync_RelativeWorkspace_MakesTheAssetPatternsAbsolute()
+	{
+		SetupDefaultMocks();
+		Environment.SetEnvironmentVariable("GITHUB_REPOSITORY", "testowner/testrepo");
+
+		try
+		{
+			BuildConfiguration config = await InWorkspaceParent(() => _provider.CreateFromEnvironmentAsync(Path.GetFileName(_tempDir))).ConfigureAwait(false);
+
+			Assert.AreEqual(_tempDirFromParent, config.WorkspacePath);
+			Assert.IsNotEmpty(config.AssetPatterns);
+			foreach (string pattern in config.AssetPatterns)
+			{
+				Assert.IsTrue(pattern.StartsWith(_tempDirFromParent + Path.DirectorySeparatorChar, StringComparison.Ordinal), pattern);
+			}
+		}
+		finally
+		{
+			Environment.SetEnvironmentVariable("GITHUB_REPOSITORY", null);
+		}
 	}
 
 	// CreateFromEnvironmentAsync
@@ -389,6 +432,30 @@ public class BuildConfigurationProviderTests
 			.Returns("abc123");
 		_gitService.GetRemoteUrlAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
 			.Returns(Task.FromResult<string?>(null));
+	}
+
+	/// <summary>
+	/// Runs <paramref name="create"/> with the process directory set to the workspace's parent, so
+	/// the workspace can be named relatively, and puts the directory back afterwards.
+	/// </summary>
+	/// <remarks>
+	/// Records the workspace as the process directory reports it in
+	/// <see cref="_tempDirFromParent"/>. On macOS the temp path is reached through a symlink
+	/// (<c>/var</c> to <c>/private/var</c>), so it can differ from <see cref="_tempDir"/>.
+	/// </remarks>
+	private async Task<BuildConfiguration> InWorkspaceParent(Func<Task<BuildConfiguration>> create)
+	{
+		string original = Directory.GetCurrentDirectory();
+		try
+		{
+			Directory.SetCurrentDirectory(Path.GetDirectoryName(_tempDir)!);
+			_tempDirFromParent = Path.Combine(Directory.GetCurrentDirectory(), Path.GetFileName(_tempDir));
+			return await create().ConfigureAwait(false);
+		}
+		finally
+		{
+			Directory.SetCurrentDirectory(original);
+		}
 	}
 
 	private BuildConfigurationOptions CreateDefaultOptions() => new()

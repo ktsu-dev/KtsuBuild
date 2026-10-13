@@ -702,6 +702,36 @@ public class DotNetServiceTests
 		Assert.IsTrue(files[0].EndsWith("MyProject.csproj", StringComparison.Ordinal));
 	}
 
+	// The paths go to dotnet running inside the workspace, so a relative one was resolved a second
+	// time there: dotnet pack "repo/src/Lib/Lib.csproj" from repo failed with MSB1009.
+	[TestMethod]
+	[DoNotParallelize]
+	public void GetProjectFiles_RelativeDirectory_ReturnsAbsolutePaths()
+	{
+		string dir = Path.Combine(_tempDir, "MyProject");
+		Directory.CreateDirectory(dir);
+		File.WriteAllText(Path.Combine(dir, "MyProject.csproj"), "<Project />");
+		string original = Directory.GetCurrentDirectory();
+
+		// Expected as the process directory reports it: on macOS the temp path is reached through a
+		// symlink (/var to /private/var), so it can differ from _tempDir.
+		string project;
+		IReadOnlyList<string> files;
+		try
+		{
+			Directory.SetCurrentDirectory(Path.GetDirectoryName(_tempDir)!);
+			project = Path.Combine(Directory.GetCurrentDirectory(), Path.GetFileName(_tempDir), "MyProject", "MyProject.csproj");
+			files = _service.GetProjectFiles(Path.GetFileName(_tempDir));
+		}
+		finally
+		{
+			Directory.SetCurrentDirectory(original);
+		}
+
+		Assert.HasCount(1, files);
+		Assert.AreEqual(project, files[0]);
+	}
+
 	[TestMethod]
 	public void GetProjectFiles_ReturnsEmptyForNoProjects()
 	{

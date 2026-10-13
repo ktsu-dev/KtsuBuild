@@ -499,7 +499,10 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger, st
 	public IReadOnlyList<string> GetProjectFiles(string workingDirectory)
 	{
 		Ensure.NotNull(workingDirectory);
-		return [.. Directory.GetFiles(workingDirectory, "*.csproj", SearchOption.AllDirectories)];
+
+		// Rooted, because these paths go to dotnet running inside the workspace, which would resolve
+		// a relative one against the workspace a second time.
+		return [.. Directory.GetFiles(Path.GetFullPath(workingDirectory), "*.csproj", SearchOption.AllDirectories)];
 	}
 
 	/// <inheritdoc/>
