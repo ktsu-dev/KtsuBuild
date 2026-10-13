@@ -276,6 +276,20 @@ public class GitServiceTests
 	}
 
 	[TestMethod]
+	public async Task GetCommitsAsync_ReadsAuthorEmail()
+	{
+		_processRunner.RunAsync("git", ArgMatch.NotNull<string>(a => a.StartsWith("log")), Arg.Any<string>(), Arg.Any<CancellationToken>())
+			.Returns(TestHelpers.SuccessResult("abc123\u001fFix bug\u001fJane Doe\u001f123+jdoe@users.noreply.github.com\n"));
+
+		IReadOnlyList<CommitInfo> commits = await _service.GetCommitsAsync("/repo", "abc..def").ConfigureAwait(false);
+
+		Assert.AreEqual(1, commits.Count);
+		Assert.AreEqual("Jane Doe", commits[0].Author);
+		Assert.AreEqual("123+jdoe@users.noreply.github.com", commits[0].AuthorEmail);
+		Assert.AreEqual("jdoe", commits[0].GitHubLogin);
+	}
+
+	[TestMethod]
 	public async Task GetCommitsAsync_AsksGitForUnitSeparatedFields()
 	{
 		_processRunner.RunAsync("git", Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
@@ -284,7 +298,7 @@ public class GitServiceTests
 		await _service.GetCommitsAsync("/repo", "abc..def").ConfigureAwait(false);
 
 		await _processRunner.Received(1).RunAsync("git",
-			ArgMatch.NotNull<string>(a => a.Contains("%h%x1f%s%x1f%aN")),
+			ArgMatch.NotNull<string>(a => a.Contains("%h%x1f%s%x1f%aN%x1f%aE")),
 			Arg.Any<string>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
