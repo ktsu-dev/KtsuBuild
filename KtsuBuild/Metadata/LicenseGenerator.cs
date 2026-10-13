@@ -21,6 +21,10 @@ public static class LicenseGenerator
 	/// every source file's required header from COPYRIGHT.md, so rewriting it from the clock would fail
 	/// every file in the repository against IDE0073 the first time a run lands in a new year. Moving the
 	/// year on is a deliberate change that also rewrites the headers, not a side effect of a build.
+	///
+	/// An existing LICENSE.md that is not an MIT license is kept as it is too. A repository that ships under
+	/// terms of its own, such as a freeware license for a closed-source application, writes them there once,
+	/// and a build must not quietly replace them with MIT and commit the result.
 	/// </remarks>
 	/// <param name="serverUrl">The GitHub server URL.</param>
 	/// <param name="owner">The repository owner.</param>
@@ -82,13 +86,35 @@ public static class LicenseGenerator
 			.Replace("{PROJECT_URL}", projectUrl)
 			.Replace("{COPYRIGHT}", copyright);
 
-		// Write LICENSE.md
+		// Write LICENSE.md, unless the repository carries a license of its own
 		string licensePath = Path.Combine(outputPath, "LICENSE.md");
-		await LineEndingHelper.WriteFileAsync(licensePath, licenseContent, lineEnding, cancellationToken).ConfigureAwait(false);
+		if (!await HasCustomLicenseAsync(licensePath, cancellationToken).ConfigureAwait(false))
+		{
+			await LineEndingHelper.WriteFileAsync(licensePath, licenseContent, lineEnding, cancellationToken).ConfigureAwait(false);
+		}
 
 		// Write COPYRIGHT.md
 		await LineEndingHelper.WriteFileAsync(copyrightPath, copyright + lineEnding, lineEnding, cancellationToken).ConfigureAwait(false);
 	}
+
+	/// <summary>
+	/// Whether a LICENSE.md exists with terms other than the MIT license this generator writes.
+	/// </summary>
+	/// <param name="licensePath">The path to LICENSE.md.</param>
+	/// <param name="cancellationToken">A cancellation token.</param>
+	/// <returns>True when the file exists, has content, and does not open with the MIT license's title.</returns>
+	private static async Task<bool> HasCustomLicenseAsync(string licensePath, CancellationToken cancellationToken)
+	{
+		if (!File.Exists(licensePath))
+		{
+			return false;
+		}
+
+		string existing = (await File.ReadAllTextAsync(licensePath, cancellationToken).ConfigureAwait(false)).TrimStart();
+		return existing.Length > 0 && !existing.StartsWith(MitLicenseTitle, StringComparison.Ordinal);
+	}
+
+	private const string MitLicenseTitle = "MIT License";
 
 	private const string LicenseTemplate = """
 		MIT License
