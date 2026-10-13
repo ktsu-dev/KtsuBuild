@@ -16,6 +16,8 @@ public class GitServiceTests
 	private IProcessRunner _processRunner = null!;
 	private GitService _service = null!;
 
+	public TestContext TestContext { get; set; } = null!;
+
 	[TestInitialize]
 	public void Setup()
 	{
@@ -281,9 +283,9 @@ public class GitServiceTests
 		_processRunner.RunAsync("git", ArgMatch.NotNull<string>(a => a.StartsWith("log")), Arg.Any<string>(), Arg.Any<CancellationToken>())
 			.Returns(TestHelpers.SuccessResult("abc123\u001fFix bug\u001fJane Doe\u001f123+jdoe@users.noreply.github.com\n"));
 
-		IReadOnlyList<CommitInfo> commits = await _service.GetCommitsAsync("/repo", "abc..def").ConfigureAwait(false);
+		IReadOnlyList<CommitInfo> commits = await _service.GetCommitsAsync("/repo", "abc..def", TestContext.CancellationToken).ConfigureAwait(false);
 
-		Assert.AreEqual(1, commits.Count);
+		Assert.HasCount(1, commits);
 		Assert.AreEqual("Jane Doe", commits[0].Author);
 		Assert.AreEqual("123+jdoe@users.noreply.github.com", commits[0].AuthorEmail);
 		Assert.AreEqual("jdoe", commits[0].GitHubLogin);
