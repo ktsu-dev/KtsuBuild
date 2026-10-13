@@ -295,7 +295,7 @@ ktsubuild metadata update [options]
 
 #### `metadata license`
 
-Generate LICENSE.md and COPYRIGHT.md files from embedded templates.
+Generate LICENSE.md and COPYRIGHT.md files from embedded templates. An existing LICENSE.md that is not an MIT license is left as it is, so a repository can ship under terms of its own.
 
 ```bash
 ktsubuild metadata license [options]
@@ -476,7 +476,7 @@ KtsuBuild generates and maintains these files in the workspace:
 | `VERSION.md` | Contains the current version number |
 | `CHANGELOG.md` | Complete changelog with all versions |
 | `LATEST_CHANGELOG.md` | Changelog for the current version only (used as release notes) |
-| `LICENSE.md` | MIT license with project URL and copyright |
+| `LICENSE.md` | MIT license with project URL and copyright, unless the repository already has a license other than MIT |
 | `COPYRIGHT.md` | Copyright notice with year range and contributors |
 | `AUTHORS.md` | List of contributors from git history |
 | `PROJECT_URL.url` | Windows shortcut to the project repository |

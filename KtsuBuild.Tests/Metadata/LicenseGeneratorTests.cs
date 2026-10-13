@@ -228,4 +228,67 @@ public class LicenseGeneratorTests
 		string copyrightContent = await File.ReadAllTextAsync(Path.Combine(_tempDir, "COPYRIGHT.md")).ConfigureAwait(false);
 		Assert.AreEqual("Copyright (c) 2023-2027 testowner contributors\n", copyrightContent);
 	}
+
+	[TestMethod]
+	public async Task GenerateAsync_CustomLicense_IsKeptAsItIs()
+	{
+		// Arrange
+		const string Custom = "ImageGui Freeware License\n\nAll rights reserved.\n";
+		string licensePath = Path.Combine(_tempDir, "LICENSE.md");
+		await File.WriteAllTextAsync(licensePath, Custom).ConfigureAwait(false);
+
+		// Act
+		await LicenseGenerator.GenerateAsync(
+			serverUrl: "https://github.com/testowner",
+			owner: "testowner",
+			repository: "testrepo",
+			outputPath: _tempDir,
+			lineEnding: "\n").ConfigureAwait(false);
+
+		// Assert
+		string content = await File.ReadAllTextAsync(licensePath).ConfigureAwait(false);
+		Assert.AreEqual(Custom, content, "A license other than MIT must not be replaced");
+		Assert.IsTrue(File.Exists(Path.Combine(_tempDir, "COPYRIGHT.md")), "COPYRIGHT.md should still be written");
+	}
+
+	[TestMethod]
+	public async Task GenerateAsync_ExistingMitLicense_IsRegenerated()
+	{
+		// Arrange
+		string licensePath = Path.Combine(_tempDir, "LICENSE.md");
+		await File.WriteAllTextAsync(licensePath, "MIT License\n\nhttps://github.com/old/url\n").ConfigureAwait(false);
+
+		// Act
+		await LicenseGenerator.GenerateAsync(
+			serverUrl: "https://github.com/testowner",
+			owner: "testowner",
+			repository: "testrepo",
+			outputPath: _tempDir,
+			lineEnding: "\n").ConfigureAwait(false);
+
+		// Assert
+		string content = await File.ReadAllTextAsync(licensePath).ConfigureAwait(false);
+		Assert.IsTrue(content.Contains("https://github.com/testowner/testrepo"), "An MIT license should be regenerated");
+		Assert.IsFalse(content.Contains("old/url"), "The stale MIT license should be replaced");
+	}
+
+	[TestMethod]
+	public async Task GenerateAsync_EmptyLicense_IsRegenerated()
+	{
+		// Arrange
+		string licensePath = Path.Combine(_tempDir, "LICENSE.md");
+		await File.WriteAllTextAsync(licensePath, "  \n").ConfigureAwait(false);
+
+		// Act
+		await LicenseGenerator.GenerateAsync(
+			serverUrl: "https://github.com/testowner",
+			owner: "testowner",
+			repository: "testrepo",
+			outputPath: _tempDir,
+			lineEnding: "\n").ConfigureAwait(false);
+
+		// Assert
+		string content = await File.ReadAllTextAsync(licensePath).ConfigureAwait(false);
+		Assert.IsTrue(content.StartsWith("MIT License", StringComparison.Ordinal), "An empty LICENSE.md should be generated");
+	}
 }
