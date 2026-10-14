@@ -8,7 +8,6 @@ using KtsuBuild.Abstractions;
 using KtsuBuild.Tool.Commands;
 using KtsuBuild.Utilities;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 
 #pragma warning disable IDE0028 // System.CommandLine.Command implements IEnumerable causing false positive collection init suggestions
 internal sealed class Program
@@ -44,16 +43,10 @@ internal sealed class Program
 		return await rootCommand.Parse(args).InvokeAsync(configuration: null, cancellationToken: CancellationToken.None).ConfigureAwait(false);
 	}
 
-	private static void ConfigureServices(IServiceCollection services)
+	internal static void ConfigureServices(IServiceCollection services)
 	{
-		// Add logging
-		services.AddLogging(builder =>
-		{
-			builder.AddConsole();
-			builder.SetMinimumLevel(LogLevel.Information);
-		});
-
-		// Add services
+		// No console logging provider is registered: BuildLogger writes to the console itself, and
+		// with an ILogger<BuildLogger> available it would hand every line to that provider as well.
 		services.AddSingleton<IProcessRunner, ProcessRunner>();
 		services.AddSingleton<IBuildLogger, BuildLogger>();
 	}
