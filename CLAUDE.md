@@ -120,7 +120,7 @@ ktsubuild
 ├── build         # Build workflow (restore + build + test)
 │   Options: --workspace, --configuration, --verbose
 ├── release       # Release workflow (pack + publish + GitHub release)
-│   Options: --workspace, --configuration, --verbose, --dry-run
+│   Options: --workspace, --configuration, --verbose, --dry-run, --version-bump
 ├── version
 │   ├── show      # Display version info (version, tag, increment, reason)
 │   ├── bump      # Calculate and print next version

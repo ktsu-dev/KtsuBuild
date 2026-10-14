@@ -230,10 +230,15 @@ ktsubuild release [options]
 
 **Options:**
 - `--dry-run`: Preview actions without executing them
+- `--version-bump <type>`: Force version bump type (`auto`, `patch`, `minor`, `major`)
 
 `release` resolves the version the same way `ci` does, from the repository's tags and commit
 history, and publishes against the current commit. It also honors the version gate, so a run whose
-commits all carry `[skip ci]` publishes nothing.
+commits all carry `[skip ci]` publishes nothing unless the bump is forced.
+
+In a split pipeline, pass `release` the same `--version-bump` that `ci --no-release` received. `ci`
+writes the forced version to VERSION.md and commits it, and a `release` left on `auto` would
+resolve a different version, or close the gate the forced bump opened.
 
 Targeting the current commit matters in a split pipeline. When `ci --no-test --no-release` runs
 first, it commits the updated metadata, so the current commit is the one whose VERSION.md carries
