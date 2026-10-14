@@ -66,6 +66,28 @@ public class GitServiceTests
 	}
 
 	[TestMethod]
+	public async Task GetTagsAsync_NonVersionTags_AreDropped()
+	{
+		_processRunner.RunAsync("git", GitService.ListTagsArguments, Arg.Any<string>(), Arg.Any<CancellationToken>())
+			.Returns(TestHelpers.SuccessResult("x-marker\nwip-spike\nv1.4.0\nios-v1.2.0\nv1.4.0-rc.1\nv1.3\nv1.3.0\n"));
+
+		IReadOnlyList<string> tags = await _service.GetTagsAsync("/repo").ConfigureAwait(false);
+
+		Assert.AreEqual("v1.4.0,v1.4.0-rc.1,v1.3.0", string.Join(",", tags));
+	}
+
+	[TestMethod]
+	public async Task GetTagsAsync_OnlyNonVersionTags_ReturnsEmptyList()
+	{
+		_processRunner.RunAsync("git", GitService.ListTagsArguments, Arg.Any<string>(), Arg.Any<CancellationToken>())
+			.Returns(TestHelpers.SuccessResult("ios-v1.2.0\n"));
+
+		IReadOnlyList<string> tags = await _service.GetTagsAsync("/repo").ConfigureAwait(false);
+
+		Assert.AreEqual(0, tags.Count);
+	}
+
+	[TestMethod]
 	public async Task GetTagsAsync_PassesEveryVersionSortSuffixWithoutWritingConfig()
 	{
 		_processRunner.RunAsync("git", Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
@@ -114,6 +136,79 @@ public class GitServiceTests
 		{
 			DeleteDirectory(repo);
 		}
+	}
+
+	// Against a real repository: a wip-* tag sorts ahead of every v* tag, and an ios-v* tag on HEAD
+	// is all a shallow tag-triggered checkout sees, so each was taken as the last release.
+
+	[TestMethod]
+	public async Task GetVersionInfoAsync_RealRepository_IgnoresNonVersionTags()
+	{
+		string repo = Path.Combine(Path.GetTempPath(), $"ktsubuild-tags-{Guid.NewGuid():N}");
+		Directory.CreateDirectory(repo);
+
+		try
+		{
+			ProcessRunner runner = new();
+			await CommitAsync(runner, repo, "initial").ConfigureAwait(false);
+			await RunGitAsync(runner, repo, "tag", "v1.3.0").ConfigureAwait(false);
+			await CommitAsync(runner, repo, "Add feature").ConfigureAwait(false);
+			await RunGitAsync(runner, repo, "tag", "v1.4.0").ConfigureAwait(false);
+			await CommitAsync(runner, repo, "Spike").ConfigureAwait(false);
+			await RunGitAsync(runner, repo, "tag", "wip-spike").ConfigureAwait(false);
+			await RunGitAsync(runner, repo, "tag", "ios-v1.2.0").ConfigureAwait(false);
+			await CommitAsync(runner, repo, "Fix crash").ConfigureAwait(false);
+
+			GitService service = new(runner, new MockBuildLogger());
+			IReadOnlyList<string> tags = await service.GetTagsAsync(repo).ConfigureAwait(false);
+			Assert.AreEqual("v1.4.0,v1.3.0", string.Join(",", tags));
+
+			string head = await service.GetCurrentCommitHashAsync(repo).ConfigureAwait(false);
+			VersionInfo version = await new VersionCalculator(service, new MockBuildLogger()).GetVersionInfoAsync(repo, head).ConfigureAwait(false);
+			Assert.AreEqual("v1.4.0", version.LastTag);
+			Assert.AreEqual("1.4.0", version.LastVersion);
+		}
+		finally
+		{
+			DeleteDirectory(repo);
+		}
+	}
+
+	[TestMethod]
+	public async Task GetVersionInfoAsync_RealRepository_OnlyIosTag_UsesFallback()
+	{
+		string repo = Path.Combine(Path.GetTempPath(), $"ktsubuild-tags-{Guid.NewGuid():N}");
+		Directory.CreateDirectory(repo);
+
+		try
+		{
+			ProcessRunner runner = new();
+			await CommitAsync(runner, repo, "initial").ConfigureAwait(false);
+			await RunGitAsync(runner, repo, "tag", "ios-v1.2.0").ConfigureAwait(false);
+
+			GitService service = new(runner, new MockBuildLogger());
+			string head = await service.GetCurrentCommitHashAsync(repo).ConfigureAwait(false);
+			VersionInfo version = await new VersionCalculator(service, new MockBuildLogger()).GetVersionInfoAsync(repo, head).ConfigureAwait(false);
+
+			Assert.AreEqual("v1.0.0-pre.0", version.LastTag);
+			Assert.IsFalse(version.Version.Contains("ios", StringComparison.Ordinal), version.Version);
+			Assert.IsFalse(await service.IsCommitTaggedAsync(repo, head).ConfigureAwait(false));
+		}
+		finally
+		{
+			DeleteDirectory(repo);
+		}
+	}
+
+	private static Task CommitAsync(ProcessRunner runner, string repo, string message) =>
+		Directory.Exists(Path.Combine(repo, ".git"))
+			? RunGitAsync(runner, repo, "-c", "user.name=test", "-c", "user.email=test@example.com", "commit", "-q", "--allow-empty", "-m", message)
+			: InitAndCommitAsync(runner, repo, message);
+
+	private static async Task InitAndCommitAsync(ProcessRunner runner, string repo, string message)
+	{
+		await RunGitAsync(runner, repo, "init", "-q").ConfigureAwait(false);
+		await RunGitAsync(runner, repo, "-c", "user.name=test", "-c", "user.email=test@example.com", "commit", "-q", "--allow-empty", "-m", message).ConfigureAwait(false);
 	}
 
 	private static async Task RunGitAsync(ProcessRunner runner, string repo, params string[] arguments)
@@ -376,6 +471,27 @@ public class GitServiceTests
 		bool result = await _service.IsCommitTaggedAsync("/repo", "999999").ConfigureAwait(false);
 
 		Assert.IsFalse(result);
+	}
+
+	[TestMethod]
+	[DataRow("abc123 refs/tags/ios-v1.2.0\n")]
+	[DataRow("abc123 refs/tags/wip-spike\n")]
+	[DataRow("abc123 refs/tags/ios-v1.2.0^{}\ndef456 refs/tags/v1.0.0\n")]
+	public async Task IsCommitTaggedAsync_OnlyNonVersionTagOnCommit_ReturnsFalse(string showRef)
+	{
+		_processRunner.RunAsync("git", "show-ref --tags -d", Arg.Any<string>(), Arg.Any<CancellationToken>())
+			.Returns(TestHelpers.SuccessResult(showRef));
+
+		Assert.IsFalse(await _service.IsCommitTaggedAsync("/repo", "abc123").ConfigureAwait(false));
+	}
+
+	[TestMethod]
+	public async Task IsCommitTaggedAsync_AnnotatedVersionTagPeeledToCommit_ReturnsTrue()
+	{
+		_processRunner.RunAsync("git", "show-ref --tags -d", Arg.Any<string>(), Arg.Any<CancellationToken>())
+			.Returns(TestHelpers.SuccessResult("fff000 refs/tags/v1.0.0\nabc123 refs/tags/v1.0.0^{}\n"));
+
+		Assert.IsTrue(await _service.IsCommitTaggedAsync("/repo", "abc123").ConfigureAwait(false));
 	}
 
 	// GetFirstCommitAsync
