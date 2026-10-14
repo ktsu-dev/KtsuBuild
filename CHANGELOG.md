@@ -1,899 +1,906 @@
+## v2.21.1 (patch)
+
+Changes since v2.21.0:
+
+- docs: document --version-bump on the release command (matt-edmondson)
+- fix: honor --version-bump in the release command [patch] (matt-edmondson)
+
 ## v2.21.0 (minor)
 
 Changes since v2.20.0:
 
-- Print each log line once instead of again through a console logging provider [patch] ([@Claude](https://github.com/Claude))
-- Pass the test context's cancellation token in the author email test ([@Claude](https://github.com/Claude))
-- Link changelog authors by GitHub login, not display name [minor] ([@Claude](https://github.com/Claude))
+- Print each log line once instead of again through a console logging provider [patch] (Claude)
+- Pass the test context's cancellation token in the author email test (Claude)
+- Link changelog authors by GitHub login, not display name [minor] (Claude)
 
 ## v2.20.0 (minor)
 
 Changes since v2.19.0:
 
-- [minor] Keep a repository's own license instead of overwriting it with MIT ([@Claude](https://github.com/Claude))
-- Merge remote-tracking branch 'origin/main' into fix/215-absolute-workspace ([@Claude](https://github.com/Claude))
-- Report the marketing version substitution from the library so it is covered by tests ([@Claude](https://github.com/Claude))
-- Pass the test context's cancellation token in the test-argument capture helpers ([@Claude](https://github.com/Claude))
-- Pass the test context's cancellation token in the iOS short version test ([@Claude](https://github.com/Claude))
-- Pass the test context's cancellation token in the build retry test ([@Claude](https://github.com/Claude))
-- Stamp the numeric core of the computed version as the iOS marketing version [patch] ([@Claude](https://github.com/Claude))
-- Make the failed-build retry actually verbose instead of repeating the quiet rebuild [patch] ([@Claude](https://github.com/Claude))
-- Fail the release when a project fails to pack instead of only warning [patch] ([@Claude](https://github.com/Claude))
-- Compare relative-workspace test paths as the process directory reports them ([@Claude](https://github.com/Claude))
-- Make a relative --workspace absolute so paths are not resolved twice [patch] ([@Claude](https://github.com/Claude))
-- Reject an unknown --version-bump instead of publishing the detected version [patch] ([@Claude](https://github.com/Claude))
-- Fail profile readme instead of writing it without a table when the org listing fails [patch] ([@Claude](https://github.com/Claude))
-- Keep an existing COPYRIGHT.md instead of rewriting it from the clock [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
-- Pass the test's cancellation token when writing a project file in the release tests ([@Claude](https://github.com/Claude))
-- Pass the test's cancellation token in the new release tests ([@Claude](https://github.com/Claude))
-- Resolve release changelog paths against the workspace [patch] ([@Claude](https://github.com/Claude))
-- Write an already-released version's changelog entry once ([@matt-edmondson](https://github.com/matt-edmondson))
+- [minor] Keep a repository's own license instead of overwriting it with MIT (Claude)
+- Merge remote-tracking branch 'origin/main' into fix/215-absolute-workspace (Claude)
+- Report the marketing version substitution from the library so it is covered by tests (Claude)
+- Pass the test context's cancellation token in the test-argument capture helpers (Claude)
+- Pass the test context's cancellation token in the iOS short version test (Claude)
+- Pass the test context's cancellation token in the build retry test (Claude)
+- Stamp the numeric core of the computed version as the iOS marketing version [patch] (Claude)
+- Make the failed-build retry actually verbose instead of repeating the quiet rebuild [patch] (Claude)
+- Fail the release when a project fails to pack instead of only warning [patch] (Claude)
+- Compare relative-workspace test paths as the process directory reports them (Claude)
+- Make a relative --workspace absolute so paths are not resolved twice [patch] (Claude)
+- Reject an unknown --version-bump instead of publishing the detected version [patch] (Claude)
+- Fail profile readme instead of writing it without a table when the org listing fails [patch] (Claude)
+- Keep an existing COPYRIGHT.md instead of rewriting it from the clock [patch] (matt-edmondson)
+- Pass the test's cancellation token when writing a project file in the release tests (Claude)
+- Pass the test's cancellation token in the new release tests (Claude)
+- Resolve release changelog paths against the workspace [patch] (Claude)
+- Write an already-released version's changelog entry once (matt-edmondson)
 
 ## v2.19.4 (patch)
 
 Changes since v2.19.3:
 
-- Merge remote-tracking branch 'origin/main' into fix/215-absolute-workspace ([@Claude](https://github.com/Claude))
-- Compare relative-workspace test paths as the process directory reports them ([@Claude](https://github.com/Claude))
-- Make a relative --workspace absolute so paths are not resolved twice [patch] ([@Claude](https://github.com/Claude))
+- Merge remote-tracking branch 'origin/main' into fix/215-absolute-workspace (Claude)
+- Compare relative-workspace test paths as the process directory reports them (Claude)
+- Make a relative --workspace absolute so paths are not resolved twice [patch] (Claude)
 
 ## v2.19.3 (patch)
 
 Changes since v2.19.2:
 
-- Report the marketing version substitution from the library so it is covered by tests ([@Claude](https://github.com/Claude))
-- Pass the test context's cancellation token in the test-argument capture helpers ([@Claude](https://github.com/Claude))
-- Pass the test context's cancellation token in the iOS short version test ([@Claude](https://github.com/Claude))
-- Pass the test context's cancellation token in the build retry test ([@Claude](https://github.com/Claude))
-- Stamp the numeric core of the computed version as the iOS marketing version [patch] ([@Claude](https://github.com/Claude))
-- Make the failed-build retry actually verbose instead of repeating the quiet rebuild [patch] ([@Claude](https://github.com/Claude))
-- Fail the release when a project fails to pack instead of only warning [patch] ([@Claude](https://github.com/Claude))
-- Reject an unknown --version-bump instead of publishing the detected version [patch] ([@Claude](https://github.com/Claude))
+- Report the marketing version substitution from the library so it is covered by tests (Claude)
+- Pass the test context's cancellation token in the test-argument capture helpers (Claude)
+- Pass the test context's cancellation token in the iOS short version test (Claude)
+- Pass the test context's cancellation token in the build retry test (Claude)
+- Stamp the numeric core of the computed version as the iOS marketing version [patch] (Claude)
+- Make the failed-build retry actually verbose instead of repeating the quiet rebuild [patch] (Claude)
+- Fail the release when a project fails to pack instead of only warning [patch] (Claude)
+- Reject an unknown --version-bump instead of publishing the detected version [patch] (Claude)
 
 ## v2.19.2 (patch)
 
 Changes since v2.19.1:
 
-- Fail profile readme instead of writing it without a table when the org listing fails [patch] ([@Claude](https://github.com/Claude))
+- Fail profile readme instead of writing it without a table when the org listing fails [patch] (Claude)
 
 ## v2.19.1 (patch)
 
 Changes since v2.19.0:
 
-- Keep an existing COPYRIGHT.md instead of rewriting it from the clock [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
-- Pass the test's cancellation token when writing a project file in the release tests ([@Claude](https://github.com/Claude))
-- Pass the test's cancellation token in the new release tests ([@Claude](https://github.com/Claude))
-- Resolve release changelog paths against the workspace [patch] ([@Claude](https://github.com/Claude))
-- Write an already-released version's changelog entry once ([@matt-edmondson](https://github.com/matt-edmondson))
+- Keep an existing COPYRIGHT.md instead of rewriting it from the clock [patch] (matt-edmondson)
+- Pass the test's cancellation token when writing a project file in the release tests (Claude)
+- Pass the test's cancellation token in the new release tests (Claude)
+- Resolve release changelog paths against the workspace [patch] (Claude)
+- Write an already-released version's changelog entry once (matt-edmondson)
 
 ## v2.19.0 (minor)
 
 Changes since v2.18.0:
 
-- Show the last completed ci.yml run in the profile Status column ([@Claude](https://github.com/Claude))
-- Release a prerelease of X.Y.0 as X.Y.0 on a Minor or Major bump ([@Claude](https://github.com/Claude))
-- Match template links to repositories ignoring case, as GitHub does ([@Claude](https://github.com/Claude))
-- Keep TAGS.md topics within GitHub's rules so one bad tag cannot block the update ([@Claude](https://github.com/Claude))
-- Read every page of releases so a run of prereleases cannot hide the stable one ([@Claude](https://github.com/Claude))
-- Accept OperationCanceledException from a cancelled ProcessRunner run ([@Claude](https://github.com/Claude))
-- Accept OperationCanceledException from a cancelled ProcessRunner run ([@Claude](https://github.com/Claude))
-- Move CI onto the shared ci-shared.yml pipeline ([@Claude](https://github.com/Claude))
-- Fall back to an empty commit list in the changelog test's range lookup ([@Claude](https://github.com/Claude))
-- Diff a -pre.1 changelog entry against the previous tag, not the stable release after it [patch] ([@Claude](https://github.com/Claude))
-- Match bot patterns against the author, so human commits mentioning GitHub still count [patch] ([@Claude](https://github.com/Claude))
-- Strip only a trailing .git from the remote URL, so ktsu-dev/.github no longer parses as ktsu-dev/hub [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
+- Show the last completed ci.yml run in the profile Status column (Claude)
+- Release a prerelease of X.Y.0 as X.Y.0 on a Minor or Major bump (Claude)
+- Match template links to repositories ignoring case, as GitHub does (Claude)
+- Keep TAGS.md topics within GitHub's rules so one bad tag cannot block the update (Claude)
+- Read every page of releases so a run of prereleases cannot hide the stable one (Claude)
+- Accept OperationCanceledException from a cancelled ProcessRunner run (Claude)
+- Accept OperationCanceledException from a cancelled ProcessRunner run (Claude)
+- Move CI onto the shared ci-shared.yml pipeline (Claude)
+- Fall back to an empty commit list in the changelog test's range lookup (Claude)
+- Diff a -pre.1 changelog entry against the previous tag, not the stable release after it [patch] (Claude)
+- Match bot patterns against the author, so human commits mentioning GitHub still count [patch] (Claude)
+- Strip only a trailing .git from the remote URL, so ktsu-dev/.github no longer parses as ktsu-dev/hub [patch] (matt-edmondson)
 
 ## v2.18.5-pre.1 (prerelease)
 
 Changes since v2.18.4:
 
-- Bump the ktsu group with 3 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the ktsu group with 3 updates (dependabot[bot])
 
 ## v2.18.4 (patch)
 
 Changes since v2.18.3:
 
-- Accept OperationCanceledException from a cancelled ProcessRunner run ([@Claude](https://github.com/Claude))
-- Accept OperationCanceledException from a cancelled ProcessRunner run ([@Claude](https://github.com/Claude))
+- Accept OperationCanceledException from a cancelled ProcessRunner run (Claude)
+- Accept OperationCanceledException from a cancelled ProcessRunner run (Claude)
 
 ## v2.18.4-pre.1 (prerelease)
 
 Changes since v2.18.3:
 
-- Bump Polyfill from 11.4.1 to 11.4.2 ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump Polyfill from 11.4.1 to 11.4.2 (dependabot[bot])
 
 ## v2.18.3 (patch)
 
 Changes since v2.18.2:
 
-- Move CI onto the shared ci-shared.yml pipeline ([@Claude](https://github.com/Claude))
+- Move CI onto the shared ci-shared.yml pipeline (Claude)
 
 ## v2.18.2 (patch)
 
 Changes since v2.18.1:
 
-- Fall back to an empty commit list in the changelog test's range lookup ([@Claude](https://github.com/Claude))
-- Diff a -pre.1 changelog entry against the previous tag, not the stable release after it [patch] ([@Claude](https://github.com/Claude))
-- Match bot patterns against the author, so human commits mentioning GitHub still count [patch] ([@Claude](https://github.com/Claude))
+- Fall back to an empty commit list in the changelog test's range lookup (Claude)
+- Diff a -pre.1 changelog entry against the previous tag, not the stable release after it [patch] (Claude)
+- Match bot patterns against the author, so human commits mentioning GitHub still count [patch] (Claude)
 
 ## v2.18.1 (patch)
 
 Changes since v2.18.0:
 
-- Strip only a trailing .git from the remote URL, so ktsu-dev/.github no longer parses as ktsu-dev/hub [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
+- Strip only a trailing .git from the remote URL, so ktsu-dev/.github no longer parses as ktsu-dev/hub [patch] (matt-edmondson)
 
 ## v2.18.0 (minor)
 
 Changes since v2.17.0:
 
-- Test that ci passes --version-bump to the metadata stage ([@matt-edmondson](https://github.com/matt-edmondson))
-- Apply a forced --version-bump to the version ci publishes ([@matt-edmondson](https://github.com/matt-edmondson))
-- Sort -alpha, -beta and -rc tags below their release ([@matt-edmondson](https://github.com/matt-edmondson))
-- Keep changelog subjects and authors intact when a commit subject contains '|' ([@Claude](https://github.com/Claude))
+- Test that ci passes --version-bump to the metadata stage (matt-edmondson)
+- Apply a forced --version-bump to the version ci publishes (matt-edmondson)
+- Sort -alpha, -beta and -rc tags below their release (matt-edmondson)
+- Keep changelog subjects and authors intact when a commit subject contains '|' (Claude)
 
 ## v2.17.4 (patch)
 
 Changes since v2.17.3:
 
-- Keep changelog subjects and authors intact when a commit subject contains '|' ([@Claude](https://github.com/Claude))
+- Keep changelog subjects and authors intact when a commit subject contains '|' (Claude)
 
 ## v2.17.3 (patch)
 
 Changes since v2.17.2:
 
-- Bump the ktsu group with 12 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the ktsu group with 12 updates (dependabot[bot])
 
 ## v2.17.2 (patch)
 
 Changes since v2.17.1:
 
-- Bump the ktsu group with 10 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the ktsu group with 10 updates (dependabot[bot])
 
 ## v2.17.1 (patch)
 
 Changes since v2.17.0:
 
-- Bump the ktsu group with 12 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the ktsu group with 12 updates (dependabot[bot])
 
 ## v2.17.0 (minor)
 
 Changes since v2.16.0:
 
-- Address the two SonarCloud findings on this PR's own new code ([@matt-edmondson](https://github.com/matt-edmondson))
-- Fix two ProcessRunnerTests that only failed off Linux ([@matt-edmondson](https://github.com/matt-edmondson))
-- [minor] Delegate process execution to ktsu.RunCommand ([@matt-edmondson](https://github.com/matt-edmondson))
-- fix: warn when a gh api call fails instead of reading it as no data [patch] ([@Claude](https://github.com/Claude))
-- fix: count every page of commits in the activity window [patch] ([@Claude](https://github.com/Claude))
-- Require the token at the call site, not an overload away ([@matt-edmondson](https://github.com/matt-edmondson))
-- Run the new handler tests under the test's own token ([@matt-edmondson](https://github.com/matt-edmondson))
-- Test the tool's command handlers directly [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
+- Address the two SonarCloud findings on this PR's own new code (matt-edmondson)
+- Fix two ProcessRunnerTests that only failed off Linux (matt-edmondson)
+- [minor] Delegate process execution to ktsu.RunCommand (matt-edmondson)
+- fix: warn when a gh api call fails instead of reading it as no data [patch] (Claude)
+- fix: count every page of commits in the activity window [patch] (Claude)
+- Require the token at the call site, not an overload away (matt-edmondson)
+- Run the new handler tests under the test's own token (matt-edmondson)
+- Test the tool's command handlers directly [patch] (matt-edmondson)
 
 ## v2.16.4 (patch)
 
 Changes since v2.16.3:
 
-- Bump Polyfill from 11.3.0 to 11.4.0 ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump Polyfill from 11.3.0 to 11.4.0 (dependabot[bot])
 
 ## v2.16.3 (patch)
 
 Changes since v2.16.2:
 
-- Bump the ktsu group with 9 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the ktsu group with 9 updates (dependabot[bot])
 
 ## v2.16.2 (patch)
 
 Changes since v2.16.1:
 
-- fix: warn when a gh api call fails instead of reading it as no data [patch] ([@Claude](https://github.com/Claude))
+- fix: warn when a gh api call fails instead of reading it as no data [patch] (Claude)
 
 ## v2.16.1 (patch)
 
 Changes since v2.16.0:
 
-- fix: count every page of commits in the activity window [patch] ([@Claude](https://github.com/Claude))
-- Require the token at the call site, not an overload away ([@matt-edmondson](https://github.com/matt-edmondson))
-- Run the new handler tests under the test's own token ([@matt-edmondson](https://github.com/matt-edmondson))
-- Test the tool's command handlers directly [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
+- fix: count every page of commits in the activity window [patch] (Claude)
+- Require the token at the call site, not an overload away (matt-edmondson)
+- Run the new handler tests under the test's own token (matt-edmondson)
+- Test the tool's command handlers directly [patch] (matt-edmondson)
 
 ## v2.16.0 (minor)
 
 Changes since v2.15.0:
 
-- Read build status from the shared CI caller ([@matt-edmondson](https://github.com/matt-edmondson))
-- Gate Dependabot auto-merge on CI actually being green ([@Claude](https://github.com/Claude))
-- fix: choose the repo's main project for Winget metadata, not an arbitrary csproj [patch] ([@Claude](https://github.com/Claude))
+- Read build status from the shared CI caller (matt-edmondson)
+- Gate Dependabot auto-merge on CI actually being green (Claude)
+- fix: choose the repo's main project for Winget metadata, not an arbitrary csproj [patch] (Claude)
 
 ## v2.15.2 (patch)
 
 Changes since v2.15.1:
 
-- Gate Dependabot auto-merge on CI actually being green ([@Claude](https://github.com/Claude))
+- Gate Dependabot auto-merge on CI actually being green (Claude)
 
 ## v2.15.1 (patch)
 
 Changes since v2.15.0:
 
-- fix: choose the repo's main project for Winget metadata, not an arbitrary csproj [patch] ([@Claude](https://github.com/Claude))
+- fix: choose the repo's main project for Winget metadata, not an arbitrary csproj [patch] (Claude)
 
 ## v2.15.0 (minor)
 
 Changes since v2.14.0:
 
-- fix: stop publishing RID zips for demo, sample and test projects [minor] ([@Claude](https://github.com/Claude))
-- fix: report a bare platform SDK as shipping an app, not a library [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
-- Recognize every executable ktsu.Sdk suffix, not just .App and .Ios [patch] ([@Claude](https://github.com/Claude))
-- ci: hold the blocking quality gate at the release, not at every pull request [patch] ([@Claude](https://github.com/Claude))
-- ci: adopt the consolidated .NET workflow [patch] ([@Claude](https://github.com/Claude))
+- fix: stop publishing RID zips for demo, sample and test projects [minor] (Claude)
+- fix: report a bare platform SDK as shipping an app, not a library [patch] (matt-edmondson)
+- Recognize every executable ktsu.Sdk suffix, not just .App and .Ios [patch] (Claude)
+- ci: hold the blocking quality gate at the release, not at every pull request [patch] (Claude)
+- ci: adopt the consolidated .NET workflow [patch] (Claude)
 
 ## v2.14.3 (patch)
 
 Changes since v2.14.2:
 
-- fix: report a bare platform SDK as shipping an app, not a library [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
+- fix: report a bare platform SDK as shipping an app, not a library [patch] (matt-edmondson)
 
 ## v2.14.2 (patch)
 
 Changes since v2.14.1:
 
-- Recognize every executable ktsu.Sdk suffix, not just .App and .Ios [patch] ([@Claude](https://github.com/Claude))
+- Recognize every executable ktsu.Sdk suffix, not just .App and .Ios [patch] (Claude)
 
 ## v2.14.1 (patch)
 
 Changes since v2.14.0:
 
-- ci: hold the blocking quality gate at the release, not at every pull request [patch] ([@Claude](https://github.com/Claude))
-- ci: adopt the consolidated .NET workflow [patch] ([@Claude](https://github.com/Claude))
+- ci: hold the blocking quality gate at the release, not at every pull request [patch] (Claude)
+- ci: adopt the consolidated .NET workflow [patch] (Claude)
 
 ## v2.14.0 (minor)
 
 Changes since v2.13.0:
 
-- Fix `test all` running platform-incompatible projects it just logged as skipped ([@Claude](https://github.com/Claude))
+- Fix `test all` running platform-incompatible projects it just logged as skipped (Claude)
 
 ## v2.13.0 (minor)
 
 Changes since v2.12.0:
 
-- Recognize the multi-<Sdk Name> project form as executable/test ([@Claude](https://github.com/Claude))
+- Recognize the multi-<Sdk Name> project form as executable/test (Claude)
 
 ## v2.12.3 (patch)
 
 Changes since v2.12.2:
 
-- Bump System.CommandLine from 2.0.11 to 2.0.12 ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump System.CommandLine from 2.0.11 to 2.0.12 (dependabot[bot])
 
 ## v2.12.2 (patch)
 
 Changes since v2.12.1:
 
-- Bump the microsoft group with 6 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the microsoft group with 6 updates (dependabot[bot])
 
 ## v2.12.1 (patch)
 
 Changes since v2.12.0:
 
-- Bump MSTest.Sdk from 4.3.3 to 4.4.0 ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump MSTest.Sdk from 4.3.3 to 4.4.0 (dependabot[bot])
 
 ## v2.12.0 (minor)
 
 Changes since v2.11.0:
 
-- feat: fail when the profile template promotes a retired repository [minor] ([@matt-edmondson](https://github.com/matt-edmondson))
+- feat: fail when the profile template promotes a retired repository [minor] (matt-edmondson)
 
 ## v2.11.0 (minor)
 
 Changes since v2.10.0:
 
-- feat: trade the prerelease, winget, and README columns for stars [minor] ([@matt-edmondson](https://github.com/matt-edmondson))
+- feat: trade the prerelease, winget, and README columns for stars [minor] (matt-edmondson)
 
 ## v2.10.0 (minor)
 
 Changes since v2.9.0:
 
-- fix: clear the remaining analyzer findings on the profile code [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
-- fix: address the review findings on the profile generator [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
-- feat: report what each repository ships and which SDK it pins [minor] ([@matt-edmondson](https://github.com/matt-edmondson))
-- feat: generate the organization profile README [minor] ([@matt-edmondson](https://github.com/matt-edmondson))
+- fix: clear the remaining analyzer findings on the profile code [patch] (matt-edmondson)
+- fix: address the review findings on the profile generator [patch] (matt-edmondson)
+- feat: report what each repository ships and which SDK it pins [minor] (matt-edmondson)
+- feat: generate the organization profile README [minor] (matt-edmondson)
 
 ## v2.9.0 (minor)
 
 Changes since v2.8.0:
 
-- fix: merge every test project's coverage instead of picking one [minor] ([@matt-edmondson](https://github.com/matt-edmondson))
-- fix: write the git identity locally instead of machine-wide [minor] ([@matt-edmondson](https://github.com/matt-edmondson))
-- ci: make the SonarQube quality gate opt in [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
-- ci: adopt the unified dotnet workflow [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
-- fix: report an --exclude that matched nothing at information level [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
+- fix: merge every test project's coverage instead of picking one [minor] (matt-edmondson)
+- fix: write the git identity locally instead of machine-wide [minor] (matt-edmondson)
+- ci: make the SonarQube quality gate opt in [patch] (matt-edmondson)
+- ci: adopt the unified dotnet workflow [patch] (matt-edmondson)
+- fix: report an --exclude that matched nothing at information level [patch] (matt-edmondson)
 
 ## v2.8.2 (patch)
 
 Changes since v2.8.1:
 
-- ci: make the SonarQube quality gate opt in [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
-- ci: adopt the unified dotnet workflow [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
+- ci: make the SonarQube quality gate opt in [patch] (matt-edmondson)
+- ci: adopt the unified dotnet workflow [patch] (matt-edmondson)
 
 ## v2.8.1 (patch)
 
 Changes since v2.8.0:
 
-- fix: report an --exclude that matched nothing at information level [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
+- fix: report an --exclude that matched nothing at information level [patch] (matt-edmondson)
 
 ## v2.8.0 (minor)
 
 Changes since v2.7.0:
 
-- feat: add --exclude to test all [minor] ([@matt-edmondson](https://github.com/matt-edmondson))
+- feat: add --exclude to test all [minor] (matt-edmondson)
 
 ## v2.7.0 (minor)
 
 Changes since v2.6.0:
 
-- fix: run test all in one invocation and ask the Sdk for the host runtime [minor] ([@matt-edmondson](https://github.com/matt-edmondson))
+- fix: run test all in one invocation and ask the Sdk for the host runtime [minor] (matt-edmondson)
 
 ## v2.6.0 (minor)
 
 Changes since v2.5.0:
 
-- docs: document test all, and name platforms as readers expect [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
-- feat: add test all, which tests against the host runtime only [minor] ([@matt-edmondson](https://github.com/matt-edmondson))
-- feat: allow a test run to pin the host runtime [minor] ([@matt-edmondson](https://github.com/matt-edmondson))
-- docs: plan the host runtime test command ([@matt-edmondson](https://github.com/matt-edmondson))
-- fix: select the test project with --project instead of a positional path [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
+- docs: document test all, and name platforms as readers expect [patch] (matt-edmondson)
+- feat: add test all, which tests against the host runtime only [minor] (matt-edmondson)
+- feat: allow a test run to pin the host runtime [minor] (matt-edmondson)
+- docs: plan the host runtime test command (matt-edmondson)
+- fix: select the test project with --project instead of a positional path [patch] (matt-edmondson)
 
 ## v2.5.1 (patch)
 
 Changes since v2.5.0:
 
-- fix: select the test project with --project instead of a positional path [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
+- fix: select the test project with --project instead of a positional path [patch] (matt-edmondson)
 
 ## v2.5.0 (minor)
 
 Changes since v2.4.0:
 
-- docs: document --no-build and the release target [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
-- fix: release the commit that carries the version [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
-- feat: add --no-build to test run [minor] ([@matt-edmondson](https://github.com/matt-edmondson))
-- docs: plan the no-build option and the release target fix ([@matt-edmondson](https://github.com/matt-edmondson))
+- docs: document --no-build and the release target [patch] (matt-edmondson)
+- fix: release the commit that carries the version [patch] (matt-edmondson)
+- feat: add --no-build to test run [minor] (matt-edmondson)
+- docs: plan the no-build option and the release target fix (matt-edmondson)
 
 ## v2.4.0 (minor)
 
 Changes since v2.3.0:
 
-- refactor: split preparation from version resolution to preserve ci ordering [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
-- refactor: extract the CI pipeline stages into a service [minor] ([@matt-edmondson](https://github.com/matt-edmondson))
-- docs: plan the pipeline extraction ([@matt-edmondson](https://github.com/matt-edmondson))
+- refactor: split preparation from version resolution to preserve ci ordering [patch] (matt-edmondson)
+- refactor: extract the CI pipeline stages into a service [minor] (matt-edmondson)
+- docs: plan the pipeline extraction (matt-edmondson)
 
 ## v2.3.0 (minor)
 
 Changes since v2.2.0:
 
-- docs: document the ci skip flags [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
-- feat: add --no-test and --no-release to the ci command [minor] ([@matt-edmondson](https://github.com/matt-edmondson))
-- refactor: extract the CI release decision behind a tested seam [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
-- docs: plan the ci skip flags ([@matt-edmondson](https://github.com/matt-edmondson))
+- docs: document the ci skip flags [patch] (matt-edmondson)
+- feat: add --no-test and --no-release to the ci command [minor] (matt-edmondson)
+- refactor: extract the CI release decision behind a tested seam [patch] (matt-edmondson)
+- docs: plan the ci skip flags (matt-edmondson)
 
 ## v2.2.0 (minor)
 
 Changes since v2.1.0:
 
-- docs: document the test commands and --no-test [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
-- feat: add --no-test to the build command [minor] ([@matt-edmondson](https://github.com/matt-edmondson))
-- feat: add the test list and test run commands [minor] ([@matt-edmondson](https://github.com/matt-edmondson))
-- fix: reject empty project path and strengthen TestProjectAsync test assertions [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
-- feat: run a single test project with coverage [minor] ([@matt-edmondson](https://github.com/matt-edmondson))
-- fix: strengthen host-filtering regression test and use StringAssert [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
-- feat: list test projects with their platform [minor] ([@matt-edmondson](https://github.com/matt-edmondson))
-- docs: plan the scoped test commands ([@matt-edmondson](https://github.com/matt-edmondson))
-- fix: stop forks rewriting the copyright holder [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
-- docs: scope build badge to the default branch ([@matt-edmondson](https://github.com/matt-edmondson))
-- docs: correct README, DESCRIPTION and TAGS metadata ([@matt-edmondson](https://github.com/matt-edmondson))
-- [patch] Run build and test when the version increment is Skip ([@matt-edmondson](https://github.com/matt-edmondson))
-- Fix nullability handling in GitHubActionsOutput.Write method ([@matt-edmondson](https://github.com/matt-edmondson))
+- docs: document the test commands and --no-test [patch] (matt-edmondson)
+- feat: add --no-test to the build command [minor] (matt-edmondson)
+- feat: add the test list and test run commands [minor] (matt-edmondson)
+- fix: reject empty project path and strengthen TestProjectAsync test assertions [patch] (matt-edmondson)
+- feat: run a single test project with coverage [minor] (matt-edmondson)
+- fix: strengthen host-filtering regression test and use StringAssert [patch] (matt-edmondson)
+- feat: list test projects with their platform [minor] (matt-edmondson)
+- docs: plan the scoped test commands (matt-edmondson)
+- fix: stop forks rewriting the copyright holder [patch] (matt-edmondson)
+- docs: scope build badge to the default branch (matt-edmondson)
+- docs: correct README, DESCRIPTION and TAGS metadata (matt-edmondson)
+- [patch] Run build and test when the version increment is Skip (matt-edmondson)
+- Fix nullability handling in GitHubActionsOutput.Write method (matt-edmondson)
 
 ## v2.1.6 (patch)
 
 Changes since v2.1.5:
 
-- fix: stop forks rewriting the copyright holder [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
+- fix: stop forks rewriting the copyright holder [patch] (matt-edmondson)
 
 ## v2.1.5 (patch)
 
 Changes since v2.1.4:
 
-- Bump the ktsu group with 9 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the ktsu group with 9 updates (dependabot[bot])
 
 ## v2.1.4 (patch)
 
 Changes since v2.1.3:
 
-- docs: scope build badge to the default branch ([@matt-edmondson](https://github.com/matt-edmondson))
-- docs: correct README, DESCRIPTION and TAGS metadata ([@matt-edmondson](https://github.com/matt-edmondson))
+- docs: scope build badge to the default branch (matt-edmondson)
+- docs: correct README, DESCRIPTION and TAGS metadata (matt-edmondson)
 
 ## v2.1.3 (patch)
 
 Changes since v2.1.2:
 
-- [patch] Run build and test when the version increment is Skip ([@matt-edmondson](https://github.com/matt-edmondson))
+- [patch] Run build and test when the version increment is Skip (matt-edmondson)
 
 ## v2.1.2 (patch)
 
 Changes since v2.1.1:
 
-- Bump the ktsu group with 9 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the ktsu group with 9 updates (dependabot[bot])
 
 ## v2.1.1 (patch)
 
 Changes since v2.1.0:
 
-- Fix nullability handling in GitHubActionsOutput.Write method ([@matt-edmondson](https://github.com/matt-edmondson))
+- Fix nullability handling in GitHubActionsOutput.Write method (matt-edmondson)
 
 ## v2.1.1-pre.1 (prerelease)
 
 Changes since v2.1.0:
 
-- Fix nullability handling in GitHubActionsOutput.Write method ([@matt-edmondson](https://github.com/matt-edmondson))
+- Fix nullability handling in GitHubActionsOutput.Write method (matt-edmondson)
 
 ## v2.1.0 (minor)
 
 Changes since v2.0.0:
 
-- Update copyright notices and enhance GitHub Actions output handling ([@matt-edmondson](https://github.com/matt-edmondson))
-- Sync .runsettings ([@KtsuTools](https://github.com/KtsuTools))
-- Sync .editorconfig ([@KtsuTools](https://github.com/KtsuTools))
-- Sync .gitattributes ([@KtsuTools](https://github.com/KtsuTools))
-- Sync global.json ([@KtsuTools](https://github.com/KtsuTools))
-- Sync .github\workflows\dotnet.yml ([@KtsuTools](https://github.com/KtsuTools))
-- Sync global.json ([@KtsuTools](https://github.com/KtsuTools))
-- [patch] Run CI from the installed KtsuBuild tool instead of a source clone ([@matt-edmondson](https://github.com/matt-edmondson))
+- Update copyright notices and enhance GitHub Actions output handling (matt-edmondson)
+- Sync .runsettings (KtsuTools)
+- Sync .editorconfig (KtsuTools)
+- Sync .gitattributes (KtsuTools)
+- Sync global.json (KtsuTools)
+- Sync .github\workflows\dotnet.yml (KtsuTools)
+- Sync global.json (KtsuTools)
+- [patch] Run CI from the installed KtsuBuild tool instead of a source clone (matt-edmondson)
 
 ## v2.0.2 (patch)
 
 Changes since v2.0.1:
 
-- Bump Polyfill from 11.0.1 to 11.0.2 ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump Polyfill from 11.0.1 to 11.0.2 (dependabot[bot])
 
 ## v2.0.1 (patch)
 
 Changes since v2.0.0:
 
-- [patch] Run CI from the installed KtsuBuild tool instead of a source clone ([@matt-edmondson](https://github.com/matt-edmondson))
+- [patch] Run CI from the installed KtsuBuild tool instead of a source clone (matt-edmondson)
 
 ## v2.0.0 (major)
 
 Changes since v1.9.0:
 
-- [major] Distribute the CLI as a dotnet tool ([@matt-edmondson](https://github.com/matt-edmondson))
+- [major] Distribute the CLI as a dotnet tool (matt-edmondson)
 
 ## v1.9.0 (minor)
 
 Changes since v1.8.0:
 
-- [minor] Fix all CI build and SonarCloud warnings ([@matt-edmondson](https://github.com/matt-edmondson))
-- [patch] Stop the changelog emitting an empty section for a release with no changes ([@matt-edmondson](https://github.com/matt-edmondson))
-- [patch] fix(pack): pass solution context (SolutionDir/SolutionName) to per-project pack ([@matt-edmondson](https://github.com/matt-edmondson))
-- chore: remove unused SourceLink package versions ([@matt-edmondson](https://github.com/matt-edmondson))
-- chore: remove redundant package references ([@matt-edmondson](https://github.com/matt-edmondson))
-- Remove stale files ([@matt-edmondson](https://github.com/matt-edmondson))
-- Retry code-coverage collector pipe flake in test runner [patch] ([@Claude](https://github.com/Claude))
+- [minor] Fix all CI build and SonarCloud warnings (matt-edmondson)
+- [patch] Stop the changelog emitting an empty section for a release with no changes (matt-edmondson)
+- [patch] fix(pack): pass solution context (SolutionDir/SolutionName) to per-project pack (matt-edmondson)
+- chore: remove unused SourceLink package versions (matt-edmondson)
+- chore: remove redundant package references (matt-edmondson)
+- Remove stale files (matt-edmondson)
+- Retry code-coverage collector pipe flake in test runner [patch] (Claude)
 
 ## v1.8.17 (patch)
 
 Changes since v1.8.16:
 
-- Merge remote-tracking branch 'refs/remotes/origin/main' ([@ktsu[bot]](https://github.com/ktsu[bot]))
-- Sync .github\workflows\dotnet.yml ([@ktsu[bot]](https://github.com/ktsu[bot]))
-- Sync .github\workflows\dependabot-merge.yml ([@ktsu[bot]](https://github.com/ktsu[bot]))
-- Sync .gitattributes ([@ktsu[bot]](https://github.com/ktsu[bot]))
+- Merge remote-tracking branch 'refs/remotes/origin/main' (ktsu[bot])
+- Sync .github\workflows\dotnet.yml (ktsu[bot])
+- Sync .github\workflows\dependabot-merge.yml (ktsu[bot])
+- Sync .gitattributes (ktsu[bot])
 
 ## v1.8.16 (patch)
 
 Changes since v1.8.15:
 
-- [patch] Stop the changelog emitting an empty section for a release with no changes ([@matt-edmondson](https://github.com/matt-edmondson))
+- [patch] Stop the changelog emitting an empty section for a release with no changes (matt-edmondson)
 
 ## v1.8.15 (patch)
 
 Changes since v1.8.14:
 
-- Bump MSTest.Sdk from 4.3.2 to 4.3.3 ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump MSTest.Sdk from 4.3.2 to 4.3.3 (dependabot[bot])
 
 ## v1.8.14 (patch)
 
 Changes since v1.8.13:
 
-- Bump the ktsu group with 8 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the ktsu group with 8 updates (dependabot[bot])
 
 ## v1.8.13 (patch)
 
 Changes since v1.8.12:
 
-- Bump System.CommandLine from 2.0.9 to 2.0.10 ([@dependabot[bot]](https://github.com/dependabot[bot]))
-- Bump Polyfill from 10.11.2 to 11.0.1 ([@dependabot[bot]](https://github.com/dependabot[bot]))
-- Bump the microsoft group with 6 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump System.CommandLine from 2.0.9 to 2.0.10 (dependabot[bot])
+- Bump Polyfill from 10.11.2 to 11.0.1 (dependabot[bot])
+- Bump the microsoft group with 6 updates (dependabot[bot])
 
 ## v1.8.12 (patch)
 
 Changes since v1.8.11:
 
-- Bump MSTest.Sdk from 4.3.0 to 4.3.2 ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump MSTest.Sdk from 4.3.0 to 4.3.2 (dependabot[bot])
 
 ## v1.8.11 (patch)
 
 Changes since v1.8.10:
 
-- Bump NSubstitute from 5.3.0 to 6.0.0 ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump NSubstitute from 5.3.0 to 6.0.0 (dependabot[bot])
 
 ## v1.8.10 (patch)
 
 Changes since v1.8.9:
 
-- Bump MSTest.Sdk from 4.2.3 to 4.3.0 ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump MSTest.Sdk from 4.2.3 to 4.3.0 (dependabot[bot])
 
 ## v1.8.9 (patch)
 
 Changes since v1.8.8:
 
-- Bump the ktsu group with 8 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the ktsu group with 8 updates (dependabot[bot])
 
 ## v1.8.8 (patch)
 
 Changes since v1.8.7:
 
-- Bump Polyfill from 10.11.0 to 10.11.2 ([@dependabot[bot]](https://github.com/dependabot[bot]))
-- Bump the ktsu group with 8 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump Polyfill from 10.11.0 to 10.11.2 (dependabot[bot])
+- Bump the ktsu group with 8 updates (dependabot[bot])
 
 ## v1.8.7 (patch)
 
 Changes since v1.8.6:
 
-- [patch] fix(pack): pass solution context (SolutionDir/SolutionName) to per-project pack ([@matt-edmondson](https://github.com/matt-edmondson))
+- [patch] fix(pack): pass solution context (SolutionDir/SolutionName) to per-project pack (matt-edmondson)
 
 ## v1.8.6 (patch)
 
 Changes since v1.8.5:
 
-- Merge remote-tracking branch 'refs/remotes/origin/main' ([@ktsu[bot]](https://github.com/ktsu[bot]))
-- Sync .github\workflows\dotnet.yml ([@ktsu[bot]](https://github.com/ktsu[bot]))
-- Sync global.json ([@ktsu[bot]](https://github.com/ktsu[bot]))
+- Merge remote-tracking branch 'refs/remotes/origin/main' (ktsu[bot])
+- Sync .github\workflows\dotnet.yml (ktsu[bot])
+- Sync global.json (ktsu[bot])
 
 ## v1.8.5 (patch)
 
 Changes since v1.8.4:
 
-- chore: remove unused SourceLink package versions ([@matt-edmondson](https://github.com/matt-edmondson))
-- chore: remove redundant package references ([@matt-edmondson](https://github.com/matt-edmondson))
-- Remove stale files ([@matt-edmondson](https://github.com/matt-edmondson))
+- chore: remove unused SourceLink package versions (matt-edmondson)
+- chore: remove redundant package references (matt-edmondson)
+- Remove stale files (matt-edmondson)
 
 ## v1.8.4 (patch)
 
 Changes since v1.8.3:
 
-- Sync .github\workflows\dotnet.yml ([@ktsu[bot]](https://github.com/ktsu[bot]))
-- Sync .github\dependabot.yml ([@ktsu[bot]](https://github.com/ktsu[bot]))
-- Sync .serena\.gitignore ([@ktsu[bot]](https://github.com/ktsu[bot]))
-- Sync .gitignore ([@ktsu[bot]](https://github.com/ktsu[bot]))
-- Sync global.json ([@ktsu[bot]](https://github.com/ktsu[bot]))
+- Sync .github\workflows\dotnet.yml (ktsu[bot])
+- Sync .github\dependabot.yml (ktsu[bot])
+- Sync .serena\.gitignore (ktsu[bot])
+- Sync .gitignore (ktsu[bot])
+- Sync global.json (ktsu[bot])
 
 ## v1.8.3 (patch)
 
 Changes since v1.8.2:
 
-- Bump System.CommandLine from 2.0.8 to 2.0.9 ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump System.CommandLine from 2.0.8 to 2.0.9 (dependabot[bot])
 
 ## v1.8.2 (patch)
 
 Changes since v1.8.1:
 
-- Bump the microsoft group with 5 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the microsoft group with 5 updates (dependabot[bot])
 
 ## v1.8.1 (patch)
 
 Changes since v1.8.0:
 
-- Retry code-coverage collector pipe flake in test runner [patch] ([@Claude](https://github.com/Claude))
+- Retry code-coverage collector pipe flake in test runner [patch] (Claude)
 
 ## v1.8.0 (minor)
 
 Changes since v1.7.0:
 
-- Fix CA1506 coupling and resolve cross-platform IDE0055 line-ending errors ([@Claude](https://github.com/Claude))
-- Auto-detect and validate iOS heads in the ci pipeline ([@Claude](https://github.com/Claude))
-- Add TestFlight upload command (iOS support phase 4) ([@Claude](https://github.com/Claude))
+- Fix CA1506 coupling and resolve cross-platform IDE0055 line-ending errors (Claude)
+- Auto-detect and validate iOS heads in the ci pipeline (Claude)
+- Add TestFlight upload command (iOS support phase 4) (Claude)
 
 ## v1.7.0 (minor)
 
 Changes since v1.6.0:
 
-- Fix iOS packaging code-style errors flagged by CI ([@Claude](https://github.com/Claude))
-- Add signed iOS packaging command (iOS support phase 3) ([@Claude](https://github.com/Claude))
+- Fix iOS packaging code-style errors flagged by CI (Claude)
+- Add signed iOS packaging command (iOS support phase 3) (Claude)
 
 ## v1.6.0 (minor)
 
 Changes since v1.5.0:
 
-- Extract iOS build orchestration into testable IosBuildService ([@Claude](https://github.com/Claude))
-- Remove unnecessary null-forgiving operator in FindAppBundles ([@Claude](https://github.com/Claude))
-- Add unsigned iOS build command (iOS support phase 2) ([@Claude](https://github.com/Claude))
+- Extract iOS build orchestration into testable IosBuildService (Claude)
+- Remove unnecessary null-forgiving operator in FindAppBundles (Claude)
+- Add unsigned iOS build command (iOS support phase 2) (Claude)
 
 ## v1.5.0 (minor)
 
 Changes since v1.4.0:
 
-- Add iOS-aware project classification and host build gating ([@Claude](https://github.com/Claude))
-- Add plan for iOS build and publish support ([@Claude](https://github.com/Claude))
+- Add iOS-aware project classification and host build gating (Claude)
+- Add plan for iOS build and publish support (Claude)
 
 ## v1.4.2 (patch)
 
 Changes since v1.4.1:
 
-- Bump Polyfill from 10.7.1 to 10.8.0 ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump Polyfill from 10.7.1 to 10.8.0 (dependabot[bot])
 
 ## v1.4.1 (patch)
 
 Changes since v1.4.0:
 
-- Bump Polyfill from 10.7.0 to 10.7.1 ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump Polyfill from 10.7.0 to 10.7.1 (dependabot[bot])
 
 ## v1.4.0 (minor)
 
 Changes since v1.3.0:
 
-- Fix metadata commit failing when files are identical ([@Claude](https://github.com/Claude))
-- Add TAGS.md with NuGet package tags ([@matt-edmondson](https://github.com/matt-edmondson))
-- [patch] Fix CI bootstrap deadlock: use current checkout for self-builds ([@matt-edmondson](https://github.com/matt-edmondson))
-- [patch] Remove unnecessary null-forgiving operators after IsNullOrEmpty checks (IDE0370) ([@matt-edmondson](https://github.com/matt-edmondson))
+- Fix metadata commit failing when files are identical (Claude)
+- Add TAGS.md with NuGet package tags (matt-edmondson)
+- [patch] Fix CI bootstrap deadlock: use current checkout for self-builds (matt-edmondson)
+- [patch] Remove unnecessary null-forgiving operators after IsNullOrEmpty checks (IDE0370) (matt-edmondson)
 
 ## v1.3.24 (patch)
 
 Changes since v1.3.23:
 
-- Bump YamlDotNet from 17.1.0 to 18.0.0 ([@dependabot[bot]](https://github.com/dependabot[bot]))
-- Bump Polyfill from 10.6.0 to 10.7.0 ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump YamlDotNet from 17.1.0 to 18.0.0 (dependabot[bot])
+- Bump Polyfill from 10.6.0 to 10.7.0 (dependabot[bot])
 
 ## v1.3.23 (patch)
 
 Changes since v1.3.22:
 
-- Bump Polyfill from 10.5.1 to 10.6.0 ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump Polyfill from 10.5.1 to 10.6.0 (dependabot[bot])
 
 ## v1.3.22 (patch)
 
 Changes since v1.3.21:
 
-- Bump MSTest.Sdk from 4.2.2 to 4.2.3 ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump MSTest.Sdk from 4.2.2 to 4.2.3 (dependabot[bot])
 
 ## v1.3.21 (patch)
 
 Changes since v1.3.20:
 
-- Bump System.CommandLine from 2.0.7 to 2.0.8 ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump System.CommandLine from 2.0.7 to 2.0.8 (dependabot[bot])
 
 ## v1.3.20 (patch)
 
 Changes since v1.3.19:
 
-- Bump the microsoft group with 7 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the microsoft group with 7 updates (dependabot[bot])
 
 ## v1.3.19 (patch)
 
 Changes since v1.3.18:
 
-- Bump Polyfill from 10.5.0 to 10.5.1 ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump Polyfill from 10.5.0 to 10.5.1 (dependabot[bot])
 
 ## v1.3.18 (patch)
 
 Changes since v1.3.17:
 
-- Add TAGS.md with NuGet package tags ([@matt-edmondson](https://github.com/matt-edmondson))
+- Add TAGS.md with NuGet package tags (matt-edmondson)
 
 ## v1.3.17 (patch)
 
 Changes since v1.3.16:
 
-- Bump Polyfill from 10.4.0 to 10.5.0 ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump Polyfill from 10.4.0 to 10.5.0 (dependabot[bot])
 
 ## v1.3.16 (patch)
 
 Changes since v1.3.15:
 
-- Bump Polyfill from 10.3.0 to 10.4.0 ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump Polyfill from 10.3.0 to 10.4.0 (dependabot[bot])
 
 ## v1.3.15 (patch)
 
 Changes since v1.3.14:
 
-- Bump MSTest.Sdk from 4.2.1 to 4.2.2 ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump MSTest.Sdk from 4.2.1 to 4.2.2 (dependabot[bot])
 
 ## v1.3.14 (patch)
 
 Changes since v1.3.13:
 
-- Bump YamlDotNet from 17.0.1 to 17.1.0 ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump YamlDotNet from 17.0.1 to 17.1.0 (dependabot[bot])
 
 ## v1.3.13 (patch)
 
 Changes since v1.3.12:
 
-- Bump the system group with 1 update ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the system group with 1 update (dependabot[bot])
 
 ## v1.3.12 (patch)
 
 Changes since v1.3.11:
 
-- Bump the microsoft group with 7 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the microsoft group with 7 updates (dependabot[bot])
 
 ## v1.3.11 (patch)
 
 Changes since v1.3.10:
 
-- Bump the system group with 1 update ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the system group with 1 update (dependabot[bot])
 
 ## v1.3.10 (patch)
 
 Changes since v1.3.9:
 
-- Bump the microsoft group with 7 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the microsoft group with 7 updates (dependabot[bot])
 
 ## v1.3.9 (patch)
 
 Changes since v1.3.8:
 
-- Bump YamlDotNet from 17.0.0 to 17.0.1 ([@dependabot[bot]](https://github.com/dependabot[bot]))
-- Bump Polyfill from 10.1.1 to 10.3.0 ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump YamlDotNet from 17.0.0 to 17.0.1 (dependabot[bot])
+- Bump Polyfill from 10.1.1 to 10.3.0 (dependabot[bot])
 
 ## v1.3.8 (patch)
 
 Changes since v1.3.7:
 
-- Bump YamlDotNet from 16.3.0 to 17.0.0 ([@dependabot[bot]](https://github.com/dependabot[bot]))
-- Bump Polyfill from 10.0.0 to 10.1.1 ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump YamlDotNet from 16.3.0 to 17.0.0 (dependabot[bot])
+- Bump Polyfill from 10.0.0 to 10.1.1 (dependabot[bot])
 
 ## v1.3.7 (patch)
 
 Changes since v1.3.6:
 
-- Bump MSTest.Sdk from 4.1.0 to 4.2.1 ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump MSTest.Sdk from 4.1.0 to 4.2.1 (dependabot[bot])
 
 ## v1.3.6 (patch)
 
 Changes since v1.3.5:
 
-- Bump Polyfill from 9.24.0 to 10.0.0 ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump Polyfill from 9.24.0 to 10.0.0 (dependabot[bot])
 
 ## v1.3.5 (patch)
 
 Changes since v1.3.4:
 
-- Bump Polyfill from 9.23.0 to 9.24.0 ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump Polyfill from 9.23.0 to 9.24.0 (dependabot[bot])
 
 ## v1.3.4 (patch)
 
 Changes since v1.3.3:
 
-- [patch] Fix CI bootstrap deadlock: use current checkout for self-builds ([@matt-edmondson](https://github.com/matt-edmondson))
-- [patch] Remove unnecessary null-forgiving operators after IsNullOrEmpty checks (IDE0370) ([@matt-edmondson](https://github.com/matt-edmondson))
+- [patch] Fix CI bootstrap deadlock: use current checkout for self-builds (matt-edmondson)
+- [patch] Remove unnecessary null-forgiving operators after IsNullOrEmpty checks (IDE0370) (matt-edmondson)
 
 ## v1.3.3 (patch)
 
 Changes since v1.3.2:
 
-- Bump Polyfill from 9.11.0 to 9.12.0 ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump Polyfill from 9.11.0 to 9.12.0 (dependabot[bot])
 
 ## v1.3.2 (patch)
 
 Changes since v1.3.1:
 
-- Bump Polyfill from 9.10.0 to 9.11.0 ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump Polyfill from 9.10.0 to 9.11.0 (dependabot[bot])
 
 ## v1.3.1 (patch)
 
 Changes since v1.3.0:
 
-- Bump Polyfill from 9.9.0 to 9.10.0 ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump Polyfill from 9.9.0 to 9.10.0 (dependabot[bot])
 
 ## v1.3.0 (minor)
 
 Changes since v1.2.0:
 
-- Implement repository topics management and add related tests ([@matt-edmondson](https://github.com/matt-edmondson))
+- Implement repository topics management and add related tests (matt-edmondson)
 
 ## v1.2.0 (minor)
 
 Changes since v1.1.0:
 
-- Add unit tests for ReleaseService, LineEndingHelper, ManifestGenerator, and WingetService ([@matt-edmondson](https://github.com/matt-edmondson))
-- Add conditional metadata commit logic in CiCommand for official builds ([@matt-edmondson](https://github.com/matt-edmondson))
-- Refactor CiCommand to extract pipeline execution logic into a separate method for improved readability and maintainability ([@matt-edmondson](https://github.com/matt-edmondson))
-- Refactor WingetService to streamline library project handling and improve logging ([@matt-edmondson](https://github.com/matt-edmondson))
-- Refactor WriteAuthorsFileAsync to use StringBuilder for improved performance ([@matt-edmondson](https://github.com/matt-edmondson))
-- Sync .github\workflows\dotnet.yml ([@KtsuTools](https://github.com/KtsuTools))
-- Refactor CI permissions for least-privilege access, add SonarLint configuration, and streamline version bump parsing ([@matt-edmondson](https://github.com/matt-edmondson))
-- Refactor CI command to use arguments array for backward compatibility ([@matt-edmondson](https://github.com/matt-edmondson))
-- Refactor CI command to improve backward compatibility for version bump handling ([@matt-edmondson](https://github.com/matt-edmondson))
-- Add version bump control to CI command and workflows ([@matt-edmondson](https://github.com/matt-edmondson))
-- Dont fail when theres no executables to put in a winget manifest ([@matt-edmondson](https://github.com/matt-edmondson))
-- refactor: remove skipped_release logic from workflow conditions ([@matt-edmondson](https://github.com/matt-edmondson))
-- Remove update-winget-manifests.ps1 script as it is no longer needed for managing winget manifests. ([@matt-edmondson](https://github.com/matt-edmondson))
+- Add unit tests for ReleaseService, LineEndingHelper, ManifestGenerator, and WingetService (matt-edmondson)
+- Add conditional metadata commit logic in CiCommand for official builds (matt-edmondson)
+- Refactor CiCommand to extract pipeline execution logic into a separate method for improved readability and maintainability (matt-edmondson)
+- Refactor WingetService to streamline library project handling and improve logging (matt-edmondson)
+- Refactor WriteAuthorsFileAsync to use StringBuilder for improved performance (matt-edmondson)
+- Sync .github\workflows\dotnet.yml (KtsuTools)
+- Refactor CI permissions for least-privilege access, add SonarLint configuration, and streamline version bump parsing (matt-edmondson)
+- Refactor CI command to use arguments array for backward compatibility (matt-edmondson)
+- Refactor CI command to improve backward compatibility for version bump handling (matt-edmondson)
+- Add version bump control to CI command and workflows (matt-edmondson)
+- Dont fail when theres no executables to put in a winget manifest (matt-edmondson)
+- refactor: remove skipped_release logic from workflow conditions (matt-edmondson)
+- Remove update-winget-manifests.ps1 script as it is no longer needed for managing winget manifests. (matt-edmondson)
 
 ## v1.1.8 (patch)
 
 Changes since v1.1.7:
 
-- Add conditional metadata commit logic in CiCommand for official builds ([@matt-edmondson](https://github.com/matt-edmondson))
+- Add conditional metadata commit logic in CiCommand for official builds (matt-edmondson)
 
 ## v1.1.7 (patch)
 
 Changes since v1.1.6:
 
-- Refactor CiCommand to extract pipeline execution logic into a separate method for improved readability and maintainability ([@matt-edmondson](https://github.com/matt-edmondson))
-- Refactor WingetService to streamline library project handling and improve logging ([@matt-edmondson](https://github.com/matt-edmondson))
-- Refactor WriteAuthorsFileAsync to use StringBuilder for improved performance ([@matt-edmondson](https://github.com/matt-edmondson))
-- Sync .github\workflows\dotnet.yml ([@KtsuTools](https://github.com/KtsuTools))
+- Refactor CiCommand to extract pipeline execution logic into a separate method for improved readability and maintainability (matt-edmondson)
+- Refactor WingetService to streamline library project handling and improve logging (matt-edmondson)
+- Refactor WriteAuthorsFileAsync to use StringBuilder for improved performance (matt-edmondson)
+- Sync .github\workflows\dotnet.yml (KtsuTools)
 
 ## v1.1.7-pre.1 (prerelease)
 
 Changes since v1.1.6:
 
-- Sync .github\workflows\dotnet.yml ([@KtsuTools](https://github.com/KtsuTools))
+- Sync .github\workflows\dotnet.yml (KtsuTools)
 
 ## v1.1.6 (patch)
 
 Changes since v1.1.5:
 
-- Merge remote-tracking branch 'refs/remotes/origin/main' ([@ktsu[bot]](https://github.com/ktsu[bot]))
-- Sync .github\workflows\dotnet.yml ([@ktsu[bot]](https://github.com/ktsu[bot]))
+- Merge remote-tracking branch 'refs/remotes/origin/main' (ktsu[bot])
+- Sync .github\workflows\dotnet.yml (ktsu[bot])
 
 ## v1.1.5 (patch)
 
 Changes since v1.1.4:
 
-- Refactor CI permissions for least-privilege access, add SonarLint configuration, and streamline version bump parsing ([@matt-edmondson](https://github.com/matt-edmondson))
+- Refactor CI permissions for least-privilege access, add SonarLint configuration, and streamline version bump parsing (matt-edmondson)
 
 ## v1.1.4 (patch)
 
 Changes since v1.1.3:
 
-- Refactor CI command to use arguments array for backward compatibility ([@matt-edmondson](https://github.com/matt-edmondson))
-- Refactor CI command to improve backward compatibility for version bump handling ([@matt-edmondson](https://github.com/matt-edmondson))
-- Add version bump control to CI command and workflows ([@matt-edmondson](https://github.com/matt-edmondson))
-- Dont fail when theres no executables to put in a winget manifest ([@matt-edmondson](https://github.com/matt-edmondson))
+- Refactor CI command to use arguments array for backward compatibility (matt-edmondson)
+- Refactor CI command to improve backward compatibility for version bump handling (matt-edmondson)
+- Add version bump control to CI command and workflows (matt-edmondson)
+- Dont fail when theres no executables to put in a winget manifest (matt-edmondson)
 
 ## v1.1.3 (patch)
 
 Changes since v1.1.2:
 
-- Merge remote-tracking branch 'refs/remotes/origin/main' ([@ktsu[bot]](https://github.com/ktsu[bot]))
-- Sync global.json ([@ktsu[bot]](https://github.com/ktsu[bot]))
+- Merge remote-tracking branch 'refs/remotes/origin/main' (ktsu[bot])
+- Sync global.json (ktsu[bot])
 
 ## v1.1.2 (patch)
 
 Changes since v1.1.1:
 
-- refactor: remove skipped_release logic from workflow conditions ([@matt-edmondson](https://github.com/matt-edmondson))
+- refactor: remove skipped_release logic from workflow conditions (matt-edmondson)
 
 ## v1.1.1 (patch)
 
 Changes since v1.1.0:
 
-- Remove update-winget-manifests.ps1 script as it is no longer needed for managing winget manifests. ([@matt-edmondson](https://github.com/matt-edmondson))
+- Remove update-winget-manifests.ps1 script as it is no longer needed for managing winget manifests. (matt-edmondson)
 
 ## v1.1.0 (major)
 
-- feat: add AUTHORS file handling to MetadataService for conditional inclusion ([@matt-edmondson](https://github.com/matt-edmondson))
-- fix: add suppression for conditional log level evaluation performance warning in BuildLogger ([@matt-edmondson](https://github.com/matt-edmondson))
-- fix: ensure latest tag retrieval does not fail by adding fallback to true ([@matt-edmondson](https://github.com/matt-edmondson))
-- fix: update tag cloning logic to ensure correct latest version retrieval ([@matt-edmondson](https://github.com/matt-edmondson))
-- feat: enhance CI pipeline by cloning latest KtsuBuild tag and simplifying build steps ([@matt-edmondson](https://github.com/matt-edmondson))
-- feat: update project files to target .NET 10.0 and improve test visibility - Updated KtsuBuild.CLI.csproj and KtsuBuild.csproj to target net10.0 - Added InternalsVisibleTo attribute for KtsuBuild.Tests - Modified KtsuBuild.Tests.csproj to target net10.0 and include additional package references - Refactored test files to use ConfigureAwait(false) for async calls ([@matt-edmondson](https://github.com/matt-edmondson))
-- refactor: remove embedded resource template and use constant for license template ([@matt-edmondson](https://github.com/matt-edmondson))
-- docs: add CLAUDE.md for project guidance and update README.md for clarity and usage instructions ([@matt-edmondson](https://github.com/matt-edmondson))
-- fix: update no-commit option description for clarity ([@matt-edmondson](https://github.com/matt-edmondson))
-- refactor: remove unnecessary test package references and improve project detection logic ([@matt-edmondson](https://github.com/matt-edmondson))
-- Additional initial work ([@matt-edmondson](https://github.com/matt-edmondson))
-- refactor: simplify variable declarations and enhance code readability across command files ([@matt-edmondson](https://github.com/matt-edmondson))
-- feat: update default single file option and enhance build logging ([@matt-edmondson](https://github.com/matt-edmondson))
-- Refactor and enhance KtsuBuild utilities and services ([@matt-edmondson](https://github.com/matt-edmondson))
-- Add unit tests for Changelog and License generation ([@matt-edmondson](https://github.com/matt-edmondson))
-- Add Winget manifest generation functionality ([@matt-edmondson](https://github.com/matt-edmondson))
-- Initial files ([@matt-edmondson](https://github.com/matt-edmondson))
+- feat: add AUTHORS file handling to MetadataService for conditional inclusion (matt-edmondson)
+- fix: add suppression for conditional log level evaluation performance warning in BuildLogger (matt-edmondson)
+- fix: ensure latest tag retrieval does not fail by adding fallback to true (matt-edmondson)
+- fix: update tag cloning logic to ensure correct latest version retrieval (matt-edmondson)
+- feat: enhance CI pipeline by cloning latest KtsuBuild tag and simplifying build steps (matt-edmondson)
+- feat: update project files to target .NET 10.0 and improve test visibility - Updated KtsuBuild.CLI.csproj and KtsuBuild.csproj to target net10.0 - Added InternalsVisibleTo attribute for KtsuBuild.Tests - Modified KtsuBuild.Tests.csproj to target net10.0 and include additional package references - Refactored test files to use ConfigureAwait(false) for async calls (matt-edmondson)
+- refactor: remove embedded resource template and use constant for license template (matt-edmondson)
+- docs: add CLAUDE.md for project guidance and update README.md for clarity and usage instructions (matt-edmondson)
+- fix: update no-commit option description for clarity (matt-edmondson)
+- refactor: remove unnecessary test package references and improve project detection logic (matt-edmondson)
+- Additional initial work (matt-edmondson)
+- refactor: simplify variable declarations and enhance code readability across command files (matt-edmondson)
+- feat: update default single file option and enhance build logging (matt-edmondson)
+- Refactor and enhance KtsuBuild utilities and services (matt-edmondson)
+- Add unit tests for Changelog and License generation (matt-edmondson)
+- Add Winget manifest generation functionality (matt-edmondson)
+- Initial files (matt-edmondson)
 
