@@ -279,7 +279,7 @@ public class ChangelogGeneratorTests
 			.Returns(Task.FromResult<string?>("abc111"));
 		_gitService.GetCommitsAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
 			.Returns(Task.FromResult<IReadOnlyList<CommitInfo>>([
-				new CommitInfo { Hash = "def222", Subject = "Add awesome feature", Author = "developer" },
+				new CommitInfo { Hash = "def222", Subject = "Add awesome feature", Author = "Dev Eloper", AuthorEmail = "42+developer@users.noreply.github.com" },
 			]));
 
 		// Act
@@ -293,7 +293,7 @@ public class ChangelogGeneratorTests
 		// Assert
 		string content = await File.ReadAllTextAsync(Path.Combine(_tempDir, "CHANGELOG.md")).ConfigureAwait(false);
 		Assert.IsTrue(content.Contains("- Add awesome feature"), "Should format as bullet point");
-		Assert.IsTrue(content.Contains("[@developer]"), "Should include author link");
+		Assert.IsTrue(content.Contains("- Add awesome feature ([@developer](https://github.com/developer))"), "Should link the author's login");
 	}
 
 	[TestMethod]
