@@ -88,14 +88,16 @@ internal sealed class Program
 	private static void AddReleaseCommand(RootCommand rootCommand, IProcessRunner processRunner, IBuildLogger logger)
 	{
 		ReleaseCommand command = new();
-		Func<string, string, bool, bool, CancellationToken, Task<int>> handler = ReleaseCommand.CreateHandler(processRunner, logger);
+		Func<ReleaseCommand.ReleaseOptions, CancellationToken, Task<int>> handler = ReleaseCommand.CreateHandler(processRunner, logger);
 		command.SetAction(async (parseResult, ct) =>
 		{
-			string workspace = parseResult.GetValue(GlobalOptions.Workspace)!;
-			string configuration = parseResult.GetValue(GlobalOptions.Configuration)!;
-			bool verbose = parseResult.GetValue(GlobalOptions.Verbose);
-			bool dryRun = parseResult.GetValue(GlobalOptions.DryRun);
-			return await handler(workspace, configuration, verbose, dryRun, ct).ConfigureAwait(false);
+			ReleaseCommand.ReleaseOptions options = new(
+				Workspace: parseResult.GetValue(GlobalOptions.Workspace)!,
+				Configuration: parseResult.GetValue(GlobalOptions.Configuration)!,
+				Verbose: parseResult.GetValue(GlobalOptions.Verbose),
+				DryRun: parseResult.GetValue(GlobalOptions.DryRun),
+				VersionBump: parseResult.GetValue(GlobalOptions.VersionBump)!);
+			return await handler(options, ct).ConfigureAwait(false);
 		});
 		rootCommand.Subcommands.Add(command);
 	}
