@@ -130,7 +130,9 @@ public static class SolutionFilter
 
 		StringBuilder regex = new("^");
 
-		for (int i = 0; i < normalizedPattern.Length; i++)
+		// Each branch consumes its own width, so the index advances in the body rather than the header.
+		int i = 0;
+		while (i < normalizedPattern.Length)
 		{
 			char c = normalizedPattern[i];
 
@@ -146,20 +148,22 @@ public static class SolutionFilter
 					if (startsSegment && endsSegment)
 					{
 						regex.Append("(?:.*/)?");
-						i += 2;
+						i += 3;
 						continue;
 					}
 
 					regex.Append(".*");
-					i++;
+					i += 2;
 					continue;
 				}
 
 				regex.Append("[^/]*");
+				i++;
 				continue;
 			}
 
 			regex.Append(Regex.Escape(c.ToString(CultureInfo.InvariantCulture)));
+			i++;
 		}
 
 		regex.Append('$');
