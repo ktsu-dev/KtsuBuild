@@ -139,6 +139,17 @@ public static class SolutionFilter
 				// `**` crosses directory separators; a single `*` does not.
 				if (i + 1 < normalizedPattern.Length && normalizedPattern[i + 1] == '*')
 				{
+					// A `**/` segment, leading or between separators, stands for zero or more whole
+					// directories, so `**/X` also matches a root-level `X` and `src/**/X` matches `src/X`.
+					bool startsSegment = i == 0 || normalizedPattern[i - 1] == '/';
+					bool endsSegment = i + 2 < normalizedPattern.Length && normalizedPattern[i + 2] == '/';
+					if (startsSegment && endsSegment)
+					{
+						regex.Append("(?:.*/)?");
+						i += 2;
+						continue;
+					}
+
 					regex.Append(".*");
 					i++;
 					continue;

@@ -103,6 +103,25 @@ EndProject
 	}
 
 	[TestMethod]
+	public void Matches_LeadingGlobstarMatchesZeroDirectories()
+	{
+		// The shared pipeline excludes "**/*.UITests/*". A UITests project at the repository root has no
+		// parent directory, and `**/` must still match it (issue #188).
+		Assert.IsTrue(SolutionFilter.Matches("Widgets.UITests/Widgets.UITests.csproj", "**/*.UITests/*"));
+		Assert.IsTrue(SolutionFilter.Matches("tests/Widgets.UITests/Widgets.UITests.csproj", "**/*.UITests/*"));
+		Assert.IsTrue(SolutionFilter.Matches("a/b/Widgets.UITests/Widgets.UITests.csproj", "**/*.UITests/*"));
+	}
+
+	[TestMethod]
+	public void Matches_InnerGlobstarMatchesZeroDirectories()
+	{
+		Assert.IsTrue(SolutionFilter.Matches("src/Foo.csproj", "src/**/Foo.csproj"));
+		Assert.IsTrue(SolutionFilter.Matches("src/a/b/Foo.csproj", "src/**/Foo.csproj"));
+		Assert.IsFalse(SolutionFilter.Matches("srcFoo.csproj", "src/**/Foo.csproj"));
+		Assert.IsFalse(SolutionFilter.Matches("src/a/XFoo.csproj", "src/**/Foo.csproj"));
+	}
+
+	[TestMethod]
 	public void Write_KeepsEverythingThePatternsDoNotMatch()
 	{
 		string solution = Path.Combine(_tempDir, "Sample.sln");
