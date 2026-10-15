@@ -130,7 +130,9 @@ public static class SolutionFilter
 
 		StringBuilder regex = new("^");
 
-		for (int i = 0; i < normalizedPattern.Length; i++)
+		// Each branch consumes its own width, so the index advances in the body rather than the header.
+		int i = 0;
+		while (i < normalizedPattern.Length)
 		{
 			char c = normalizedPattern[i];
 
@@ -139,16 +141,29 @@ public static class SolutionFilter
 				// `**` crosses directory separators; a single `*` does not.
 				if (i + 1 < normalizedPattern.Length && normalizedPattern[i + 1] == '*')
 				{
+					// A `**/` segment, leading or between separators, stands for zero or more whole
+					// directories, so `**/X` also matches a root-level `X` and `src/**/X` matches `src/X`.
+					bool startsSegment = i == 0 || normalizedPattern[i - 1] == '/';
+					bool endsSegment = i + 2 < normalizedPattern.Length && normalizedPattern[i + 2] == '/';
+					if (startsSegment && endsSegment)
+					{
+						regex.Append("(?:.*/)?");
+						i += 3;
+						continue;
+					}
+
 					regex.Append(".*");
-					i++;
+					i += 2;
 					continue;
 				}
 
 				regex.Append("[^/]*");
+				i++;
 				continue;
 			}
 
 			regex.Append(Regex.Escape(c.ToString(CultureInfo.InvariantCulture)));
+			i++;
 		}
 
 		regex.Append('$');
