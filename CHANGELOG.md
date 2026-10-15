@@ -279,7 +279,7 @@ Changes since v2.13.0:
 
 Changes since v2.12.0:
 
-- Recognize the multi-<Sdk Name> project form as executable/test (Claude)
+- Recognize the multi-\<Sdk Name\> project form as executable/test (Claude)
 
 ## v2.12.3 (patch)
 
