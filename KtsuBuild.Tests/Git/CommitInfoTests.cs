@@ -48,4 +48,20 @@ public class CommitInfoTests
 		Assert.IsFalse(entry.Contains("](", StringComparison.Ordinal), entry);
 		Assert.AreEqual($"Fix bug ({author})", entry);
 	}
+
+	[TestMethod]
+	public void FormattedEntry_AngleBrackets_EscapedOutsideCodeSpansOnly()
+	{
+		CommitInfo commit = new() { Hash = "abc123", Subject = "Add Sgp4<T> and fix `List<T>` handling", Author = "Claude" };
+		Assert.AreEqual(@"Add Sgp4\<T\> and fix `List<T>` handling (Claude)", commit.FormattedEntry);
+	}
+
+	[TestMethod]
+	[DataRow("Recognize the multi-<Sdk Name> project form", @"Recognize the multi-\<Sdk Name\> project form")]
+	[DataRow("``a`<b>`` then <c>", @"``a`<b>`` then \<c\>")]
+	[DataRow("unclosed ` then <T>", @"unclosed ` then \<T\>")]
+	[DataRow("`one` <T> `two<U>`", @"`one` \<T\> `two<U>`")]
+	[DataRow("no brackets here", "no brackets here")]
+	public void EscapeMarkdown_EscapesAngleBracketsOutsideCodeSpans(string subject, string expected) =>
+		Assert.AreEqual(expected, CommitInfo.EscapeMarkdown(subject));
 }
