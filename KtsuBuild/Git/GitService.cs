@@ -2,6 +2,7 @@
 
 namespace KtsuBuild.Git;
 
+using System.Text.RegularExpressions;
 using KtsuBuild.Abstractions;
 using KtsuBuild.Utilities;
 #if !NET10_0_OR_GREATER
@@ -24,6 +25,11 @@ public class GitService(IProcessRunner processRunner, IBuildLogger logger) : IGi
 	internal const string ListTagsArguments =
 		"-c versionsort.suffix=-alpha -c versionsort.suffix=-beta -c versionsort.suffix=-rc -c versionsort.suffix=-pre tag --list --sort=-v:refname";
 
+	private static readonly Regex VersionTag = new(
+		@"^v\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?$",
+		RegexOptions.CultureInvariant,
+		TimeSpan.FromSeconds(1));
+
 	/// <inheritdoc/>
 	public async Task<IReadOnlyList<string>> GetTagsAsync(string workingDirectory, CancellationToken cancellationToken = default)
 	{
@@ -38,8 +44,20 @@ public class GitService(IProcessRunner processRunner, IBuildLogger logger) : IGi
 		return [.. result.StandardOutput
 			.Split('\n', StringSplitOptions.RemoveEmptyEntries)
 			.Select(static s => s.Trim())
-			.Where(static s => !string.IsNullOrEmpty(s))];
+			.Where(IsVersionTag)];
 	}
+
+	/// <summary>
+	/// Determines whether a tag names a release: <c>v</c> and a semantic version, with an optional prerelease suffix.
+	/// </summary>
+	/// <remarks>
+	/// Other tags, such as <c>wip-spike</c> or the iOS channel's <c>ios-v1.2.0</c>, sort ahead of the
+	/// <c>v*</c> tags or stand alone in a shallow checkout. Taking one as the last release moved the version
+	/// backwards or turned it into the tag's name.
+	/// </remarks>
+	/// <param name="tag">The tag name.</param>
+	/// <returns>True when the tag is a version tag.</returns>
+	internal static bool IsVersionTag(string tag) => VersionTag.IsMatch(tag);
 
 	/// <inheritdoc/>
 	public async Task<string> GetCurrentCommitHashAsync(string workingDirectory, CancellationToken cancellationToken = default)
@@ -147,7 +165,23 @@ public class GitService(IProcessRunner processRunner, IBuildLogger logger) : IGi
 		Ensure.NotNull(workingDirectory);
 		Ensure.NotNull(commitHash);
 		ProcessResult result = await processRunner.RunAsync("git", "show-ref --tags -d", workingDirectory, cancellationToken).ConfigureAwait(false);
-		return result.StandardOutput.Contains(commitHash);
+
+		// Only a version tag marks a commit as released, so an ios-v* or wip-* tag on it doesn't suppress the release.
+		// Each line is "<sha> refs/tags/<name>", and "<name>^{}" for the commit an annotated tag points at.
+		return result.StandardOutput
+			.Split('\n', StringSplitOptions.RemoveEmptyEntries)
+			.Select(static line => line.Trim().Split(' ', 2))
+			.Any(fields => fields.Length == 2
+				&& fields[0].StartsWith(commitHash, StringComparison.OrdinalIgnoreCase)
+				&& IsVersionTag(TagName(fields[1])));
+	}
+
+	private static string TagName(string reference)
+	{
+		const string Prefix = "refs/tags/";
+		const string Peeled = "^{}";
+		string name = reference.StartsWith(Prefix, StringComparison.Ordinal) ? reference[Prefix.Length..] : reference;
+		return name.EndsWith(Peeled, StringComparison.Ordinal) ? name[..^Peeled.Length] : name;
 	}
 
 	/// <inheritdoc/>
