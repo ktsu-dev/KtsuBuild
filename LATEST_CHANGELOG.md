@@ -1,9 +1,7 @@
-## v2.21.2 (patch)
+## v2.21.3-pre.1 (prerelease)
 
-Changes since v2.21.1:
+Changes since v2.21.2:
 
-- Advance the glob index in a while loop rather than the for body (Claude)
-- Let a **/ glob segment match zero directories [patch] (Claude)
-- Take only v-prefixed semantic version tags as releases [patch] (matt-edmondson)
-- Escape angle brackets in changelog subjects outside code spans [patch] (matt-edmondson)
+- Bump System.CommandLine from 2.0.13 to 2.0.14 (dependabot[bot])
+- Bump the microsoft group with 4 updates (dependabot[bot])
 
