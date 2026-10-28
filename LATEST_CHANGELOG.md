@@ -1,7 +1,6 @@
-## v2.21.3-pre.1 (prerelease)
+## v2.21.3-pre.2 (prerelease)
 
-Changes since v2.21.2:
+Changes since v2.21.3-pre.1:
 
-- Bump System.CommandLine from 2.0.13 to 2.0.14 (dependabot[bot])
-- Bump the microsoft group with 4 updates (dependabot[bot])
+- Bump MSTest.Sdk from 4.5.1 to 4.5.2 (dependabot[bot])
 
