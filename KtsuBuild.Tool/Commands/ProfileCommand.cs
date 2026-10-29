@@ -18,7 +18,8 @@ public class ProfileCommand : Command
 	/// </summary>
 	/// <param name="Organization">The GitHub organization to profile.</param>
 	/// <param name="TemplatePath">The path to the README template the tables are appended to.</param>
-	/// <param name="OutputPath">The path the rendered README is written to.</param>
+	/// <param name="OutputPath">The path the rendered README is written to, or <see langword="null"/> when
+	/// <c>--output</c> was not given.</param>
 	/// <param name="PackagePrefix">The NuGet package prefix for the organization.</param>
 	/// <param name="SdkPackage">The MSBuild SDK whose pinned version is reported and compared.</param>
 	/// <param name="Exclude">Repositories to leave out of the tables.</param>
@@ -28,7 +29,7 @@ public class ProfileCommand : Command
 	public sealed record ProfileOptionsInput(
 		string Organization,
 		string TemplatePath,
-		string OutputPath,
+		string? OutputPath,
 		string PackagePrefix,
 		string SdkPackage,
 		IReadOnlyList<string> Exclude,
@@ -50,11 +51,20 @@ public class ProfileCommand : Command
 		DefaultValueFactory = _ => "./profile/README.template",
 	};
 
+	/// <summary>
+	/// The path the rendered README is written to when <c>--output</c> is not given and every repository
+	/// is considered.
+	/// </summary>
+	public const string DefaultOutputPath = "./profile/README.md";
+
 	/// <summary>Gets the output path option.</summary>
+	/// <remarks>
+	/// No default value, so a run can tell an explicit <c>--output</c> from an omitted one. See
+	/// <see cref="ResolveOutputPath"/>.
+	/// </remarks>
 	public static Option<string> OutputOption { get; } = new("--output")
 	{
-		Description = "Where to write the rendered README",
-		DefaultValueFactory = _ => "./profile/README.md",
+		Description = $"Where to write the rendered README (default: {DefaultOutputPath}, or print the rows without writing when --only is given)",
 	};
 
 	/// <summary>Gets the NuGet package prefix option.</summary>
@@ -139,6 +149,30 @@ public class ProfileCommand : Command
 		};
 	}
 
+	/// <summary>
+	/// Decides where a run writes the README.
+	/// </summary>
+	/// <param name="input">The run's inputs.</param>
+	/// <returns>The explicit <c>--output</c> when one was given. Otherwise <see langword="null"/> when
+	/// <c>--only</c> narrows the run, so the rows are printed and nothing is written, and
+	/// <see cref="DefaultOutputPath"/> when it does not.</returns>
+	/// <remarks>
+	/// A run narrowed by <c>--only</c> renders a table of just those repositories. Writing that over the
+	/// default README would drop every other library from the profile, in a diff that is easy to commit
+	/// by accident, when the point of <c>--only</c> is to check a row.
+	/// </remarks>
+	public static string? ResolveOutputPath(ProfileOptionsInput input)
+	{
+		Ensure.NotNull(input);
+
+		if (input.OutputPath is not null)
+		{
+			return input.OutputPath;
+		}
+
+		return input.Only.Count > 0 ? null : DefaultOutputPath;
+	}
+
 	private static async Task<int> ExecuteAsync(
 		IProcessRunner processRunner,
 		IBuildLogger logger,
@@ -164,7 +198,7 @@ public class ProfileCommand : Command
 			FallbackWorkflowFileNames = input.FallbackWorkflows,
 		};
 
-		await generator.GenerateAsync(options, input.TemplatePath, input.OutputPath, cancellationToken).ConfigureAwait(false);
+		await generator.GenerateAsync(options, input.TemplatePath, ResolveOutputPath(input), cancellationToken).ConfigureAwait(false);
 
 		return 0;
 	}

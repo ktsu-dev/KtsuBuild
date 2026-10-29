@@ -160,6 +160,35 @@ public class ProfileGeneratorTests
 	}
 
 	[TestMethod]
+	public async Task GenerateAsync_WithNoOutputPath_ReportsTheRowsAndLeavesTheReadmeUntouched()
+	{
+		RecordingBuildLogger logger = new();
+		ProfileGenerator generator = new(new OrgProfileService(_gitHub, _nuGet, logger), _gitHub, logger);
+		string template = WriteTemplate("## Project Status\n");
+		string output = Path.Combine(_tempDir, "README.md");
+		await File.WriteAllTextAsync(output, "the whole table").ConfigureAwait(false);
+		ProfileOptions options = new() { Organization = "ktsu-dev", OnlyRepositories = ["Extensions"] };
+
+		IReadOnlyList<RepoFacts> facts = await generator.GenerateAsync(options, template, outputPath: null).ConfigureAwait(false);
+
+		Assert.HasCount(1, facts);
+		Assert.AreEqual("the whole table", await File.ReadAllTextAsync(output).ConfigureAwait(false));
+		Assert.IsTrue(RecordingBuildLogger.Any(logger.Infos, "|[Extensions](https://github.com/ktsu-dev/Extensions)"));
+	}
+
+	[TestMethod]
+	public async Task GenerateAsync_WithOnlyAndAnOutputPath_WritesTheNarrowedReadme()
+	{
+		string template = WriteTemplate("## Project Status\n");
+		string output = Path.Combine(_tempDir, "tmp.md");
+		ProfileOptions options = new() { Organization = "ktsu-dev", OnlyRepositories = ["Extensions"] };
+
+		await _generator.GenerateAsync(options, template, output).ConfigureAwait(false);
+
+		Assert.Contains("[Extensions](https://github.com/ktsu-dev/Extensions)", await File.ReadAllTextAsync(output).ConfigureAwait(false));
+	}
+
+	[TestMethod]
 	public async Task GenerateAsync_WithNoQualifyingRepositories_StillWritesTheTemplate()
 	{
 		_gitHub.ListReleasesAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())

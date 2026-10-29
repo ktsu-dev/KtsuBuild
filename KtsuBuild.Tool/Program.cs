@@ -785,7 +785,7 @@ internal sealed class Program
 			ProfileCommand.ProfileOptionsInput input = new(
 				Organization: parseResult.GetValue(ProfileCommand.OrganizationOption)!,
 				TemplatePath: parseResult.GetValue(ProfileCommand.TemplateOption)!,
-				OutputPath: parseResult.GetValue(ProfileCommand.OutputOption)!,
+				OutputPath: parseResult.GetValue(ProfileCommand.OutputOption),
 				PackagePrefix: parseResult.GetValue(ProfileCommand.PackagePrefixOption)!,
 				SdkPackage: parseResult.GetValue(ProfileCommand.SdkPackageOption)!,
 				Exclude: parseResult.GetValue(ProfileCommand.ExcludeOption) ?? [],
