@@ -150,25 +150,45 @@ public class ReleaseService(IDotNetService dotNetService, INuGetPublisher nuGetP
 	/// <summary>
 	/// Publishes the packed NuGet packages to every feed that has credentials configured.
 	/// </summary>
+	/// <remarks>
+	/// Each feed is gated on its own credential. A missing GitHub token used to skip all three, so a
+	/// manual run with only <c>NUGET_API_KEY</c> set tagged and released a version that never reached
+	/// nuget.org, and said nothing. A feed skipped for a missing credential is now named in a warning.
+	/// </remarks>
 	private async Task PublishPackagesAsync(BuildConfiguration config, CancellationToken cancellationToken)
 	{
 		string[] packages = Directory.Exists(config.StagingPath)
 			? Directory.GetFiles(config.StagingPath, "*.nupkg")
 			: [];
 
-		if (packages.Length == 0 || string.IsNullOrEmpty(config.GithubToken))
+		if (packages.Length == 0)
 		{
 			return;
 		}
 
-		await nuGetPublisher.PublishToGitHubAsync(config.PackagePattern, config.GitHubOwner, config.GithubToken, cancellationToken).ConfigureAwait(false);
+		if (string.IsNullOrEmpty(config.GithubToken))
+		{
+			logger.WriteWarning("Skipping GitHub Packages: no GitHub token is configured");
+		}
+		else
+		{
+			await nuGetPublisher.PublishToGitHubAsync(config.PackagePattern, config.GitHubOwner, config.GithubToken, cancellationToken).ConfigureAwait(false);
+		}
 
-		if (!string.IsNullOrEmpty(config.NuGetApiKey))
+		if (string.IsNullOrEmpty(config.NuGetApiKey))
+		{
+			logger.WriteWarning("Skipping nuget.org: no NuGet API key is configured");
+		}
+		else
 		{
 			await nuGetPublisher.PublishToNuGetOrgAsync(config.PackagePattern, config.NuGetApiKey, cancellationToken).ConfigureAwait(false);
 		}
 
-		if (!string.IsNullOrEmpty(config.KtsuPackageKey))
+		if (string.IsNullOrEmpty(config.KtsuPackageKey))
+		{
+			logger.WriteWarning("Skipping packages.ktsu.dev: no ktsu package key is configured");
+		}
+		else
 		{
 			await nuGetPublisher.PublishToSourceAsync(config.PackagePattern, "https://packages.ktsu.dev/v3/index.json", config.KtsuPackageKey, cancellationToken).ConfigureAwait(false);
 		}
