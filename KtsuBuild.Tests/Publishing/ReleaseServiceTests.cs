@@ -235,9 +235,9 @@ public class ReleaseServiceTests
 		config.NuGetApiKey = "k";
 
 		Directory.CreateDirectory(config.StagingPath);
-		await File.WriteAllTextAsync(Path.Combine(config.StagingPath, "test.nupkg"), "fake").ConfigureAwait(false);
+		await File.WriteAllTextAsync(Path.Combine(config.StagingPath, "test.nupkg"), "fake", TestContext.CancellationToken).ConfigureAwait(false);
 
-		await _service.ExecuteReleaseAsync(config, _tempDir, "Release").ConfigureAwait(false);
+		await _service.ExecuteReleaseAsync(config, _tempDir, "Release", TestContext.CancellationToken).ConfigureAwait(false);
 
 		await _nuGetPublisher.Received(1).PublishToNuGetOrgAsync(
 			Arg.Any<string>(), "k", Arg.Any<CancellationToken>()).ConfigureAwait(false);
@@ -253,9 +253,9 @@ public class ReleaseServiceTests
 		config.KtsuPackageKey = "ktsu-key";
 
 		Directory.CreateDirectory(config.StagingPath);
-		await File.WriteAllTextAsync(Path.Combine(config.StagingPath, "test.nupkg"), "fake").ConfigureAwait(false);
+		await File.WriteAllTextAsync(Path.Combine(config.StagingPath, "test.nupkg"), "fake", TestContext.CancellationToken).ConfigureAwait(false);
 
-		await _service.ExecuteReleaseAsync(config, _tempDir, "Release").ConfigureAwait(false);
+		await _service.ExecuteReleaseAsync(config, _tempDir, "Release", TestContext.CancellationToken).ConfigureAwait(false);
 
 		await _nuGetPublisher.Received(1).PublishToSourceAsync(
 			Arg.Any<string>(), "https://packages.ktsu.dev/v3/index.json", "ktsu-key", Arg.Any<CancellationToken>()).ConfigureAwait(false);
@@ -274,9 +274,9 @@ public class ReleaseServiceTests
 		config.KtsuPackageKey = string.Empty;
 
 		Directory.CreateDirectory(config.StagingPath);
-		await File.WriteAllTextAsync(Path.Combine(config.StagingPath, "test.nupkg"), "fake").ConfigureAwait(false);
+		await File.WriteAllTextAsync(Path.Combine(config.StagingPath, "test.nupkg"), "fake", TestContext.CancellationToken).ConfigureAwait(false);
 
-		await service.ExecuteReleaseAsync(config, _tempDir, "Release").ConfigureAwait(false);
+		await service.ExecuteReleaseAsync(config, _tempDir, "Release", TestContext.CancellationToken).ConfigureAwait(false);
 
 		Assert.IsTrue(RecordingBuildLogger.Any(logger.Warnings, "GitHub Packages"));
 		Assert.IsTrue(RecordingBuildLogger.Any(logger.Warnings, "packages.ktsu.dev"));
