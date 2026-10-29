@@ -167,6 +167,43 @@ public class ManifestGeneratorTests
 	}
 
 	[TestMethod]
+	public async Task GenerateAsync_LocaleManifest_WithANonMitLicense_DoesNotClaimMit()
+	{
+		string repo = Directory.CreateDirectory(Path.Combine(_tempDir, "repo")).FullName;
+		await File.WriteAllTextAsync(Path.Combine(repo, "LICENSE.md"), "# ImageGui Freeware License\n\nAll rights reserved.\n").ConfigureAwait(false);
+		ProjectInfo detected = ProjectDetector.Detect(repo);
+
+		await ManifestGenerator.GenerateAsync(_config, detected, _hashes, _tempDir).ConfigureAwait(false);
+
+		string content = await File.ReadAllTextAsync(Path.Combine(_tempDir, "ktsu-dev.MyApp.locale.en-US.yaml")).ConfigureAwait(false);
+		Assert.DoesNotContain("License: MIT", content);
+		Assert.Contains("License: ImageGui Freeware License\n", content.ReplaceLineEndings("\n"));
+	}
+
+	[TestMethod]
+	public async Task GenerateAsync_LocaleManifest_WithACopyrightFile_UsesItsText()
+	{
+		string repo = Directory.CreateDirectory(Path.Combine(_tempDir, "repo")).FullName;
+		await File.WriteAllTextAsync(Path.Combine(repo, "COPYRIGHT.md"), "Copyright (c) 2023-2026 ktsu-dev contributors\n").ConfigureAwait(false);
+		ProjectInfo detected = ProjectDetector.Detect(repo);
+
+		await ManifestGenerator.GenerateAsync(_config, detected, _hashes, _tempDir).ConfigureAwait(false);
+
+		string content = await File.ReadAllTextAsync(Path.Combine(_tempDir, "ktsu-dev.MyApp.locale.en-US.yaml")).ConfigureAwait(false);
+		Assert.Contains("Copyright: Copyright (c) 2023-2026 ktsu-dev contributors\n", content.ReplaceLineEndings("\n"));
+	}
+
+	[TestMethod]
+	public async Task GenerateAsync_LocaleManifest_ByDefault_IsMitWithThePublisherCopyright()
+	{
+		await ManifestGenerator.GenerateAsync(_config, _projectInfo, _hashes, _tempDir).ConfigureAwait(false);
+
+		string content = (await File.ReadAllTextAsync(Path.Combine(_tempDir, "ktsu-dev.MyApp.locale.en-US.yaml")).ConfigureAwait(false)).ReplaceLineEndings("\n");
+		Assert.Contains("License: MIT\n", content);
+		Assert.Contains("Copyright: Copyright (c) ktsu.dev\n", content);
+	}
+
+	[TestMethod]
 	public async Task GenerateAsync_LocaleManifest_ContainsDocumentationUrl()
 	{
 		await ManifestGenerator.GenerateAsync(_config, _projectInfo, _hashes, _tempDir).ConfigureAwait(false);

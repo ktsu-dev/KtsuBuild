@@ -52,6 +52,44 @@ public class ProjectDetectorTests
 	}
 
 	[TestMethod]
+	public void Detect_MitLicense_IsMit()
+	{
+		File.WriteAllText(Path.Combine(_tempDir, "LICENSE.md"), "MIT License\n\nCopyright (c) ktsu-dev\n");
+
+		Assert.AreEqual("MIT", ProjectDetector.Detect(_tempDir).License);
+	}
+
+	[TestMethod]
+	public void Detect_CustomLicense_IsNamedByItsFirstHeading()
+	{
+		File.WriteAllText(Path.Combine(_tempDir, "LICENSE.md"), "\n# Freeware License\n\nAll rights reserved.\n");
+
+		Assert.AreEqual("Freeware License", ProjectDetector.Detect(_tempDir).License);
+	}
+
+	[TestMethod]
+	public void Detect_CustomLicense_PrefersADeclaredLicenseExpression()
+	{
+		File.WriteAllText(Path.Combine(_tempDir, "LICENSE.md"), "Apache License\nVersion 2.0\n");
+		File.WriteAllText(Path.Combine(_tempDir, "MyApp.csproj"), @"<Project Sdk=""Microsoft.NET.Sdk"">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+  </PropertyGroup>
+</Project>");
+
+		Assert.AreEqual("Apache-2.0", ProjectDetector.Detect(_tempDir).License);
+	}
+
+	[TestMethod]
+	public void Detect_Copyright_IsReadFromCopyrightFile()
+	{
+		File.WriteAllText(Path.Combine(_tempDir, "COPYRIGHT.md"), "Copyright (c) 2023-2026 ktsu-dev contributors\n");
+
+		Assert.AreEqual("Copyright (c) 2023-2026 ktsu-dev contributors", ProjectDetector.Detect(_tempDir).Copyright);
+	}
+
+	[TestMethod]
 	public void Detect_LibraryOnlyProject_DetectedCorrectly()
 	{
 		// Arrange

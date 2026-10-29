@@ -4,6 +4,7 @@ namespace KtsuBuild.Winget;
 
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
+using KtsuBuild.Metadata;
 using KtsuBuild.Utilities;
 #if !NET10_0_OR_GREATER
 using static Polyfill;
@@ -55,6 +56,10 @@ public static class ProjectDetector
 		DetectNodeProject(rootDirectory, projectInfo);
 		DetectRustProject(rootDirectory, projectInfo);
 
+		// After the project file, so a declared license expression is known
+		ApplyLicense(rootDirectory, projectInfo);
+		ApplyCopyright(rootDirectory, projectInfo);
+
 		// Fall back to directory name if no name found
 		if (string.IsNullOrEmpty(projectInfo.Name))
 		{
@@ -75,6 +80,57 @@ public static class ProjectDetector
 			projectInfo.Version = File.ReadAllText(versionFile).Trim();
 		}
 	}
+
+	/// <summary>
+	/// Names the license from LICENSE.md, when present.
+	/// </summary>
+	/// <remarks>
+	/// LICENSE.md is the source of truth. An MIT LICENSE.md is published as MIT. Any other LICENSE.md
+	/// is kept as written by the metadata generator, so it is published under the project file's
+	/// <c>PackageLicenseExpression</c> when that names something other than MIT, and otherwise under
+	/// LICENSE.md's own first line.
+	/// </remarks>
+	private static void ApplyLicense(string rootDirectory, ProjectInfo projectInfo)
+	{
+		string licenseFile = Path.Combine(rootDirectory, "LICENSE.md");
+		if (!File.Exists(licenseFile))
+		{
+			return;
+		}
+
+		string content = File.ReadAllText(licenseFile);
+		if (!LicenseGenerator.IsCustomLicense(content))
+		{
+			projectInfo.License = "MIT";
+			return;
+		}
+
+		if (projectInfo.License.Equals("MIT", StringComparison.OrdinalIgnoreCase))
+		{
+			projectInfo.License = FirstNonEmptyLine(content).TrimStart('#').Trim();
+		}
+	}
+
+	/// <summary>
+	/// Reads the copyright notice from the first line of COPYRIGHT.md, when present.
+	/// </summary>
+	private static void ApplyCopyright(string rootDirectory, ProjectInfo projectInfo)
+	{
+		string copyrightFile = Path.Combine(rootDirectory, "COPYRIGHT.md");
+		if (!File.Exists(copyrightFile))
+		{
+			return;
+		}
+
+		string copyright = FirstNonEmptyLine(File.ReadAllText(copyrightFile));
+		if (copyright.Length > 0)
+		{
+			projectInfo.Copyright = copyright;
+		}
+	}
+
+	private static string FirstNonEmptyLine(string content) =>
+		content.Split('\n').Select(static line => line.Trim()).FirstOrDefault(static line => line.Length > 0) ?? string.Empty;
 
 	/// <summary>
 	/// Reads the publisher from the first line of AUTHORS.md, when present.
@@ -371,6 +427,12 @@ public static class ProjectDetector
 
 		// Get command alias
 		projectInfo.CommandAlias = doc.Descendants("WinGetCommandAlias").FirstOrDefault()?.Value;
+
+		string? licenseExpression = doc.Descendants("PackageLicenseExpression").FirstOrDefault()?.Value;
+		if (!string.IsNullOrWhiteSpace(licenseExpression))
+		{
+			projectInfo.License = licenseExpression.Trim();
+		}
 	}
 
 	/// <summary>
