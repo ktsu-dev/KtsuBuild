@@ -13,6 +13,11 @@ public class ManifestGeneratorTests
 	private ProjectInfo _projectInfo = null!;
 	private Dictionary<string, string> _hashes = null!;
 
+	/// <summary>
+	/// Gets or sets the context MSTest injects, whose cancellation token the tests run under.
+	/// </summary>
+	public TestContext TestContext { get; set; } = null!;
+
 	[TestInitialize]
 	public void Setup()
 	{
@@ -170,12 +175,12 @@ public class ManifestGeneratorTests
 	public async Task GenerateAsync_LocaleManifest_WithANonMitLicense_DoesNotClaimMit()
 	{
 		string repo = Directory.CreateDirectory(Path.Combine(_tempDir, "repo")).FullName;
-		await File.WriteAllTextAsync(Path.Combine(repo, "LICENSE.md"), "# ImageGui Freeware License\n\nAll rights reserved.\n").ConfigureAwait(false);
+		await File.WriteAllTextAsync(Path.Combine(repo, "LICENSE.md"), "# ImageGui Freeware License\n\nAll rights reserved.\n", TestContext.CancellationToken).ConfigureAwait(false);
 		ProjectInfo detected = ProjectDetector.Detect(repo);
 
-		await ManifestGenerator.GenerateAsync(_config, detected, _hashes, _tempDir).ConfigureAwait(false);
+		await ManifestGenerator.GenerateAsync(_config, detected, _hashes, _tempDir, TestContext.CancellationToken).ConfigureAwait(false);
 
-		string content = await File.ReadAllTextAsync(Path.Combine(_tempDir, "ktsu-dev.MyApp.locale.en-US.yaml")).ConfigureAwait(false);
+		string content = await File.ReadAllTextAsync(Path.Combine(_tempDir, "ktsu-dev.MyApp.locale.en-US.yaml"), TestContext.CancellationToken).ConfigureAwait(false);
 		Assert.DoesNotContain("License: MIT", content);
 		Assert.Contains("License: ImageGui Freeware License\n", content.ReplaceLineEndings("\n"));
 	}
@@ -184,21 +189,21 @@ public class ManifestGeneratorTests
 	public async Task GenerateAsync_LocaleManifest_WithACopyrightFile_UsesItsText()
 	{
 		string repo = Directory.CreateDirectory(Path.Combine(_tempDir, "repo")).FullName;
-		await File.WriteAllTextAsync(Path.Combine(repo, "COPYRIGHT.md"), "Copyright (c) 2023-2026 ktsu-dev contributors\n").ConfigureAwait(false);
+		await File.WriteAllTextAsync(Path.Combine(repo, "COPYRIGHT.md"), "Copyright (c) 2023-2026 ktsu-dev contributors\n", TestContext.CancellationToken).ConfigureAwait(false);
 		ProjectInfo detected = ProjectDetector.Detect(repo);
 
-		await ManifestGenerator.GenerateAsync(_config, detected, _hashes, _tempDir).ConfigureAwait(false);
+		await ManifestGenerator.GenerateAsync(_config, detected, _hashes, _tempDir, TestContext.CancellationToken).ConfigureAwait(false);
 
-		string content = await File.ReadAllTextAsync(Path.Combine(_tempDir, "ktsu-dev.MyApp.locale.en-US.yaml")).ConfigureAwait(false);
+		string content = await File.ReadAllTextAsync(Path.Combine(_tempDir, "ktsu-dev.MyApp.locale.en-US.yaml"), TestContext.CancellationToken).ConfigureAwait(false);
 		Assert.Contains("Copyright: Copyright (c) 2023-2026 ktsu-dev contributors\n", content.ReplaceLineEndings("\n"));
 	}
 
 	[TestMethod]
 	public async Task GenerateAsync_LocaleManifest_ByDefault_IsMitWithThePublisherCopyright()
 	{
-		await ManifestGenerator.GenerateAsync(_config, _projectInfo, _hashes, _tempDir).ConfigureAwait(false);
+		await ManifestGenerator.GenerateAsync(_config, _projectInfo, _hashes, _tempDir, TestContext.CancellationToken).ConfigureAwait(false);
 
-		string content = (await File.ReadAllTextAsync(Path.Combine(_tempDir, "ktsu-dev.MyApp.locale.en-US.yaml")).ConfigureAwait(false)).ReplaceLineEndings("\n");
+		string content = (await File.ReadAllTextAsync(Path.Combine(_tempDir, "ktsu-dev.MyApp.locale.en-US.yaml"), TestContext.CancellationToken).ConfigureAwait(false)).ReplaceLineEndings("\n");
 		Assert.Contains("License: MIT\n", content);
 		Assert.Contains("Copyright: Copyright (c) ktsu.dev\n", content);
 	}
