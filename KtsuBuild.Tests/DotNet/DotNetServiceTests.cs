@@ -954,6 +954,36 @@ public class DotNetServiceTests
 	}
 
 	[TestMethod]
+	[DataRow("<Project Sdk=\"MSTest.Sdk\"><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>")]
+	[DataRow("<Project Sdk=\"MSTest.Sdk/4.5.2\"><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>")]
+	[DataRow("<Project><Sdk Name=\"MSTest.Sdk\" /><Sdk Name=\"ktsu.Sdk\" /><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>")]
+	[DataRow("<Project Sdk=\"Microsoft.NET.Sdk\"><ItemGroup><PackageReference Include=\"Microsoft.NET.Test.Sdk\" Version=\"17.14.1\" /></ItemGroup></Project>")]
+	[DataRow("<Project Sdk=\"Microsoft.NET.Sdk\"><ItemGroup><PackageReference Version=\"17.14.1\" Include=\"Microsoft.NET.Test.Sdk\" /></ItemGroup></Project>")]
+	public void IsTestProject_TestSdkWithoutTestName_ReturnsTrue(string projectContent)
+	{
+		// Foo.Specs matches none of the name patterns, so only the content can identify it.
+		string dir = Path.Combine(_tempDir, "Foo.Specs");
+		Directory.CreateDirectory(dir);
+		string projPath = Path.Combine(dir, "Foo.Specs.csproj");
+		File.WriteAllText(projPath, projectContent);
+
+		Assert.IsTrue(_service.IsTestProject(projPath));
+	}
+
+	[TestMethod]
+	[DataRow("<Project Sdk=\"MSTest.Sdk.Extras\"><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>")]
+	[DataRow("<Project Sdk=\"Microsoft.NET.Sdk\"><ItemGroup><PackageReference Include=\"Microsoft.NET.Test.Sdk.Extras\" Version=\"1.0.0\" /></ItemGroup></Project>")]
+	public void IsTestProject_SimilarlyNamedReferences_ReturnFalse(string projectContent)
+	{
+		string dir = Path.Combine(_tempDir, "MyLib");
+		Directory.CreateDirectory(dir);
+		string projPath = Path.Combine(dir, "MyLib.csproj");
+		File.WriteAllText(projPath, projectContent);
+
+		Assert.IsFalse(_service.IsTestProject(projPath));
+	}
+
+	[TestMethod]
 	public void IsTestProject_RegularProject_ReturnsFalse()
 	{
 		string dir = Path.Combine(_tempDir, "MyLib");
