@@ -42,6 +42,11 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger, st
 	// with Winget.ProjectDetector so the two classifications cannot drift apart.
 	private static readonly Regex SdkExecutableRegex = new(SdkReferencePatterns.ExecutableSdk, RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexDefaults.MatchTimeout);
 	private static readonly Regex SdkTestRegex = new(@"Sdk(?:\s+Name)?\s*=\s*""[^""]*\.Test[/""]", RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexDefaults.MatchTimeout);
+	// MSTest.Sdk and the Microsoft.NET.Test.Sdk package both set IsTestProject in their own props,
+	// so a project using either never spells the property out. MSTest.Sdk is matched in the
+	// attribute form, versioned or not and in a ;-separated list, and in the <Sdk Name> element form.
+	private static readonly Regex MSTestSdkRegex = new(@"Sdk(?:\s+Name)?\s*=\s*""(?:[^""]*;)?\s*MSTest\.Sdk(?:/[^"";]*)?\s*[;""]", RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexDefaults.MatchTimeout);
+	private static readonly Regex TestSdkPackageRegex = new(@"<PackageReference\b[^>]*\bInclude\s*=\s*""\s*Microsoft\.NET\.Test\.Sdk\s*""", RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexDefaults.MatchTimeout);
 	private static readonly Regex TargetFrameworkRegex = new(@"<TargetFrameworks?>\s*([^<]+?)\s*</TargetFrameworks?>", RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexDefaults.MatchTimeout);
 #pragma warning restore SYSLIB1045
 
@@ -663,11 +668,13 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger, st
 			return true;
 		}
 
-		// Check content for test SDK or IsTestProject
+		// Check content for a test SDK, the test SDK package, or IsTestProject
 		string content = File.ReadAllText(projectPath);
 		return content.Contains("<IsTestProject>true</IsTestProject>", StringComparison.OrdinalIgnoreCase) ||
 			   content.Contains("Sdk=\"Microsoft.NET.Sdk.Test\"", StringComparison.OrdinalIgnoreCase) ||
-			   SdkTestRegex.IsMatch(content);
+			   SdkTestRegex.IsMatch(content) ||
+			   MSTestSdkRegex.IsMatch(content) ||
+			   TestSdkPackageRegex.IsMatch(content);
 	}
 
 	/// <summary>
