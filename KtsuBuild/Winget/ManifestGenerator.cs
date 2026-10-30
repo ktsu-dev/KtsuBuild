@@ -86,9 +86,9 @@ public static class ManifestGenerator
 		sb.AppendLine($"Author: {config.Publisher}");
 		sb.AppendLine($"PackageName: {config.PackageName}");
 		sb.AppendLine($"PackageUrl: https://github.com/{config.GitHubRepo}");
-		sb.AppendLine("License: MIT");
+		sb.AppendLine($"License: {projectInfo.License}");
 		sb.AppendLine($"LicenseUrl: https://github.com/{config.GitHubRepo}/blob/main/LICENSE.md");
-		sb.AppendLine($"Copyright: Copyright (c) {config.Publisher}");
+		sb.AppendLine($"Copyright: {projectInfo.Copyright ?? $"Copyright (c) {config.Publisher}"}");
 		sb.AppendLine("# CopyrightUrl:");
 		sb.AppendLine($"ShortDescription: {config.ShortDescription}");
 		sb.AppendLine($"Description: {projectInfo.Description}");

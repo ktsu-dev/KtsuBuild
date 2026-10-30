@@ -60,4 +60,14 @@ public class ProjectInfo
 	/// Gets or sets the publisher name.
 	/// </summary>
 	public string Publisher { get; set; } = string.Empty;
+
+	/// <summary>
+	/// Gets or sets the license the package is published under.
+	/// </summary>
+	public string License { get; set; } = "MIT";
+
+	/// <summary>
+	/// Gets or sets the copyright notice from COPYRIGHT.md, or <see langword="null"/> when there is none.
+	/// </summary>
+	public string? Copyright { get; set; }
 }

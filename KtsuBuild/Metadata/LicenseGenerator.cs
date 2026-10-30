@@ -110,7 +110,22 @@ public static class LicenseGenerator
 			return false;
 		}
 
-		string existing = (await File.ReadAllTextAsync(licensePath, cancellationToken).ConfigureAwait(false)).TrimStart();
+		string existing = await File.ReadAllTextAsync(licensePath, cancellationToken).ConfigureAwait(false);
+		return IsCustomLicense(existing);
+	}
+
+	/// <summary>
+	/// Whether LICENSE.md content carries terms other than the MIT license this generator writes.
+	/// </summary>
+	/// <param name="content">The content of LICENSE.md.</param>
+	/// <returns>True when the content is not blank and does not open with the MIT license's title.</returns>
+	/// <remarks>
+	/// Shared with the Winget manifest, so a repository whose LICENSE.md is kept as written is never
+	/// published as MIT-licensed.
+	/// </remarks>
+	internal static bool IsCustomLicense(string content)
+	{
+		string existing = content.TrimStart();
 		return existing.Length > 0 && !existing.StartsWith(MitLicenseTitle, StringComparison.Ordinal);
 	}
 
