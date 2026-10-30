@@ -228,6 +228,62 @@ public class ReleaseServiceTests
 	}
 
 	[TestMethod]
+	public async Task ExecuteReleaseAsync_PublishesToNuGetOrg_WhenNoGitHubToken()
+	{
+		BuildConfiguration config = CreateDefaultConfig();
+		config.GithubToken = string.Empty;
+		config.NuGetApiKey = "k";
+
+		Directory.CreateDirectory(config.StagingPath);
+		await File.WriteAllTextAsync(Path.Combine(config.StagingPath, "test.nupkg"), "fake", TestContext.CancellationToken).ConfigureAwait(false);
+
+		await _service.ExecuteReleaseAsync(config, _tempDir, "Release", TestContext.CancellationToken).ConfigureAwait(false);
+
+		await _nuGetPublisher.Received(1).PublishToNuGetOrgAsync(
+			Arg.Any<string>(), "k", Arg.Any<CancellationToken>()).ConfigureAwait(false);
+		await _nuGetPublisher.DidNotReceive().PublishToGitHubAsync(
+			Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+	}
+
+	[TestMethod]
+	public async Task ExecuteReleaseAsync_PublishesToKtsuFeed_WhenNoGitHubToken()
+	{
+		BuildConfiguration config = CreateDefaultConfig();
+		config.GithubToken = string.Empty;
+		config.KtsuPackageKey = "ktsu-key";
+
+		Directory.CreateDirectory(config.StagingPath);
+		await File.WriteAllTextAsync(Path.Combine(config.StagingPath, "test.nupkg"), "fake", TestContext.CancellationToken).ConfigureAwait(false);
+
+		await _service.ExecuteReleaseAsync(config, _tempDir, "Release", TestContext.CancellationToken).ConfigureAwait(false);
+
+		await _nuGetPublisher.Received(1).PublishToSourceAsync(
+			Arg.Any<string>(), "https://packages.ktsu.dev/v3/index.json", "ktsu-key", Arg.Any<CancellationToken>()).ConfigureAwait(false);
+		await _nuGetPublisher.DidNotReceive().PublishToGitHubAsync(
+			Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+	}
+
+	[TestMethod]
+	public async Task ExecuteReleaseAsync_WarnsForEachFeedSkippedForAMissingCredential()
+	{
+		RecordingBuildLogger logger = new();
+		ReleaseService service = new(_dotNetService, _nuGetPublisher, _gitHubService, logger);
+		BuildConfiguration config = CreateDefaultConfig();
+		config.GithubToken = string.Empty;
+		config.NuGetApiKey = "k";
+		config.KtsuPackageKey = string.Empty;
+
+		Directory.CreateDirectory(config.StagingPath);
+		await File.WriteAllTextAsync(Path.Combine(config.StagingPath, "test.nupkg"), "fake", TestContext.CancellationToken).ConfigureAwait(false);
+
+		await service.ExecuteReleaseAsync(config, _tempDir, "Release", TestContext.CancellationToken).ConfigureAwait(false);
+
+		Assert.IsTrue(RecordingBuildLogger.Any(logger.Warnings, "GitHub Packages"));
+		Assert.IsTrue(RecordingBuildLogger.Any(logger.Warnings, "packages.ktsu.dev"));
+		Assert.IsFalse(RecordingBuildLogger.Any(logger.Warnings, "nuget.org"));
+	}
+
+	[TestMethod]
 	public async Task ExecuteReleaseAsync_CreatesGitHubRelease()
 	{
 		BuildConfiguration config = CreateDefaultConfig();
