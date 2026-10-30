@@ -381,11 +381,11 @@ left behind. **Stars** and **Activity** carry the stargazer count and the commit
 **Options:**
 - `--org`, `-o`: The GitHub organization to profile (required)
 - `--template`, `-t`: The README template the tables are appended to (default: `./profile/README.template`)
-- `--output`: Where to write the rendered README (default: `./profile/README.md`)
+- `--output`: Where to write the rendered README (default: `./profile/README.md`, or nowhere when `--only` is given)
 - `--package-prefix`: The NuGet package prefix, so repo `Extensions` resolves to `ktsu.Extensions` (default: `ktsu`)
 - `--sdk-package`: The MSBuild SDK whose pinned version is reported and compared (default: `ktsu.Sdk`)
 - `--exclude`: A repository to leave out of the tables, repeatable
-- `--only`: Consider only this repository, repeatable. Useful for checking one row without regenerating the whole profile
+- `--only`: Consider only this repository, repeatable. Useful for checking one row without regenerating the whole profile: without `--output`, the rows are printed and no file is written, so the README keeps every other repository. Pass `--output` to write the narrowed README somewhere
 - `--fallback-workflow`: A workflow file name to try when a repository has no `ci.yml`, repeatable
 
 Build status comes from `ci.yml` on the default branch, the caller every repository uses to reach

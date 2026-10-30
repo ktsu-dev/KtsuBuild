@@ -82,6 +82,30 @@ public class ProfileCommandTests
 		ProfileCommand.CreateReadmeHandler(_processRunner, _logger)(input, cancellationToken);
 
 	[TestMethod]
+	public void ResolveOutputPath_WithoutOutputOrOnly_UsesTheDefaultReadme()
+	{
+		ProfileCommand.ProfileOptionsInput input = Input("t") with { OutputPath = null };
+
+		Assert.AreEqual(ProfileCommand.DefaultOutputPath, ProfileCommand.ResolveOutputPath(input));
+	}
+
+	[TestMethod]
+	public void ResolveOutputPath_WithOnlyAndNoOutput_WritesNothing()
+	{
+		ProfileCommand.ProfileOptionsInput input = Input("t") with { OutputPath = null, Only = ["Semantics"] };
+
+		Assert.IsNull(ProfileCommand.ResolveOutputPath(input));
+	}
+
+	[TestMethod]
+	public void ResolveOutputPath_WithOnlyAndAnExplicitOutput_WritesThere()
+	{
+		ProfileCommand.ProfileOptionsInput input = Input("t") with { OutputPath = "tmp.md", Only = ["Semantics"] };
+
+		Assert.AreEqual("tmp.md", ProfileCommand.ResolveOutputPath(input));
+	}
+
+	[TestMethod]
 	public async Task CreateReadmeHandler_MissingTemplate_ReportsWhichFileWasMissing()
 	{
 		string missing = Path.Combine(_tempDir, "absent.template");

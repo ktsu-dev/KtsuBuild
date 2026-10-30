@@ -22,11 +22,13 @@ using static Polyfill;
 public class ProfileGenerator(OrgProfileService service, IGitHubApiClient gitHub, IBuildLogger logger)
 {
 	/// <summary>
-	/// Renders the profile README and writes it to disk.
+	/// Renders the profile README and writes it to disk, or reports its rows without writing anything.
 	/// </summary>
 	/// <param name="options">The gathering settings.</param>
 	/// <param name="templatePath">The template the generated table is appended to.</param>
-	/// <param name="outputPath">Where to write the rendered README.</param>
+	/// <param name="outputPath">Where to write the rendered README, or <see langword="null"/> to report
+	/// the rows through the logger and leave every file alone. A preview of a few repositories passes
+	/// null, because writing it would replace the whole table with those few rows.</param>
 	/// <param name="cancellationToken">A cancellation token.</param>
 	/// <returns>The repositories that were listed.</returns>
 	/// <exception cref="FileNotFoundException">The template does not exist. Writing a README without
@@ -38,12 +40,11 @@ public class ProfileGenerator(OrgProfileService service, IGitHubApiClient gitHub
 	public async Task<IReadOnlyList<RepoFacts>> GenerateAsync(
 		ProfileOptions options,
 		string templatePath,
-		string outputPath,
+		string? outputPath,
 		CancellationToken cancellationToken = default)
 	{
 		Ensure.NotNull(options);
 		Ensure.NotNull(templatePath);
-		Ensure.NotNull(outputPath);
 
 		if (!File.Exists(templatePath))
 		{
@@ -55,6 +56,18 @@ public class ProfileGenerator(OrgProfileService service, IGitHubApiClient gitHub
 		await CheckTemplateLinksAsync(template, options, cancellationToken).ConfigureAwait(false);
 
 		IReadOnlyList<RepoFacts> facts = await service.GatherAsync(options, cancellationToken).ConfigureAwait(false);
+
+		if (outputPath is null)
+		{
+			foreach (RepoFacts repository in facts)
+			{
+				logger.WriteInfo(ProfileRenderer.RenderRow(repository).TrimEnd('\n'));
+			}
+
+			logger.WriteSuccess($"Previewed {DescribeCount(facts.Count)} without writing a README");
+			return facts;
+		}
+
 		string rendered = ProfileRenderer.Render(template, facts);
 
 		string? directory = Path.GetDirectoryName(Path.GetFullPath(outputPath));
@@ -67,10 +80,13 @@ public class ProfileGenerator(OrgProfileService service, IGitHubApiClient gitHub
 		// stable byte sequence keeps the daily commit empty when nothing changed.
 		await LineEndingHelper.WriteFileAsync(outputPath, rendered, "\n", cancellationToken).ConfigureAwait(false);
 
-		logger.WriteSuccess($"Wrote {outputPath} with {facts.Count.ToString(CultureInfo.InvariantCulture)} {(facts.Count == 1 ? "repository" : "repositories")}");
+		logger.WriteSuccess($"Wrote {outputPath} with {DescribeCount(facts.Count)}");
 
 		return facts;
 	}
+
+	private static string DescribeCount(int count) =>
+		$"{count.ToString(CultureInfo.InvariantCulture)} {(count == 1 ? "repository" : "repositories")}";
 
 	/// <summary>
 	/// Fails the run when the template promotes a repository that has been retired.

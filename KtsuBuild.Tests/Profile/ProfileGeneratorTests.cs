@@ -16,6 +16,11 @@ public class ProfileGeneratorTests
 	private ProfileGenerator _generator = null!;
 	private string _tempDir = null!;
 
+	/// <summary>
+	/// Gets or sets the context MSTest injects, whose cancellation token the tests run under.
+	/// </summary>
+	public TestContext TestContext { get; set; } = null!;
+
 	[TestInitialize]
 	public void Setup()
 	{
@@ -157,6 +162,35 @@ public class ProfileGeneratorTests
 		await _generator.GenerateAsync(Options, template, output).ConfigureAwait(false);
 
 		Assert.IsFalse((await File.ReadAllTextAsync(output).ConfigureAwait(false)).Contains("stale", StringComparison.Ordinal));
+	}
+
+	[TestMethod]
+	public async Task GenerateAsync_WithNoOutputPath_ReportsTheRowsAndLeavesTheReadmeUntouched()
+	{
+		RecordingBuildLogger logger = new();
+		ProfileGenerator generator = new(new OrgProfileService(_gitHub, _nuGet, logger), _gitHub, logger);
+		string template = WriteTemplate("## Project Status\n");
+		string output = Path.Combine(_tempDir, "README.md");
+		await File.WriteAllTextAsync(output, "the whole table", TestContext.CancellationToken).ConfigureAwait(false);
+		ProfileOptions options = new() { Organization = "ktsu-dev", OnlyRepositories = ["Extensions"] };
+
+		IReadOnlyList<RepoFacts> facts = await generator.GenerateAsync(options, template, outputPath: null, TestContext.CancellationToken).ConfigureAwait(false);
+
+		Assert.HasCount(1, facts);
+		Assert.AreEqual("the whole table", await File.ReadAllTextAsync(output, TestContext.CancellationToken).ConfigureAwait(false));
+		Assert.IsTrue(RecordingBuildLogger.Any(logger.Infos, "|[Extensions](https://github.com/ktsu-dev/Extensions)"));
+	}
+
+	[TestMethod]
+	public async Task GenerateAsync_WithOnlyAndAnOutputPath_WritesTheNarrowedReadme()
+	{
+		string template = WriteTemplate("## Project Status\n");
+		string output = Path.Combine(_tempDir, "tmp.md");
+		ProfileOptions options = new() { Organization = "ktsu-dev", OnlyRepositories = ["Extensions"] };
+
+		await _generator.GenerateAsync(options, template, output, TestContext.CancellationToken).ConfigureAwait(false);
+
+		Assert.Contains("[Extensions](https://github.com/ktsu-dev/Extensions)", await File.ReadAllTextAsync(output, TestContext.CancellationToken).ConfigureAwait(false));
 	}
 
 	[TestMethod]
