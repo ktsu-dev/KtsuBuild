@@ -517,6 +517,37 @@ public class DotNetServiceTests
 	}
 
 	[TestMethod]
+	public async Task PackAsync_ExcludesSampleAndDemoLibraries_FromPacking()
+	{
+		const string Library = "<Project Sdk=\"ktsu.Sdk\"><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>";
+
+		string libDir = Path.Combine(_tempDir, "MyLib");
+		Directory.CreateDirectory(libDir);
+		await File.WriteAllTextAsync(Path.Combine(libDir, "MyLib.csproj"), Library).ConfigureAwait(false);
+
+		string sampleDir = Path.Combine(_tempDir, "samples", "Foo");
+		Directory.CreateDirectory(sampleDir);
+		await File.WriteAllTextAsync(Path.Combine(sampleDir, "Foo.csproj"), Library).ConfigureAwait(false);
+
+		string demoDir = Path.Combine(_tempDir, "MyLib.Demo");
+		Directory.CreateDirectory(demoDir);
+		await File.WriteAllTextAsync(Path.Combine(demoDir, "MyLib.Demo.csproj"), Library).ConfigureAwait(false);
+
+		string outputPath = Path.Combine(_tempDir, "output");
+		_processRunner.RunWithCallbackAsync("dotnet", Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
+			.Returns(0);
+
+		await _service.PackAsync(_tempDir, outputPath).ConfigureAwait(false);
+
+		await _processRunner.Received(1).RunWithCallbackAsync("dotnet",
+			ArgMatch.NotNull<string>(a => a.StartsWith("pack ", StringComparison.Ordinal) && a.Contains("MyLib.csproj", StringComparison.Ordinal)),
+			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+		await _processRunner.DidNotReceive().RunWithCallbackAsync("dotnet",
+			ArgMatch.NotNull<string>(a => a.Contains("Foo.csproj", StringComparison.Ordinal) || a.Contains("MyLib.Demo.csproj", StringComparison.Ordinal)),
+			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+	}
+
+	[TestMethod]
 	public async Task PackAsync_PassesSolutionContext_DiscoveringSlnx()
 	{
 		// A nested library plus a .slnx solution at the workspace root.
