@@ -68,6 +68,88 @@ public class OrgProfileServiceTests
 		Assert.AreEqual("Bravo", string.Join(",", facts.Select(static f => f.Name)));
 	}
 
+	private RecordingBuildLogger UseRecordingLogger()
+	{
+		RecordingBuildLogger logger = new();
+		_service = new OrgProfileService(_gitHub, _nuGet, logger);
+		return logger;
+	}
+
+	[TestMethod]
+	public async Task GatherAsync_OnlyNameNotFound_WarnsThatItMatchedNothing()
+	{
+		RecordingBuildLogger logger = UseRecordingLogger();
+		HaveRepositories(new GitHubRepository("ImGuiApp", "main", false));
+
+		Assert.IsEmpty(await _service.GatherAsync(Options with { OnlyRepositories = ["ImGuiApps"] }).ConfigureAwait(false));
+
+		Assert.HasCount(1, logger.Warnings);
+		Assert.IsTrue(RecordingBuildLogger.Any(logger.Warnings, "--only ImGuiApps produced no row: it was not found among the public repositories of ktsu-dev"));
+	}
+
+	[TestMethod]
+	public async Task GatherAsync_OnlyNameArchived_WarnsThatItIsArchived()
+	{
+		RecordingBuildLogger logger = UseRecordingLogger();
+		HaveRepositories(new GitHubRepository("Bravo", "main", true));
+
+		Assert.IsEmpty(await _service.GatherAsync(Options with { OnlyRepositories = ["Bravo"] }).ConfigureAwait(false));
+
+		Assert.HasCount(1, logger.Warnings);
+		Assert.IsTrue(RecordingBuildLogger.Any(logger.Warnings, "--only Bravo produced no row: it is archived"));
+	}
+
+	[TestMethod]
+	public async Task GatherAsync_OnlyNameAlsoExcluded_WarnsThatItIsExcluded()
+	{
+		RecordingBuildLogger logger = UseRecordingLogger();
+		HaveRepositories(new GitHubRepository("Sdk", "main", false));
+
+		Assert.IsEmpty(await _service.GatherAsync(Options with { OnlyRepositories = ["sdk"], ExcludedRepositories = ["Sdk"] }).ConfigureAwait(false));
+
+		Assert.HasCount(1, logger.Warnings);
+		Assert.IsTrue(RecordingBuildLogger.Any(logger.Warnings, "--only sdk produced no row: it is also excluded by --exclude"));
+	}
+
+	[TestMethod]
+	public async Task GatherAsync_OnlyNameWithNoStableRelease_WarnsThatItIsNotListed()
+	{
+		RecordingBuildLogger logger = UseRecordingLogger();
+		HaveRepositories(new GitHubRepository("Alpha", "main", false));
+		_gitHub.ListReleasesAsync(Arg.Any<string>(), "Alpha", Arg.Any<CancellationToken>())
+			.Returns(Task.FromResult<IReadOnlyList<GitHubRelease>>([new GitHubRelease("v1.0.0-pre.1")]));
+
+		Assert.IsEmpty(await _service.GatherAsync(Options with { OnlyRepositories = ["Alpha"] }).ConfigureAwait(false));
+
+		Assert.HasCount(1, logger.Warnings);
+		Assert.IsTrue(RecordingBuildLogger.Any(logger.Warnings, "--only Alpha produced no row: it has no stable release, so it is not listed"));
+	}
+
+	[TestMethod]
+	public async Task GatherAsync_OnlyNameListed_DoesNotWarn()
+	{
+		RecordingBuildLogger logger = UseRecordingLogger();
+		HaveRepositories(new GitHubRepository("Alpha", "main", false), new GitHubRepository("Bravo", "main", false));
+
+		IReadOnlyList<RepoFacts> facts = await _service.GatherAsync(Options with { OnlyRepositories = ["bravo"] }).ConfigureAwait(false);
+
+		Assert.AreEqual("Bravo", string.Join(",", facts.Select(static f => f.Name)));
+		Assert.IsEmpty(logger.Warnings);
+	}
+
+	[TestMethod]
+	public async Task GatherAsync_WithoutOnly_DoesNotWarnAboutSkippedRepositories()
+	{
+		RecordingBuildLogger logger = UseRecordingLogger();
+		HaveRepositories(new GitHubRepository("Archived", "main", true), new GitHubRepository("Sdk", "main", false), new GitHubRepository("Alpha", "main", false));
+		_gitHub.ListReleasesAsync(Arg.Any<string>(), "Alpha", Arg.Any<CancellationToken>())
+			.Returns(Task.FromResult<IReadOnlyList<GitHubRelease>>([new GitHubRelease("v1.0.0-pre.1")]));
+
+		Assert.IsEmpty(await _service.GatherAsync(Options with { ExcludedRepositories = ["Sdk"] }).ConfigureAwait(false));
+
+		Assert.IsEmpty(logger.Warnings);
+	}
+
 	[TestMethod]
 	public async Task GatherAsync_SkipsRepositoriesWithNoStableRelease()
 	{

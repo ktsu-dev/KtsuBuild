@@ -45,6 +45,12 @@ public class OrgProfileService(IGitHubApiClient gitHub, INuGetCatalogClient nuGe
 		logger.WriteInfo($"Latest {options.SdkPackageId} is {latestSdk ?? "unknown"}");
 
 		List<RepoFacts> facts = [];
+
+		// Why each repository named by --only produced no row, so a preview that comes back empty says why.
+		Dictionary<string, string> onlySkipReasons = new(StringComparer.OrdinalIgnoreCase);
+		bool IsRequested(GitHubRepository repository) =>
+			options.OnlyRepositories.Contains(repository.Name, StringComparer.OrdinalIgnoreCase);
+
 		foreach (GitHubRepository repository in repositories)
 		{
 			cancellationToken.ThrowIfCancellationRequested();
@@ -52,11 +58,15 @@ public class OrgProfileService(IGitHubApiClient gitHub, INuGetCatalogClient nuGe
 			if (repository.IsArchived)
 			{
 				logger.WriteVerbose($"Skipping archived repo: {repository.Name}");
+				if (IsRequested(repository))
+				{
+					onlySkipReasons[repository.Name] = "it is archived";
+				}
+
 				continue;
 			}
 
-			if (options.OnlyRepositories.Count > 0 &&
-				!options.OnlyRepositories.Contains(repository.Name, StringComparer.OrdinalIgnoreCase))
+			if (options.OnlyRepositories.Count > 0 && !IsRequested(repository))
 			{
 				continue;
 			}
@@ -64,6 +74,11 @@ public class OrgProfileService(IGitHubApiClient gitHub, INuGetCatalogClient nuGe
 			if (options.ExcludedRepositories.Contains(repository.Name, StringComparer.OrdinalIgnoreCase))
 			{
 				logger.WriteVerbose($"Skipping excluded repo: {repository.Name}");
+				if (IsRequested(repository))
+				{
+					onlySkipReasons[repository.Name] = "it is also excluded by --exclude";
+				}
+
 				continue;
 			}
 
@@ -72,6 +87,23 @@ public class OrgProfileService(IGitHubApiClient gitHub, INuGetCatalogClient nuGe
 			{
 				facts.Add(repositoryFacts);
 			}
+			else if (IsRequested(repository))
+			{
+				onlySkipReasons[repository.Name] = "it has no stable release, so it is not listed";
+			}
+		}
+
+		foreach (string requested in options.OnlyRepositories.Distinct(StringComparer.OrdinalIgnoreCase))
+		{
+			if (facts.Any(f => string.Equals(f.Name, requested, StringComparison.OrdinalIgnoreCase)))
+			{
+				continue;
+			}
+
+			string reason = onlySkipReasons.TryGetValue(requested, out string? known)
+				? known
+				: $"it was not found among the public repositories of {options.Organization}";
+			logger.WriteWarning($"--only {requested} produced no row: {reason}");
 		}
 
 		logger.WriteInfo($"Listing {facts.Count.ToString(CultureInfo.InvariantCulture)} {(facts.Count == 1 ? "repository" : "repositories")}");
