@@ -40,9 +40,21 @@ public static class ProjectDetector
 	/// </summary>
 	/// <param name="rootDirectory">The repository root directory.</param>
 	/// <returns>The detected project info.</returns>
-	public static ProjectInfo Detect(string rootDirectory)
+	/// <remarks>The repository name is taken from the root directory's name. Use
+	/// <see cref="Detect(string, string?)"/> when the real repository name is known.</remarks>
+	public static ProjectInfo Detect(string rootDirectory) => Detect(rootDirectory, repositoryName: null);
+
+	/// <summary>
+	/// Detects project information from the repository.
+	/// </summary>
+	/// <param name="rootDirectory">The repository root directory.</param>
+	/// <param name="repositoryName">The repository's name (for example, from its GitHub remote), used with the root
+	/// directory's name to recognise its main project. May be null when it isn't known.</param>
+	/// <returns>The detected project info.</returns>
+	public static ProjectInfo Detect(string rootDirectory, string? repositoryName)
 	{
 		Ensure.NotNull(rootDirectory);
+		string[] repoNames = ResolveRepositoryNames(rootDirectory, repositoryName);
 		ProjectInfo projectInfo = new();
 
 		ApplyVersion(rootDirectory, projectInfo);
@@ -52,7 +64,7 @@ public static class ProjectDetector
 		ApplyTags(rootDirectory, projectInfo);
 
 		// Detect project type
-		DetectCSharpProject(rootDirectory, projectInfo);
+		DetectCSharpProject(rootDirectory, repoNames, projectInfo);
 		DetectNodeProject(rootDirectory, projectInfo);
 		DetectRustProject(rootDirectory, projectInfo);
 
@@ -63,11 +75,39 @@ public static class ProjectDetector
 		// Fall back to directory name if no name found
 		if (string.IsNullOrEmpty(projectInfo.Name))
 		{
-			projectInfo.Name = Path.GetFileName(rootDirectory);
+			projectInfo.Name = repoNames.FirstOrDefault() ?? string.Empty;
 		}
 
 		return projectInfo;
 	}
+
+	/// <summary>
+	/// Works out the names a repository's main project may carry, most authoritative first.
+	/// </summary>
+	/// <param name="rootDirectory">The repository root directory.</param>
+	/// <param name="repositoryName">The repository's name, when known.</param>
+	/// <returns>
+	/// <paramref name="repositoryName"/> when it is given, then the root directory's name, read after any trailing
+	/// directory separators are removed so <c>./Repo/</c> names <c>Repo</c> rather than nothing. Empty and repeated
+	/// names are left out.
+	/// </returns>
+	private static string[] ResolveRepositoryNames(string rootDirectory, string? repositoryName)
+	{
+		string folderName = Path.GetFileName(rootDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+		return [.. new[] { repositoryName, folderName }
+			.Where(static name => !string.IsNullOrEmpty(name))
+			.Select(static name => name!)
+			.Distinct(StringComparer.OrdinalIgnoreCase)];
+	}
+
+	/// <summary>
+	/// Whether a project name is the repository's main project, or one of its named variants
+	/// (<c>&lt;Repo&gt;.App</c>, <c>&lt;Repo&gt;.Tool</c> and so on). Clone folders often differ from the repository
+	/// name only in case, so the comparison ignores case.
+	/// </summary>
+	private static bool IsMainProjectName(string projectName, string repoName) =>
+		string.Equals(projectName, repoName, StringComparison.OrdinalIgnoreCase)
+		|| projectName.StartsWith($"{repoName}.", StringComparison.OrdinalIgnoreCase);
 
 	/// <summary>
 	/// Reads the project version from VERSION.md, when present.
@@ -227,14 +267,27 @@ public static class ProjectDetector
 	/// <param name="rootDirectory">The repository root directory.</param>
 	/// <param name="projectInfo">The detected project info.</param>
 	/// <returns>True if this is a library-only project.</returns>
-	public static bool IsLibraryOnlyProject(string rootDirectory, ProjectInfo projectInfo)
+	/// <remarks>The repository name is taken from the root directory's name. Use
+	/// <see cref="IsLibraryOnlyProject(string, ProjectInfo, string?)"/> when the real repository name is known.</remarks>
+	public static bool IsLibraryOnlyProject(string rootDirectory, ProjectInfo projectInfo) =>
+		IsLibraryOnlyProject(rootDirectory, projectInfo, repositoryName: null);
+
+	/// <summary>
+	/// Checks if the project is a library-only project (no executables).
+	/// </summary>
+	/// <param name="rootDirectory">The repository root directory.</param>
+	/// <param name="projectInfo">The detected project info.</param>
+	/// <param name="repositoryName">The repository's name (for example, from its GitHub remote), used with the root
+	/// directory's name to recognise its main project. May be null when it isn't known.</param>
+	/// <returns>True if this is a library-only project.</returns>
+	public static bool IsLibraryOnlyProject(string rootDirectory, ProjectInfo projectInfo, string? repositoryName)
 	{
 		Ensure.NotNull(rootDirectory);
 		Ensure.NotNull(projectInfo);
 
 		if (projectInfo.Type == CSharpProjectType)
 		{
-			return IsLibraryOnlyCSharpProject(rootDirectory);
+			return IsLibraryOnlyCSharpProject(rootDirectory, ResolveRepositoryNames(rootDirectory, repositoryName));
 		}
 
 		if (projectInfo.Type == "node")
@@ -256,11 +309,11 @@ public static class ProjectDetector
 	/// non-test project in it.
 	/// </summary>
 	/// <param name="rootDirectory">The repository root directory.</param>
+	/// <param name="repoNames">The names the repository's main project may carry.</param>
 	/// <returns>True when the repository has nothing executable to package.</returns>
-	private static bool IsLibraryOnlyCSharpProject(string rootDirectory)
+	private static bool IsLibraryOnlyCSharpProject(string rootDirectory, string[] repoNames)
 	{
 		string[] csprojFiles = Directory.GetFiles(rootDirectory, "*.csproj", SearchOption.AllDirectories);
-		string repoName = Path.GetFileName(rootDirectory);
 
 		bool hasApplications = false;
 		bool isMainProjectLibrary = false;
@@ -279,7 +332,7 @@ public static class ProjectDetector
 
 			hasNonTestProjects = true;
 
-			bool isMainProject = projectName == repoName || projectName.StartsWith($"{repoName}.");
+			bool isMainProject = repoNames.Any(repoName => IsMainProjectName(projectName, repoName));
 			bool isExecutable = IsExecutableProject(content);
 			bool isLibrary = IsLibraryProject(content) || !isExecutable;
 
@@ -303,7 +356,7 @@ public static class ProjectDetector
 		return isMainProjectLibrary && !hasApplications;
 	}
 
-	private static void DetectCSharpProject(string rootDirectory, ProjectInfo projectInfo)
+	private static void DetectCSharpProject(string rootDirectory, string[] repoNames, ProjectInfo projectInfo)
 	{
 		string[] csprojFiles = Directory.GetFiles(rootDirectory, "*.csproj", SearchOption.AllDirectories);
 		if (csprojFiles.Length == 0)
@@ -312,7 +365,7 @@ public static class ProjectDetector
 		}
 
 		projectInfo.Type = CSharpProjectType;
-		string csproj = SelectPrimaryProject(csprojFiles, Path.GetFileName(rootDirectory));
+		string csproj = SelectPrimaryProject(csprojFiles, repoNames);
 		string content = File.ReadAllText(csproj);
 
 		// Try to parse as XML
@@ -352,7 +405,7 @@ public static class ProjectDetector
 	/// Chooses the project file whose metadata describes what the repository actually ships.
 	/// </summary>
 	/// <param name="csprojFiles">Every project file found under the repository root.</param>
-	/// <param name="repoName">The repository directory name, used to recognise its main project.</param>
+	/// <param name="repoNames">The names the repository's main project may carry, most authoritative first.</param>
 	/// <returns>The project file to read the Winget manifest metadata from.</returns>
 	/// <remarks>
 	/// <see cref="Directory.GetFiles(string, string, SearchOption)"/> enumerates in filesystem
@@ -361,7 +414,7 @@ public static class ProjectDetector
 	/// deterministic and away from test and demo projects, matching how
 	/// <see cref="IsLibraryOnlyCSharpProject"/> already classifies the same repository.
 	/// </remarks>
-	private static string SelectPrimaryProject(string[] csprojFiles, string repoName)
+	private static string SelectPrimaryProject(string[] csprojFiles, string[] repoNames)
 	{
 		string[] ordered = [.. csprojFiles.OrderBy(static path => path, StringComparer.Ordinal)];
 
@@ -375,9 +428,17 @@ public static class ProjectDetector
 			candidates = ordered;
 		}
 
-		return candidates.FirstOrDefault(path => Path.GetFileNameWithoutExtension(path) == repoName)
-			?? candidates.FirstOrDefault(path => Path.GetFileNameWithoutExtension(path).StartsWith($"{repoName}.", StringComparison.Ordinal))
-			?? candidates[0];
+		foreach (string repoName in repoNames)
+		{
+			string? match = candidates.FirstOrDefault(path => string.Equals(Path.GetFileNameWithoutExtension(path), repoName, StringComparison.OrdinalIgnoreCase))
+				?? candidates.FirstOrDefault(path => IsMainProjectName(Path.GetFileNameWithoutExtension(path), repoName));
+			if (match is not null)
+			{
+				return match;
+			}
+		}
+
+		return candidates[0];
 	}
 
 	/// <summary>

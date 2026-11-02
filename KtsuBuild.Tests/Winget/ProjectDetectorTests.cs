@@ -111,6 +111,115 @@ public class ProjectDetectorTests
 		Assert.IsTrue(isLibraryOnly, "Should detect as library-only project");
 	}
 
+	/// <summary>
+	/// A repository holding its main app project plus an alphabetically earlier executable that isn't the main one, in
+	/// a clone folder named <paramref name="folderName"/>.
+	/// </summary>
+	private string CreateAppRepository(string folderName)
+	{
+		string root = Path.Combine(_tempDir, folderName);
+		Directory.CreateDirectory(root);
+		File.WriteAllText(Path.Combine(root, "Aardvark.csproj"), """
+			<Project Sdk="Microsoft.NET.Sdk">
+				<PropertyGroup>
+					<OutputType>Exe</OutputType>
+					<AssemblyName>Aardvark</AssemblyName>
+				</PropertyGroup>
+			</Project>
+			""");
+		File.WriteAllText(Path.Combine(root, "SomeApp.csproj"), """
+			<Project Sdk="Microsoft.NET.Sdk">
+				<PropertyGroup>
+					<OutputType>Exe</OutputType>
+					<AssemblyName>SomeApp</AssemblyName>
+				</PropertyGroup>
+			</Project>
+			""");
+		return root;
+	}
+
+	/// <summary>
+	/// A library repository whose only project is its main one, in a clone folder named <paramref name="folderName"/>.
+	/// </summary>
+	private string CreateLibraryRepository(string folderName)
+	{
+		string root = Path.Combine(_tempDir, folderName);
+		Directory.CreateDirectory(root);
+		File.WriteAllText(Path.Combine(root, "SomeLibrary.csproj"), """
+			<Project Sdk="Microsoft.NET.Sdk">
+				<PropertyGroup>
+					<OutputType>Library</OutputType>
+				</PropertyGroup>
+			</Project>
+			""");
+		return root;
+	}
+
+	[TestMethod]
+	public void Detect_CanonicalFolder_PicksTheMainProject()
+	{
+		string root = CreateAppRepository("SomeApp");
+
+		Assert.AreEqual("SomeApp.exe", ProjectDetector.Detect(root).ExecutableName);
+	}
+
+	[TestMethod]
+	public void Detect_WorkspaceWithTrailingSeparator_PicksTheMainProject()
+	{
+		string root = CreateAppRepository("SomeApp") + Path.DirectorySeparatorChar;
+
+		Assert.AreEqual("SomeApp.exe", ProjectDetector.Detect(root).ExecutableName);
+	}
+
+	[TestMethod]
+	public void Detect_LowercaseCloneFolder_PicksTheMainProject()
+	{
+		string root = CreateAppRepository("someapp");
+
+		Assert.AreEqual("SomeApp.exe", ProjectDetector.Detect(root).ExecutableName);
+	}
+
+	[TestMethod]
+	public void Detect_GivenRepositoryName_PicksTheMainProjectWhateverTheFolderIsCalled()
+	{
+		string root = CreateAppRepository("checkout");
+
+		Assert.AreEqual("SomeApp.exe", ProjectDetector.Detect(root, "SomeApp").ExecutableName);
+	}
+
+	[TestMethod]
+	public void Detect_FallbackName_IgnoresTrailingSeparator()
+	{
+		string root = Path.Combine(_tempDir, "Empty");
+		Directory.CreateDirectory(root);
+
+		Assert.AreEqual("Empty", ProjectDetector.Detect(root + Path.DirectorySeparatorChar).Name);
+	}
+
+	[TestMethod]
+	public void IsLibraryOnlyProject_WorkspaceWithTrailingSeparator_IsLibraryOnly()
+	{
+		string root = CreateLibraryRepository("SomeLibrary") + Path.DirectorySeparatorChar;
+
+		Assert.IsTrue(ProjectDetector.IsLibraryOnlyProject(root, ProjectDetector.Detect(root)));
+	}
+
+	[TestMethod]
+	public void IsLibraryOnlyProject_LowercaseCloneFolder_IsLibraryOnly()
+	{
+		string root = CreateLibraryRepository("somelibrary");
+
+		Assert.IsTrue(ProjectDetector.IsLibraryOnlyProject(root, ProjectDetector.Detect(root)));
+	}
+
+	[TestMethod]
+	public void IsLibraryOnlyProject_GivenRepositoryName_IsLibraryOnlyWhateverTheFolderIsCalled()
+	{
+		string root = CreateLibraryRepository("checkout");
+
+		Assert.IsTrue(ProjectDetector.IsLibraryOnlyProject(root, ProjectDetector.Detect(root, "SomeLibrary"), "SomeLibrary"));
+	}
+
 	[TestMethod]
 	public void Detect_SdkAppElementForm_NotLibraryOnly()
 	{
