@@ -45,8 +45,31 @@ public class WingetServiceTests
 		await File.WriteAllTextAsync(Path.Combine(projDir, "MyLib.csproj"),
 			"<Project><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>").ConfigureAwait(false);
 
+		// No remote: a library is still recognised from the folder name, without a GitHub repository
+		_processRunner.RunAsync("git", Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+			.Returns(TestHelpers.FailureResult());
+
 		WingetOptions options = CreateDefaultOptions();
 		options.RootDirectory = rootDir;
+
+		WingetManifestResult result = await _service.GenerateManifestsAsync(options).ConfigureAwait(false);
+
+		Assert.IsTrue(result.Success);
+		Assert.IsTrue(result.IsLibraryOnly);
+	}
+
+	[TestMethod]
+	public async Task GenerateManifestsAsync_LibraryInDifferentlyNamedClone_IsRecognisedFromTheGitHubRepositoryName()
+	{
+		// The clone folder shares nothing with the repository name, so only the GitHub name identifies the main project
+		string rootDir = Path.Combine(_tempDir, "checkout");
+		Directory.CreateDirectory(rootDir);
+		await File.WriteAllTextAsync(Path.Combine(rootDir, "MyLib.csproj"),
+			"<Project><PropertyGroup><OutputType>Library</OutputType></PropertyGroup></Project>").ConfigureAwait(false);
+
+		WingetOptions options = CreateDefaultOptions();
+		options.RootDirectory = rootDir;
+		options.GitHubRepo = "ktsu-dev/MyLib";
 
 		WingetManifestResult result = await _service.GenerateManifestsAsync(options).ConfigureAwait(false);
 

@@ -25,18 +25,20 @@ public class WingetService(IProcessRunner processRunner, IBuildLogger logger) : 
 		Ensure.NotNull(options);
 		logger.WriteStepHeader("Generating Winget Manifests");
 
+		// Resolve GitHub repo first: its name, not the clone folder's, identifies the main project
+		string? gitHubRepo = options.GitHubRepo ?? await DetectGitHubRepoAsync(options.RootDirectory, cancellationToken).ConfigureAwait(false);
+		string? detectedRepoName = RepositoryNameOf(gitHubRepo);
+
 		// Detect project info
-		ProjectInfo projectInfo = ProjectDetector.Detect(options.RootDirectory);
+		ProjectInfo projectInfo = ProjectDetector.Detect(options.RootDirectory, detectedRepoName);
 		logger.WriteInfo($"Detected project: {projectInfo.Name} (Type: {projectInfo.Type})");
 
 		// Check if library-only project
-		if (ProjectDetector.IsLibraryOnlyProject(options.RootDirectory, projectInfo))
+		if (ProjectDetector.IsLibraryOnlyProject(options.RootDirectory, projectInfo, detectedRepoName))
 		{
 			return SkipLibraryProject("Detected library project - no executable artifacts expected.");
 		}
 
-		// Resolve GitHub repo
-		string? gitHubRepo = options.GitHubRepo ?? await DetectGitHubRepoAsync(options.RootDirectory, cancellationToken).ConfigureAwait(false);
 		if (string.IsNullOrEmpty(gitHubRepo))
 		{
 			return new WingetManifestResult
@@ -60,7 +62,7 @@ public class WingetService(IProcessRunner processRunner, IBuildLogger logger) : 
 
 		if (sha256Hashes.Count == 0)
 		{
-			return HandleNoHashes(options.RootDirectory, projectInfo);
+			return HandleNoHashes(options.RootDirectory, projectInfo, repoName);
 		}
 
 		return await GenerateManifestFilesAsync(options, projectInfo, sha256Hashes, config, cancellationToken).ConfigureAwait(false);
@@ -119,9 +121,18 @@ public class WingetService(IProcessRunner processRunner, IBuildLogger logger) : 
 		logger.WriteInfo($"  Command Alias: {config.CommandAlias}");
 	}
 
-	private WingetManifestResult HandleNoHashes(string rootDirectory, ProjectInfo projectInfo)
+	/// <summary>
+	/// Returns the repository part of an <c>owner/repo</c> name, or null when there is none.
+	/// </summary>
+	private static string? RepositoryNameOf(string? gitHubRepo)
 	{
-		if (ProjectDetector.IsLibraryOnlyProject(rootDirectory, projectInfo))
+		string[] parts = gitHubRepo?.Split('/') ?? [];
+		return parts.Length == 2 && parts[1].Length > 0 ? parts[1] : null;
+	}
+
+	private WingetManifestResult HandleNoHashes(string rootDirectory, ProjectInfo projectInfo, string repoName)
+	{
+		if (ProjectDetector.IsLibraryOnlyProject(rootDirectory, projectInfo, repoName))
 		{
 			return SkipLibraryProject("No hashes found, but this appears to be a library-only project.");
 		}
