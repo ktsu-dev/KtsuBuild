@@ -88,9 +88,15 @@ public class WingetService(IProcessRunner processRunner, IBuildLogger logger) : 
 			ShortDescription = projectInfo.ShortDescription.Length > 0 ? projectInfo.ShortDescription : $"A {projectInfo.Type} application",
 			ArtifactNamePattern = options.ArtifactNamePattern ?? $"{repoName}-{{version}}-{{arch}}.zip",
 			ExecutableName = options.ExecutableName ?? projectInfo.ExecutableName,
-			CommandAlias = options.CommandAlias ?? repoName.ToLowerInvariant(),
+			CommandAlias = FirstNonBlank(options.CommandAlias, projectInfo.CommandAlias) ?? repoName.ToLowerInvariant(),
 		};
 	}
+
+	/// <summary>
+	/// Returns the first value that is not null, empty or whitespace, trimmed, or null when there is none.
+	/// </summary>
+	private static string? FirstNonBlank(params string?[] values) =>
+		values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim();
 
 	private WingetManifestResult SkipLibraryProject(string reason)
 	{

@@ -109,6 +109,40 @@ public class WingetServiceTests
 	}
 
 	[TestMethod]
+	[DataRow("<WinGetCommandAlias>myapp</WinGetCommandAlias>", "myapp")]
+	[DataRow("<WinGetCommandAlias>  myapp  </WinGetCommandAlias>", "myapp")]
+	[DataRow("<WinGetCommandAlias>   </WinGetCommandAlias>", "other")]
+	[DataRow("", "other")]
+	public async Task GenerateManifestsAsync_UsesTheProjectCommandAlias(string aliasProperty, string expectedAlias)
+	{
+		string projDir = Path.Combine(_tempDir, "MyApp");
+		Directory.CreateDirectory(projDir);
+		await File.WriteAllTextAsync(Path.Combine(projDir, "MyApp.csproj"),
+			$"<Project><PropertyGroup><OutputType>Exe</OutputType>{aliasProperty}</PropertyGroup></Project>").ConfigureAwait(false);
+
+		string stagingDir = Path.Combine(_tempDir, "staging");
+		Directory.CreateDirectory(stagingDir);
+		await File.WriteAllTextAsync(Path.Combine(stagingDir, "hashes.txt"),
+			"Other-1.0.0-win-x64.zip=ABCDEF1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF1234567890\n").ConfigureAwait(false);
+
+		WingetOptions options = new()
+		{
+			Version = "1.0.0",
+			GitHubRepo = "testowner/Other",
+			RootDirectory = _tempDir,
+			OutputDirectory = Path.Combine(_tempDir, "winget"),
+			StagingDirectory = stagingDir,
+		};
+
+		WingetManifestResult result = await _service.GenerateManifestsAsync(options).ConfigureAwait(false);
+
+		Assert.IsTrue(result.Success);
+		string[] lines = [.. result.ManifestFiles.SelectMany(File.ReadAllLines).Select(line => line.Trim())];
+		CollectionAssert.Contains(lines, $"Moniker: {expectedAlias}");
+		CollectionAssert.Contains(lines, $"PortableCommandAlias: {expectedAlias}");
+	}
+
+	[TestMethod]
 	public async Task GenerateManifestsAsync_DetectsGitHubRepoFromRemote_Https()
 	{
 		// Create an exe project
