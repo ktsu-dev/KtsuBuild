@@ -23,8 +23,12 @@ public class GitHubService(IProcessRunner processRunner, IGitService gitService,
 		Ensure.NotNull(options);
 		logger.WriteStepHeader($"Creating GitHub Release v{options.Version}");
 
-		// Set GitHub token
-		Environment.SetEnvironmentVariable("GH_TOKEN", options.GithubToken);
+		// Hand gh the token, but never with an empty value: setting a variable to "" removes it, which
+		// would delete a GH_TOKEN the process was started with and leave gh with no credentials.
+		if (!string.IsNullOrWhiteSpace(options.GithubToken))
+		{
+			Environment.SetEnvironmentVariable("GH_TOKEN", options.GithubToken);
+		}
 
 		// Configure git identity, without disturbing one the repository or the developer already has
 		await gitService.EnsureIdentityAsync(options.WorkingDirectory, "Github Actions", "actions@users.noreply.github.com", cancellationToken).ConfigureAwait(false);
