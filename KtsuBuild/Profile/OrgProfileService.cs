@@ -45,38 +45,96 @@ public class OrgProfileService(IGitHubApiClient gitHub, INuGetCatalogClient nuGe
 		logger.WriteInfo($"Latest {options.SdkPackageId} is {latestSdk ?? "unknown"}");
 
 		List<RepoFacts> facts = [];
+
+		// Why each repository named by --only produced no row, so a preview that comes back empty says why.
+		Dictionary<string, string> onlySkipReasons = new(StringComparer.OrdinalIgnoreCase);
+
 		foreach (GitHubRepository repository in repositories)
 		{
 			cancellationToken.ThrowIfCancellationRequested();
 
-			if (repository.IsArchived)
+			string? skipReason = FilterOut(repository, options);
+			if (skipReason is null)
 			{
-				logger.WriteVerbose($"Skipping archived repo: {repository.Name}");
-				continue;
+				RepoFacts? repositoryFacts = await GatherRepositoryAsync(repository, options, latestSdk, cancellationToken).ConfigureAwait(false);
+				if (repositoryFacts is not null)
+				{
+					facts.Add(repositoryFacts);
+					continue;
+				}
+
+				skipReason = "it has no stable release, so it is not listed";
 			}
 
-			if (options.OnlyRepositories.Count > 0 &&
-				!options.OnlyRepositories.Contains(repository.Name, StringComparer.OrdinalIgnoreCase))
+			if (skipReason.Length > 0 && IsRequested(repository, options))
 			{
-				continue;
-			}
-
-			if (options.ExcludedRepositories.Contains(repository.Name, StringComparer.OrdinalIgnoreCase))
-			{
-				logger.WriteVerbose($"Skipping excluded repo: {repository.Name}");
-				continue;
-			}
-
-			RepoFacts? repositoryFacts = await GatherRepositoryAsync(repository, options, latestSdk, cancellationToken).ConfigureAwait(false);
-			if (repositoryFacts is not null)
-			{
-				facts.Add(repositoryFacts);
+				onlySkipReasons[repository.Name] = skipReason;
 			}
 		}
+
+		WarnAboutUnlistedOnlyRepositories(options, facts, onlySkipReasons);
 
 		logger.WriteInfo($"Listing {facts.Count.ToString(CultureInfo.InvariantCulture)} {(facts.Count == 1 ? "repository" : "repositories")}");
 
 		return facts;
+	}
+
+	/// <summary>
+	/// Whether <c>--only</c> names a repository.
+	/// </summary>
+	private static bool IsRequested(GitHubRepository repository, ProfileOptions options) =>
+		options.OnlyRepositories.Contains(repository.Name, StringComparer.OrdinalIgnoreCase);
+
+	/// <summary>
+	/// Decides whether a repository is left out before its facts are gathered.
+	/// </summary>
+	/// <param name="repository">The repository to consider.</param>
+	/// <param name="options">The gathering settings.</param>
+	/// <returns>
+	/// <see langword="null"/> when the repository should be gathered; otherwise why it is left out, or an empty
+	/// string when <c>--only</c> simply doesn't name it.
+	/// </returns>
+	private string? FilterOut(GitHubRepository repository, ProfileOptions options)
+	{
+		if (repository.IsArchived)
+		{
+			logger.WriteVerbose($"Skipping archived repo: {repository.Name}");
+			return "it is archived";
+		}
+
+		if (options.OnlyRepositories.Count > 0 && !IsRequested(repository, options))
+		{
+			return string.Empty;
+		}
+
+		if (options.ExcludedRepositories.Contains(repository.Name, StringComparer.OrdinalIgnoreCase))
+		{
+			logger.WriteVerbose($"Skipping excluded repo: {repository.Name}");
+			return "it is also excluded by --exclude";
+		}
+
+		return null;
+	}
+
+	/// <summary>
+	/// Warns, with the reason, about each repository named by <c>--only</c> that produced no row.
+	/// </summary>
+	/// <param name="options">The gathering settings.</param>
+	/// <param name="facts">The rows gathered.</param>
+	/// <param name="skipReasons">Why each requested repository that was seen was left out.</param>
+	private void WarnAboutUnlistedOnlyRepositories(ProfileOptions options, List<RepoFacts> facts, Dictionary<string, string> skipReasons)
+	{
+		IEnumerable<string> unlisted = options.OnlyRepositories
+			.Distinct(StringComparer.OrdinalIgnoreCase)
+			.Where(requested => !facts.Any(f => string.Equals(f.Name, requested, StringComparison.OrdinalIgnoreCase)));
+
+		foreach (string requested in unlisted)
+		{
+			string reason = skipReasons.TryGetValue(requested, out string? known)
+				? known
+				: $"it was not found among the public repositories of {options.Organization}";
+			logger.WriteWarning($"--only {requested} produced no row: {reason}");
+		}
 	}
 
 	/// <summary>
