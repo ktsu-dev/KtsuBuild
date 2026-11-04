@@ -24,6 +24,12 @@ using static Polyfill;
 /// </remarks>
 public class ProcessRunner : IProcessRunner
 {
+	/// <summary>
+	/// The exit code reported for a process that could not be started at all, such as an executable
+	/// that is not on the PATH. It matches the shell's "command not found".
+	/// </summary>
+	public const int CouldNotStartExitCode = 127;
+
 	/// <inheritdoc/>
 	public Task<ProcessResult> RunAsync(
 		string fileName,
@@ -136,6 +142,14 @@ public class ProcessRunner : IProcessRunner
 		{
 			return await RunCommand.ExecuteAsync(fileName, arguments, handler, options, cancellationToken)
 				.ConfigureAwait(false);
+		}
+		catch (System.ComponentModel.Win32Exception ex)
+		{
+			// Process.Start throws this when the executable is missing or can't be run. Reporting it as
+			// a failed run, rather than letting it escape, means every caller that already handles a
+			// failure (such as `gh` being unauthenticated) handles a missing tool the same way.
+			error.Append($"Could not start '{fileName}': {ex.Message}. Check that it is installed and on the PATH.{Environment.NewLine}");
+			return CouldNotStartExitCode;
 		}
 		finally
 		{
