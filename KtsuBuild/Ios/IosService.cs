@@ -54,23 +54,7 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 			return new IosPackageResult { Success = true, Skipped = true, SkipReason = reason };
 		}
 
-		// App Store Connect rejects anything else in CFBundleShortVersionString (ITMS-90060), and
-		// only at upload, so a bad version fails here before any toolchain or keychain work.
-		if (!IsValidShortVersion(options.ShortVersion))
-		{
-			throw new ArgumentException(
-				$"'{options.ShortVersion}' is not a valid CFBundleShortVersionString. Apple accepts one to three period-separated non-negative integers, such as 1.4.3.",
-				nameof(options));
-		}
-
-		// The bundle id goes onto the publish command line, so reject anything outside the
-		// characters Apple allows before it can reach MSBuild or the keychain work.
-		if (!string.IsNullOrEmpty(options.BundleId) && !IsValidBundleId(options.BundleId))
-		{
-			throw new ArgumentException(
-				$"'{options.BundleId}' is not a valid bundle identifier. Apple accepts letters, digits, hyphens and periods, such as com.example.app.",
-				nameof(options));
-		}
+		ValidatePackageIdentity(options);
 
 		// iOS archives only on macOS (the Xcode toolchain and the iOS workload are
 		// macOS-only). Skip cleanly elsewhere so the command is safe to call
@@ -336,6 +320,33 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 		if (!string.IsNullOrWhiteSpace(workloadVersion))
 		{
 			await InstallIosWorkloadAsync(workloadVersion, cancellationToken).ConfigureAwait(false);
+		}
+	}
+
+	/// <summary>
+	/// Rejects a marketing version or bundle identifier Apple would refuse, before any toolchain
+	/// or keychain work.
+	/// </summary>
+	/// <param name="options">The package options to check.</param>
+	/// <exception cref="ArgumentException">The version or bundle identifier is not acceptable.</exception>
+	private static void ValidatePackageIdentity(IosPackageOptions options)
+	{
+		// App Store Connect rejects anything else in CFBundleShortVersionString (ITMS-90060), and
+		// only at upload, so a bad version fails here before any toolchain or keychain work.
+		if (!IsValidShortVersion(options.ShortVersion))
+		{
+			throw new ArgumentException(
+				$"'{options.ShortVersion}' is not a valid CFBundleShortVersionString. Apple accepts one to three period-separated non-negative integers, such as 1.4.3.",
+				nameof(options));
+		}
+
+		// The bundle id goes onto the publish command line, so reject anything outside the
+		// characters Apple allows before it can reach MSBuild.
+		if (!string.IsNullOrEmpty(options.BundleId) && !IsValidBundleId(options.BundleId))
+		{
+			throw new ArgumentException(
+				$"'{options.BundleId}' is not a valid bundle identifier. Apple accepts letters, digits, hyphens and periods, such as com.example.app.",
+				nameof(options));
 		}
 	}
 

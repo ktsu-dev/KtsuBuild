@@ -19,7 +19,7 @@ public class IosCommandTests
 	{
 		ParseResult result = new IosCommand().Parse("package --bundle-id com.example.app.beta");
 
-		Assert.AreEqual(0, result.Errors.Count);
+		Assert.IsEmpty(result.Errors);
 		Assert.AreEqual("com.example.app.beta", result.GetValue<string?>("--bundle-id"));
 	}
 
@@ -28,7 +28,7 @@ public class IosCommandTests
 	{
 		ParseResult result = new IosCommand().Parse("package");
 
-		Assert.AreEqual(0, result.Errors.Count);
+		Assert.IsEmpty(result.Errors);
 		Assert.IsNull(result.GetValue<string?>("--bundle-id"));
 	}
 

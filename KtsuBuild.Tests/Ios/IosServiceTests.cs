@@ -348,14 +348,14 @@ public class IosServiceTests
 		string head = CreateHead("MyApp.iOS");
 		string ipa = Path.Combine(_tempDir, "MyApp.iOS", "bin", "MyApp.ipa");
 		Directory.CreateDirectory(Path.GetDirectoryName(ipa)!);
-		await File.WriteAllTextAsync(ipa, "archive").ConfigureAwait(false);
+		await File.WriteAllTextAsync(ipa, "archive", TestContext.CancellationToken).ConfigureAwait(false);
 
 		_processRunner.RunWithCallbackAsync("dotnet", Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
 			.Returns(0);
 
 		IosArchiveOptions options = ArchiveOpts(_tempDir, head, "net10.0-ios");
 		options.BundleId = "com.example.app.beta";
-		await _service.ArchiveAsync(options).ConfigureAwait(false);
+		await _service.ArchiveAsync(options, TestContext.CancellationToken).ConfigureAwait(false);
 
 		await _processRunner.Received(1).RunWithCallbackAsync(
 			"dotnet",
@@ -369,13 +369,13 @@ public class IosServiceTests
 		string head = CreateHead("MyApp.iOS");
 		string ipa = Path.Combine(_tempDir, "MyApp.iOS", "bin", "MyApp.ipa");
 		Directory.CreateDirectory(Path.GetDirectoryName(ipa)!);
-		await File.WriteAllTextAsync(ipa, "archive").ConfigureAwait(false);
+		await File.WriteAllTextAsync(ipa, "archive", TestContext.CancellationToken).ConfigureAwait(false);
 
 		_processRunner.RunWithCallbackAsync("dotnet", Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
 			.Returns(0);
 
 		IosArchiveOptions options = ArchiveOpts(_tempDir, head, "net10.0-ios");
-		await _service.ArchiveAsync(options).ConfigureAwait(false);
+		await _service.ArchiveAsync(options, TestContext.CancellationToken).ConfigureAwait(false);
 
 		await _processRunner.Received(1).RunWithCallbackAsync(
 			"dotnet",
