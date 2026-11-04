@@ -157,12 +157,9 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 			throw new InvalidOperationException("The App Store Connect API key and issuer identifiers are required. Set APP_STORE_CONNECT_KEY_ID and APP_STORE_CONNECT_ISSUER_ID.");
 		}
 
+		// Throws when nothing is found: signing is available, so a missing archive means the
+		// package step didn't run or wrote elsewhere, and a green upload would hide that.
 		IReadOnlyList<string> ipas = LocateIpas(options);
-		if (ipas.Count == 0)
-		{
-			logger.WriteInfo("No iOS .ipa archives found to upload. Run 'ios package' first.");
-			return new IosUploadResult { Success = true };
-		}
 
 		// altool discovers the key by name under ~/.appstoreconnect/private_keys; place it
 		// there for the run and wipe it afterwards.
@@ -241,7 +238,10 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 	/// matching what <c>ios package</c> produced in the same workspace.
 	/// </summary>
 	/// <param name="options">The upload options.</param>
-	/// <returns>The archives to upload, in head order.</returns>
+	/// <returns>The archives to upload, in head order. Never empty.</returns>
+	/// <exception cref="InvalidOperationException">
+	/// The explicit path does not exist, or no head has an archive under its <c>bin</c> directory.
+	/// </exception>
 	public IReadOnlyList<string> LocateIpas(IosUploadOptions options)
 	{
 		Ensure.NotNull(options);
@@ -261,17 +261,28 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 			: [options.Project];
 
 		List<string> ipas = [];
+		List<string> searched = [];
 		foreach (string head in heads)
 		{
 			string headDir = Path.GetDirectoryName(Path.GetFullPath(head)) ?? Directory.GetCurrentDirectory();
-			string? ipa = FindIpa(Path.Combine(headDir, "bin"));
+			string binDir = Path.Combine(headDir, "bin");
+			string? ipa = FindIpa(binDir);
 			if (ipa is null)
 			{
 				logger.WriteWarning($"No .ipa found under {head}; nothing to upload for this head. Run 'ios package' first.");
+				searched.Add($"{head} ({binDir})");
 				continue;
 			}
 
 			ipas.Add(ipa);
+		}
+
+		if (ipas.Count == 0)
+		{
+			string where = searched.Count == 0
+				? $"no iOS heads were found in {options.WorkingDirectory}"
+				: $"searched {string.Join(", ", searched)}";
+			throw new InvalidOperationException($"No iOS .ipa archive found to upload: {where}. Run 'ios package' first, or pass --ipa.");
 		}
 
 		return ipas;
