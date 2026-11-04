@@ -191,7 +191,7 @@ public static class ProfileRenderer
 		(string message, string color) = repository.WorkflowConclusion switch
 		{
 			"success" => ("passing", BadgeColors.Success),
-			"failure" => ("failing", BadgeColors.Failure),
+			"failure" or "timed_out" or "startup_failure" => ("failing", BadgeColors.Failure),
 			"cancelled" => ("cancelled", BadgeColors.Cancelled),
 			_ => ("unknown", BadgeColors.Warning),
 		};

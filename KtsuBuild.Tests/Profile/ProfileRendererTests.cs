@@ -117,7 +117,11 @@ public class ProfileRendererTests
 	[TestMethod]
 	[DataRow("cancelled", "cancelled", "6e7681")]
 	[DataRow(null, "unknown", "dbab09")]
-	[DataRow("timed_out", "unknown", "dbab09")]
+	[DataRow("success", "passing", "2ea44f")]
+	[DataRow("failure", "failing", "d73a4a")]
+	[DataRow("timed_out", "failing", "d73a4a")]
+	[DataRow("startup_failure", "failing", "d73a4a")]
+	[DataRow("action_required", "unknown", "dbab09")]
 	public void RenderRow_MapsWorkflowConclusionToBadge(string? conclusion, string message, string color) =>
 		Assert.Contains(
 			$"![Status](https://img.shields.io/badge/-{message}-{color}?logo=github&logoColor=white)",
