@@ -34,8 +34,8 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger, st
 	private const string QuietLogger = "-logger:\"Microsoft.Build.Logging.ConsoleLogger,Microsoft.Build;Summary;ForceNoAlign;ShowTimestamp;ShowCommandLine;Verbosity=quiet\"";
 
 #pragma warning disable SYSLIB1045 // GeneratedRegex not available in netstandard2.0/2.1
-	private static readonly Regex OutputTypeExeRegex = new(@"<OutputType>\s*Exe\s*</OutputType>", RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexDefaults.MatchTimeout);
-	private static readonly Regex OutputTypeWinExeRegex = new(@"<OutputType>\s*WinExe\s*</OutputType>", RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexDefaults.MatchTimeout);
+	private static readonly Regex OutputTypeExeRegex = new(SdkReferencePatterns.OutputTypeExe, RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexDefaults.MatchTimeout);
+	private static readonly Regex OutputTypeWinExeRegex = new(SdkReferencePatterns.OutputTypeWinExe, RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexDefaults.MatchTimeout);
 	// Matches every executable ktsu.Sdk suffix, in both the single-attribute form
 	// (<Project Sdk="ktsu.Sdk.App/1.0.0">) and the multi-element form (<Sdk Name="ktsu.Sdk.App" />)
 	// that ktsu.Sdk.* projects actually use. SdkReferencePatterns holds the suffix list, shared
