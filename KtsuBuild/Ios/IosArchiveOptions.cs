@@ -35,6 +35,12 @@ public class IosArchiveOptions
 	public string? Framework { get; set; }
 
 	/// <summary>
+	/// Gets or sets the bundle identifier passed as the <c>ApplicationId</c> MSBuild property.
+	/// When null or empty the property is omitted and the head's project file decides.
+	/// </summary>
+	public string? BundleId { get; set; }
+
+	/// <summary>
 	/// Gets or sets the distribution certificate common name (the <c>CodesignKey</c>
 	/// MSBuild property). Secret-adjacent: never log it.
 	/// </summary>
