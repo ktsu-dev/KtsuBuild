@@ -59,6 +59,14 @@ public class IosPackageOptions
 	public string BuildNumber { get; set; } = "1";
 
 	/// <summary>
+	/// Gets or sets the bundle identifier (<c>CFBundleIdentifier</c>) to archive under,
+	/// passed to MSBuild as <c>ApplicationId</c>. When null or empty the head's own
+	/// <c>ApplicationId</c> is used, so the same head can be signed under a second
+	/// identifier (a TestFlight beta id, say) without editing its project file.
+	/// </summary>
+	public string? BundleId { get; set; }
+
+	/// <summary>
 	/// Gets or sets whether the signing material is available. When false the whole
 	/// packaging step no-ops, so the command is safe to call unconditionally from a
 	/// consumer workflow (forks and contributors without secrets still get a green run).

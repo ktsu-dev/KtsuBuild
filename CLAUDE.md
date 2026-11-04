@@ -136,7 +136,7 @@ ktsubuild
     ├── build     # Build iOS head(s) for simulator + device, unsigned (macOS only)
     │   # Options: --workspace, --configuration, --verbose, --project, --runtime, --require-framework
     ├── package   # Provision toolchain + stamp version + sign + archive .ipa (macOS only)
-    │   # Options: --workspace, --configuration, --verbose, --project, --runtime, --framework, --version, --build-number
+    │   # Options: --workspace, --configuration, --verbose, --project, --runtime, --framework, --version, --build-number, --bundle-id
     └── upload    # Upload the signed .ipa to TestFlight (macOS only)
         # Options: --workspace, --configuration, --verbose, --project, --ipa
 ```

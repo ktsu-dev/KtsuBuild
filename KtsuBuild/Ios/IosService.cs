@@ -36,6 +36,7 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 #pragma warning disable SYSLIB1045 // GeneratedRegex not available in netstandard2.0/2.1
 	private static readonly Regex TargetFrameworkRegex = new(@"<TargetFrameworks?>\s*([^<]+?)\s*</TargetFrameworks?>", RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexDefaults.MatchTimeout);
 	private static readonly Regex ShortVersionRegex = new(@"^[0-9]+(\.[0-9]+){0,2}$", RegexOptions.CultureInvariant | RegexOptions.Compiled, RegexDefaults.MatchTimeout);
+	private static readonly Regex BundleIdRegex = new(@"^[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*$", RegexOptions.CultureInvariant | RegexOptions.Compiled, RegexDefaults.MatchTimeout);
 #pragma warning restore SYSLIB1045
 
 	/// <inheritdoc/>
@@ -59,6 +60,15 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 		{
 			throw new ArgumentException(
 				$"'{options.ShortVersion}' is not a valid CFBundleShortVersionString. Apple accepts one to three period-separated non-negative integers, such as 1.4.3.",
+				nameof(options));
+		}
+
+		// The bundle id goes onto the publish command line, so reject anything outside the
+		// characters Apple allows before it can reach MSBuild or the keychain work.
+		if (!string.IsNullOrEmpty(options.BundleId) && !IsValidBundleId(options.BundleId))
+		{
+			throw new ArgumentException(
+				$"'{options.BundleId}' is not a valid bundle identifier. Apple accepts letters, digits, hyphens and periods, such as com.example.app.",
 				nameof(options));
 		}
 
@@ -109,6 +119,7 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 				RuntimeIdentifier = options.Runtime,
 				Configuration = options.Configuration,
 				Framework = string.IsNullOrEmpty(options.Framework) ? ResolveIosFramework(head) : options.Framework,
+				BundleId = options.BundleId,
 				CodesignKey = options.CodesignKey,
 				ProvisionName = options.ProvisionName,
 			};
@@ -338,6 +349,15 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 		!string.IsNullOrEmpty(version) && ShortVersionRegex.IsMatch(version);
 
 	/// <summary>
+	/// Determines whether a value is acceptable as <c>CFBundleIdentifier</c>: one or more
+	/// period-separated segments of letters, digits and hyphens, such as <c>com.example.app</c>.
+	/// </summary>
+	/// <param name="bundleId">The candidate bundle identifier.</param>
+	/// <returns><see langword="true"/> if Apple accepts the identifier; otherwise <see langword="false"/>.</returns>
+	public static bool IsValidBundleId(string? bundleId) =>
+		!string.IsNullOrEmpty(bundleId) && BundleIdRegex.IsMatch(bundleId);
+
+	/// <summary>
 	/// Reduces a computed SemVer version to the numeric core App Store Connect accepts as the
 	/// marketing version, dropping any prerelease label and build metadata. A computed
 	/// <c>1.4.3-pre.1</c> becomes <c>1.4.3</c>.
@@ -430,12 +450,13 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 		logger.WriteStepHeader($"Archiving iOS Head ({options.RuntimeIdentifier})");
 
 		string frameworkArg = string.IsNullOrEmpty(options.Framework) ? string.Empty : $" -f {options.Framework}";
+		string bundleIdArg = string.IsNullOrEmpty(options.BundleId) ? string.Empty : $" -p:ApplicationId={options.BundleId}";
 
 		// The signing properties carry the certificate common name and profile name. They
 		// are passed straight to MSBuild, matching the reference pipeline; the process
 		// runner does not echo arguments, so they are not logged here.
 		string args = $"publish \"{options.ProjectPath}\" --configuration {options.Configuration}{frameworkArg} " +
-			$"-p:RuntimeIdentifier={options.RuntimeIdentifier} -p:ArchiveOnBuild=true -p:BuildIpa=true " +
+			$"-p:RuntimeIdentifier={options.RuntimeIdentifier} -p:ArchiveOnBuild=true -p:BuildIpa=true{bundleIdArg} " +
 			$"-p:CodesignKey=\"{options.CodesignKey}\" -p:CodesignProvision=\"{options.ProvisionName}\"";
 
 		int exitCode = await processRunner.RunWithCallbackAsync(

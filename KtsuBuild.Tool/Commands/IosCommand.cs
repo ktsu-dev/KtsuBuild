@@ -92,6 +92,12 @@ public class IosCommand : Command
 			Description = "The monotonic build number stamped into CFBundleVersion. Defaults to GITHUB_RUN_NUMBER, then 1.",
 		};
 
+		private static readonly Option<string?> BundleIdOption = new(
+			"--bundle-id")
+		{
+			Description = "The bundle identifier (CFBundleIdentifier) to archive under, passed to MSBuild as ApplicationId. Defaults to the head's own ApplicationId.",
+		};
+
 		public PackageSubcommand() : base("package", "Provision the toolchain, stamp the version, sign, and archive an .ipa (no-ops without signing secrets)")
 		{
 			Options.Add(GlobalOptions.Workspace);
@@ -102,6 +108,7 @@ public class IosCommand : Command
 			Options.Add(FrameworkOption);
 			Options.Add(VersionOption);
 			Options.Add(BuildNumberOption);
+			Options.Add(BundleIdOption);
 		}
 	}
 
