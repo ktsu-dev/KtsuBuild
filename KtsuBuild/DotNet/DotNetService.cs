@@ -274,9 +274,22 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger, st
 
 		Directory.CreateDirectory(outputPath);
 
-		// Get non-test project files to pack individually (only those buildable on the current host)
-		List<string> packableProjects = [.. GetBuildableProjects(workingDirectory)
-			.Where(p => !IsTestProject(p))];
+		// Pack only what the repository ships: the projects buildable on the current host, less tests
+		// and the benchmarks, samples, examples and demos SupportingProjects recognises. ktsu.Sdk makes
+		// every non-test library packable, so without the second filter a library under samples/ was
+		// pushed to every feed, and a package on nuget.org can be unlisted but never deleted. The
+		// release's RID zips apply the same two checks (ReleaseService.IsDeliverable).
+		List<string> packableProjects = [];
+		foreach (string project in GetBuildableProjects(workingDirectory).Where(p => !IsTestProject(p)))
+		{
+			if (SupportingProjects.IsSupporting(workingDirectory, project))
+			{
+				logger.WriteInfo($"Skipping {Path.GetFileNameWithoutExtension(project)}: a benchmark, sample, example or demo is not packed");
+				continue;
+			}
+
+			packableProjects.Add(project);
+		}
 
 		if (packableProjects.Count == 0)
 		{

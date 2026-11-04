@@ -48,9 +48,9 @@ public class ReleaseService(IDotNetService dotNetService, INuGetPublisher nuGetP
 	/// Being executable is not the same as being a deliverable. A demo, sample, example, benchmark
 	/// or test can declare <c>ktsu.Sdk.App</c> just as a shipped application does, and publishing it
 	/// attaches seven RID zips of a non-deliverable to the repository's public release — ImGuiApp's
-	/// <c>examples/ImGuiAppDemo</c> is the case that showed it. The exclusions already existed for
-	/// packing (<c>DotNetService.PackAsync</c>) and for the profile README
-	/// (<c>ShippedVariants.IsShippingProject</c>); they were simply never applied here.
+	/// <c>examples/ImGuiAppDemo</c> is the case that showed it. Packing
+	/// (<c>DotNetService.PackAsync</c>) and the profile README (<c>ShippedVariants.IsShippingProject</c>)
+	/// apply the same <see cref="SupportingProjects"/> exclusions.
 	/// </remarks>
 	private async Task PublishApplicationsAsync(BuildConfiguration config, string workspace, string configuration, CancellationToken cancellationToken)
 	{
