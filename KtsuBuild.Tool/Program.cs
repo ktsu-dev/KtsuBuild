@@ -751,12 +751,6 @@ internal sealed class Program
 					return 1;
 				}
 
-				if (result.UploadedIpaPaths.Count == 0)
-				{
-					logger.WriteInfo("iOS upload completed with no archives (no .ipa found to upload).");
-					return 0;
-				}
-
 				logger.WriteSuccess($"Uploaded {result.UploadedIpaPaths.Count} iOS archive(s) to TestFlight:");
 				foreach (string uploaded in result.UploadedIpaPaths)
 				{

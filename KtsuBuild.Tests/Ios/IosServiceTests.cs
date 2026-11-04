@@ -261,6 +261,32 @@ public class IosServiceTests
 		Assert.AreEqual(ipa, located[0]);
 	}
 
+	[TestMethod]
+	public void LocateIpas_NoArchiveUnderAnyHead_ThrowsNamingTheHeads()
+	{
+		string head = CreateHead("MyApp.iOS");
+		_dotNetService.GetIosHeads(_tempDir).Returns([head]);
+
+		InvalidOperationException ex = Assert.ThrowsExactly<InvalidOperationException>(() => _service.LocateIpas(new IosUploadOptions
+		{
+			WorkingDirectory = _tempDir,
+		}));
+
+		StringAssert.Contains(ex.Message, head);
+		StringAssert.Contains(ex.Message, Path.Combine(_tempDir, "MyApp.iOS", "bin"));
+	}
+
+	[TestMethod]
+	public void LocateIpas_NoHeads_Throws()
+	{
+		_dotNetService.GetIosHeads(_tempDir).Returns([]);
+
+		Assert.ThrowsExactly<InvalidOperationException>(() => _service.LocateIpas(new IosUploadOptions
+		{
+			WorkingDirectory = _tempDir,
+		}));
+	}
+
 	// ArchiveAsync — command-string construction
 
 	private static IosArchiveOptions ArchiveOpts(string workingDirectory, string head, string? framework, string codesignKey = "key", string provisionName = "profile") => new()
