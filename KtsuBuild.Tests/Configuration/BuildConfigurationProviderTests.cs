@@ -334,6 +334,28 @@ public class BuildConfigurationProviderTests
 	}
 
 	[TestMethod]
+	[DataRow("")]
+	[DataRow("   ")]
+	public async Task CreateFromEnvironmentAsync_BlankGITHUB_TOKEN_FallsBackToGH_TOKEN(string blank)
+	{
+		SetupDefaultMocks();
+		Environment.SetEnvironmentVariable("GITHUB_TOKEN", blank);
+		Environment.SetEnvironmentVariable("GH_TOKEN", "gh-token-value");
+
+		try
+		{
+			BuildConfiguration config = await _provider.CreateFromEnvironmentAsync(_tempDir).ConfigureAwait(false);
+
+			Assert.AreEqual("gh-token-value", config.GithubToken);
+		}
+		finally
+		{
+			Environment.SetEnvironmentVariable("GITHUB_TOKEN", null);
+			Environment.SetEnvironmentVariable("GH_TOKEN", null);
+		}
+	}
+
+	[TestMethod]
 	public async Task CreateFromEnvironmentAsync_ReadsGitHubTokenFromGITHUB_TOKEN()
 	{
 		SetupDefaultMocks();
