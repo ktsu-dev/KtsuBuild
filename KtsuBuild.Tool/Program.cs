@@ -418,21 +418,7 @@ internal sealed class Program
 
 				KtsuBuild.Winget.WingetManifestResult result = await wingetService.GenerateManifestsAsync(options, ct).ConfigureAwait(false);
 
-				if (result.IsLibraryOnly)
-				{
-					logger.WriteInfo("Library-only project - no manifests generated");
-					return 0;
-				}
-				else if (result.Success)
-				{
-					logger.WriteSuccess($"Generated manifests for {result.PackageId}");
-					return 0;
-				}
-				else
-				{
-					logger.WriteError($"Failed to generate manifests: {result.Error}");
-					return 1;
-				}
+				return WingetCommand.ReportGenerateResult(result, logger);
 			}
 			catch (Exception ex)
 			{
