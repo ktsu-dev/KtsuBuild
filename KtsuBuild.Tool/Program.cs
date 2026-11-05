@@ -423,6 +423,12 @@ internal sealed class Program
 					logger.WriteInfo("Library-only project - no manifests generated");
 					return 0;
 				}
+				else if (result.Success && result.ManifestFiles.Count == 0)
+				{
+					// Nothing to hash is a skip rather than a failure, but it must not read as a success (#300)
+					logger.WriteWarning("No manifests generated");
+					return 0;
+				}
 				else if (result.Success)
 				{
 					logger.WriteSuccess($"Generated manifests for {result.PackageId}");
