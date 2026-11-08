@@ -17,6 +17,7 @@ using static Polyfill;
 public class NuGetCatalogClient(HttpClient httpClient, IBuildLogger logger) : INuGetCatalogClient
 {
 	private const string FlatContainerUrl = "https://api.nuget.org/v3-flatcontainer";
+	[System.Diagnostics.CodeAnalysis.SuppressMessage("Minor Code Smell", "S1075:URIs should not be hardcoded", Justification = "nuget.org's published registration endpoint; the profile reads only nuget.org.")]
 	private const string RegistrationUrl = "https://api.nuget.org/v3/registration5-gz-semver2";
 	private const string SearchUrl = "https://azuresearch-usnc.nuget.org/query";
 
@@ -92,41 +93,51 @@ public class NuGetCatalogClient(HttpClient httpClient, IBuildLogger logger) : IN
 			return null;
 		}
 
-		// Pages and the entries in them are ordered oldest first. A package with many versions
-		// leaves its pages out of the index, and each one then has to be fetched by its @id.
+		// Pages and the entries in them are ordered oldest first.
 		List<(string? Version, bool Listed)> entries = [];
 		foreach (JsonElement page in pages.EnumerateArray())
 		{
-			if (!page.TryGetProperty("items", out JsonElement items) &&
-				(!page.TryGetProperty("@id", out JsonElement pageId) ||
-				pageId.GetString() is not string pageUrl ||
-				await GetJsonAsync(pageUrl, cancellationToken).ConfigureAwait(false) is not { ValueKind: JsonValueKind.Object } fetched ||
-				!fetched.TryGetProperty("items", out items)))
+			if (await GetRegistrationPageItemsAsync(page, cancellationToken).ConfigureAwait(false) is not JsonElement items)
 			{
 				return null;
 			}
 
-			if (items.ValueKind != JsonValueKind.Array)
-			{
-				return null;
-			}
-
-			foreach (JsonElement item in items.EnumerateArray())
-			{
-				if (!item.TryGetProperty("catalogEntry", out JsonElement entry) || entry.ValueKind != JsonValueKind.Object)
-				{
-					continue;
-				}
-
-				string? version = entry.TryGetProperty("version", out JsonElement value) ? value.GetString() : null;
-
-				// An entry that doesn't say is listed, as nuget.org treats it.
-				bool listed = !entry.TryGetProperty("listed", out JsonElement flag) || flag.ValueKind != JsonValueKind.False;
-				entries.Add((version, listed));
-			}
+			entries.AddRange(items.EnumerateArray()
+				.Where(static item => item.TryGetProperty("catalogEntry", out JsonElement entry) && entry.ValueKind == JsonValueKind.Object)
+				.Select(static item => ReadCatalogEntry(item.GetProperty("catalogEntry"))));
 		}
 
 		return NewestOfEachKind(entries);
+	}
+
+	/// <summary>
+	/// Reads a registration catalog entry's version and whether it is listed.
+	/// </summary>
+	/// <param name="entry">The <c>catalogEntry</c> object.</param>
+	/// <returns>The version, and whether it is listed. An entry that doesn't say is listed, as nuget.org treats it.</returns>
+	private static (string? Version, bool Listed) ReadCatalogEntry(JsonElement entry) =>
+		(entry.TryGetProperty("version", out JsonElement value) ? value.GetString() : null,
+		!entry.TryGetProperty("listed", out JsonElement flag) || flag.ValueKind != JsonValueKind.False);
+
+	/// <summary>
+	/// Returns the entries of one registration page. A package with many versions leaves its pages
+	/// out of the index, and each one then has to be fetched by its <c>@id</c>.
+	/// </summary>
+	/// <param name="page">The page as the registration index gives it.</param>
+	/// <param name="cancellationToken">A cancellation token.</param>
+	/// <returns>The page's <c>items</c> array, or <see langword="null"/> when it can't be read.</returns>
+	private async Task<JsonElement?> GetRegistrationPageItemsAsync(JsonElement page, CancellationToken cancellationToken)
+	{
+		if (!page.TryGetProperty("items", out JsonElement items) &&
+			(!page.TryGetProperty("@id", out JsonElement pageId) ||
+			pageId.GetString() is not string pageUrl ||
+			await GetJsonAsync(pageUrl, cancellationToken).ConfigureAwait(false) is not { ValueKind: JsonValueKind.Object } fetched ||
+			!fetched.TryGetProperty("items", out items)))
+		{
+			return null;
+		}
+
+		return items.ValueKind == JsonValueKind.Array ? items : null;
 	}
 
 	/// <summary>
