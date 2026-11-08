@@ -97,15 +97,13 @@ public class NuGetCatalogClient(HttpClient httpClient, IBuildLogger logger) : IN
 		List<(string? Version, bool Listed)> entries = [];
 		foreach (JsonElement page in pages.EnumerateArray())
 		{
-			if (!page.TryGetProperty("items", out JsonElement items))
+			if (!page.TryGetProperty("items", out JsonElement items) &&
+				(!page.TryGetProperty("@id", out JsonElement pageId) ||
+				pageId.GetString() is not string pageUrl ||
+				await GetJsonAsync(pageUrl, cancellationToken).ConfigureAwait(false) is not { ValueKind: JsonValueKind.Object } fetched ||
+				!fetched.TryGetProperty("items", out items)))
 			{
-				if (!page.TryGetProperty("@id", out JsonElement pageId) ||
-					pageId.GetString() is not string pageUrl ||
-					await GetJsonAsync(pageUrl, cancellationToken).ConfigureAwait(false) is not { ValueKind: JsonValueKind.Object } fetched ||
-					!fetched.TryGetProperty("items", out items))
-				{
-					return null;
-				}
+				return null;
 			}
 
 			if (items.ValueKind != JsonValueKind.Array)
