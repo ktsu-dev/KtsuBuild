@@ -3,6 +3,9 @@
 namespace KtsuBuild.Profile;
 
 using System.Globalization;
+#if !NET10_0_OR_GREATER
+using static Polyfill;
+#endif
 
 /// <summary>
 /// Compares version strings using semantic versioning 2.0.0 precedence rules.
@@ -36,6 +39,20 @@ public static class SemanticVersion
 		}
 
 		return Compare(StripPrefix(version), StripPrefix(reference)) > 0;
+	}
+
+	/// <summary>
+	/// Compares two version strings by semantic versioning precedence.
+	/// </summary>
+	/// <param name="left">The first version, with or without a leading <c>v</c>.</param>
+	/// <param name="right">The second version, with or without a leading <c>v</c>.</param>
+	/// <returns>A negative number, zero, or a positive number as <paramref name="left"/> sorts before,
+	/// equal to, or after <paramref name="right"/>. Returns zero when either side cannot be parsed.</returns>
+	public static int CompareVersions(string left, string right)
+	{
+		Ensure.NotNull(left);
+		Ensure.NotNull(right);
+		return Compare(StripPrefix(left), StripPrefix(right));
 	}
 
 	private static string StripPrefix(string value) =>

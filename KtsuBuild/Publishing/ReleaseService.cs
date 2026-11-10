@@ -207,10 +207,8 @@ public class ReleaseService(IDotNetService dotNetService, INuGetPublisher nuGetP
 			ChangelogFile = ResolveInWorkspace(workspace, config.ChangelogFile),
 			LatestChangelogFile = ResolveInWorkspace(workspace, config.LatestChangelogFile),
 			AssetPaths = config.AssetPatterns,
-			IsPrerelease = config.Version.Contains("-pre", StringComparison.OrdinalIgnoreCase)
-				|| config.Version.Contains("-alpha", StringComparison.OrdinalIgnoreCase)
-				|| config.Version.Contains("-beta", StringComparison.OrdinalIgnoreCase)
-				|| config.Version.Contains("-rc", StringComparison.OrdinalIgnoreCase),
+			// Any prerelease label marks a prerelease under SemVer, not only pre, alpha, beta and rc.
+			IsPrerelease = config.Version.Contains('-'),
 			WorkingDirectory = workspace,
 		};
 

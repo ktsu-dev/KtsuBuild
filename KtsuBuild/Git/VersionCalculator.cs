@@ -2,9 +2,8 @@
 
 namespace KtsuBuild.Git;
 
-using System.Text.RegularExpressions;
+using System.Globalization;
 using KtsuBuild.Abstractions;
-using KtsuBuild.Utilities;
 #if !NET10_0_OR_GREATER
 using static Polyfill;
 #endif
@@ -17,11 +16,6 @@ using static Polyfill;
 public class VersionCalculator(IGitService gitService, IBuildLogger logger)
 {
 	private readonly CommitAnalyzer _commitAnalyzer = new(gitService);
-
-#pragma warning disable SYSLIB1045 // GeneratedRegex not available in netstandard2.0/2.1
-	private static readonly Regex PrereleaseRegex = new(@"-(?:alpha|beta|rc|pre).*$", RegexOptions.Compiled, RegexDefaults.MatchTimeout);
-	private static readonly Regex PrereleaseNumberRegex = new(@"-(?:(alpha|beta|rc|pre))\.(\d+)", RegexOptions.Compiled, RegexDefaults.MatchTimeout);
-#pragma warning restore SYSLIB1045
 
 	/// <summary>
 	/// Gets comprehensive version information from Git history.
@@ -137,27 +131,56 @@ public class VersionCalculator(IGitService gitService, IBuildLogger logger)
 
 	private readonly record struct ParsedVersion(int Major, int Minor, int Patch, bool IsPrerelease, int PrereleaseNum, string PrereleaseLabel);
 
+	/// <summary>
+	/// Splits a version into its numeric core and its prerelease label and number.
+	/// </summary>
+	/// <remarks>
+	/// The core is the text before the first <c>-</c>, so any prerelease label leaves major, minor and
+	/// patch intact. A prerelease whose last dot-separated identifier is a number, such as <c>dev.1</c> or
+	/// <c>preview.3</c>, keeps everything before that number as its label. Any other prerelease, such as
+	/// <c>rc1</c>, becomes the label as a whole with number 0, so the next prerelease is <c>rc1.1</c>,
+	/// which sorts above <c>rc1</c>.
+	/// </remarks>
 	private static ParsedVersion ParseVersion(string version)
 	{
-		bool isPrerelease = version.Contains('-');
-		string cleanVersion = PrereleaseRegex.Replace(version, string.Empty);
+		int buildIndex = version.IndexOf('+', StringComparison.Ordinal);
+		if (buildIndex >= 0)
+		{
+			version = version[..buildIndex];
+		}
 
-		string[] parts = cleanVersion.Split('.');
-		int major = parts.Length > 0 && int.TryParse(parts[0], out int m) ? m : 1;
-		int minor = parts.Length > 1 && int.TryParse(parts[1], out int n) ? n : 0;
-		int patch = parts.Length > 2 && int.TryParse(parts[2], out int p) ? p : 0;
+		int prereleaseIndex = version.IndexOf('-', StringComparison.Ordinal);
+		bool isPrerelease = prereleaseIndex >= 0;
+		string core = isPrerelease ? version[..prereleaseIndex] : version;
+		string prerelease = isPrerelease ? version[(prereleaseIndex + 1)..] : string.Empty;
+
+		string[] parts = core.Split('.');
+		int major = parts.Length > 0 && int.TryParse(parts[0], NumberStyles.None, CultureInfo.InvariantCulture, out int m) ? m : 1;
+		int minor = parts.Length > 1 && int.TryParse(parts[1], NumberStyles.None, CultureInfo.InvariantCulture, out int n) ? n : 0;
+		int patch = parts.Length > 2 && int.TryParse(parts[2], NumberStyles.None, CultureInfo.InvariantCulture, out int p) ? p : 0;
 
 		int prereleaseNum = 0;
 		string prereleaseLabel = "pre";
 
-		if (isPrerelease)
+		if (isPrerelease && prerelease.Length > 0)
 		{
-			Match match = PrereleaseNumberRegex.Match(version);
-			if (match.Success)
+			int lastDot = prerelease.LastIndexOf('.');
+			string lastIdentifier = lastDot >= 0 ? prerelease[(lastDot + 1)..] : prerelease;
+			bool endsInNumber = int.TryParse(lastIdentifier, NumberStyles.None, CultureInfo.InvariantCulture, out int number);
+
+			if (endsInNumber && lastDot > 0)
 			{
-				prereleaseNum = int.Parse(match.Groups[2].Value);
-				prereleaseLabel = match.Groups[1].Success ? match.Groups[1].Value : "pre";
+				// dev.1, preview.3, alpha.beta.2
+				prereleaseLabel = prerelease[..lastDot];
+				prereleaseNum = number;
 			}
+			else if (!endsInNumber)
+			{
+				// rc1, dev, rc.1.x: keep the whole prerelease as the label, so label.1 sorts above it
+				prereleaseLabel = prerelease;
+			}
+
+			// A purely numeric prerelease (1.2.3-4) keeps the "pre" label: pre.1 sorts above any number.
 		}
 
 		return new ParsedVersion(major, minor, patch, isPrerelease, prereleaseNum, prereleaseLabel);

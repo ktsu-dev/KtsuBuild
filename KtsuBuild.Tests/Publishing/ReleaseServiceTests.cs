@@ -348,6 +348,22 @@ public class ReleaseServiceTests
 	}
 
 	[TestMethod]
+	[DataRow("1.2.4-dev.1")]
+	[DataRow("1.2.4-preview.3")]
+	[DataRow("1.2.4-rc1")]
+	public async Task ExecuteReleaseAsync_DetectsPrerelease_AnyLabel(string version)
+	{
+		BuildConfiguration config = CreateDefaultConfig();
+		config.Version = version;
+
+		await _service.ExecuteReleaseAsync(config, _tempDir, "Release").ConfigureAwait(false);
+
+		await _gitHubService.Received(1).CreateReleaseAsync(
+			ArgMatch.NotNull<ReleaseOptions>(o => o.IsPrerelease),
+			Arg.Any<CancellationToken>()).ConfigureAwait(false);
+	}
+
+	[TestMethod]
 	public async Task ExecuteReleaseAsync_NotPrerelease_ForStableVersion()
 	{
 		BuildConfiguration config = CreateDefaultConfig();
