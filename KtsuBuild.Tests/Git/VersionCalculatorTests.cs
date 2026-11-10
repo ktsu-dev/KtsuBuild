@@ -4,6 +4,7 @@ namespace KtsuBuild.Tests.Git;
 
 using KtsuBuild.Abstractions;
 using KtsuBuild.Git;
+using KtsuBuild.Profile;
 using KtsuBuild.Tests.Mocks;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using NSubstitute;
@@ -216,6 +217,29 @@ public class VersionCalculatorTests
 		Assert.AreEqual(0, result.Minor);
 		Assert.AreEqual(0, result.Patch);
 		Assert.IsFalse(result.IsPrerelease);
+	}
+
+	// A prerelease label other than alpha, beta, rc or pre lost the patch (1.2.3-dev.1 read as 1.2.0) or
+	// the label and number (1.2.4-preview.3 then gave 1.2.4-pre.1, below the tag it followed) (#261).
+
+	[TestMethod]
+	[DataRow("v1.2.4-dev.1", "Fix crash", "1.2.4")]
+	[DataRow("v1.2.4-preview.3", "Fix crash", "1.2.4")]
+	[DataRow("v1.2.4-rc1", "Fix crash", "1.2.4")]
+	[DataRow("v1.2.4-dev.1", "Add feature [minor]", "1.3.0")]
+	[DataRow("v1.2.4-dev.1", "try [pre]", "1.2.4-dev.2")]
+	[DataRow("v1.2.4-preview.3", "try [pre]", "1.2.4-preview.4")]
+	[DataRow("v1.2.4-alpha.beta.2", "try [pre]", "1.2.4-alpha.beta.3")]
+	[DataRow("v1.2.4-rc1", "try [pre]", "1.2.4-rc1.1")]
+	[DataRow("v1.2.4-dev", "try [pre]", "1.2.4-dev.1")]
+	public async Task GetVersionInfoAsync_AnyPrereleaseLabel_NeverGoesBackwards(string lastTag, string commitMessage, string expectedVersion)
+	{
+		SetupGitServiceForVersion(lastTag, [commitMessage]);
+
+		VersionInfo result = await _calculator.GetVersionInfoAsync("/repo", "abc123").ConfigureAwait(false);
+
+		Assert.AreEqual(expectedVersion, result.Version);
+		Assert.IsTrue(SemanticVersion.IsGreater(result.Version, lastTag), $"{result.Version} does not sort above {lastTag}");
 	}
 
 	[TestMethod]
