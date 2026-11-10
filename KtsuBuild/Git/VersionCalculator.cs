@@ -159,31 +159,34 @@ public class VersionCalculator(IGitService gitService, IBuildLogger logger)
 		int minor = parts.Length > 1 && int.TryParse(parts[1], NumberStyles.None, CultureInfo.InvariantCulture, out int n) ? n : 0;
 		int patch = parts.Length > 2 && int.TryParse(parts[2], NumberStyles.None, CultureInfo.InvariantCulture, out int p) ? p : 0;
 
-		int prereleaseNum = 0;
-		string prereleaseLabel = "pre";
-
-		if (isPrerelease && prerelease.Length > 0)
-		{
-			int lastDot = prerelease.LastIndexOf('.');
-			string lastIdentifier = lastDot >= 0 ? prerelease[(lastDot + 1)..] : prerelease;
-			bool endsInNumber = int.TryParse(lastIdentifier, NumberStyles.None, CultureInfo.InvariantCulture, out int number);
-
-			if (endsInNumber && lastDot > 0)
-			{
-				// dev.1, preview.3, alpha.beta.2
-				prereleaseLabel = prerelease[..lastDot];
-				prereleaseNum = number;
-			}
-			else if (!endsInNumber)
-			{
-				// rc1, dev, rc.1.x: keep the whole prerelease as the label, so label.1 sorts above it
-				prereleaseLabel = prerelease;
-			}
-
-			// A purely numeric prerelease (1.2.3-4) keeps the "pre" label: pre.1 sorts above any number.
-		}
+		(string prereleaseLabel, int prereleaseNum) = isPrerelease ? ParsePrerelease(prerelease) : ("pre", 0);
 
 		return new ParsedVersion(major, minor, patch, isPrerelease, prereleaseNum, prereleaseLabel);
+	}
+
+	/// <summary>
+	/// Splits a prerelease into the label to keep and the number to bump.
+	/// </summary>
+	private static (string Label, int Number) ParsePrerelease(string prerelease)
+	{
+		int lastDot = prerelease.LastIndexOf('.');
+		string lastIdentifier = lastDot >= 0 ? prerelease[(lastDot + 1)..] : prerelease;
+		bool endsInNumber = int.TryParse(lastIdentifier, NumberStyles.None, CultureInfo.InvariantCulture, out int number);
+
+		if (endsInNumber && lastDot > 0)
+		{
+			// dev.1, preview.3, alpha.beta.2
+			return (prerelease[..lastDot], number);
+		}
+
+		if (!endsInNumber && prerelease.Length > 0)
+		{
+			// rc1, dev, rc.1.x: keep the whole prerelease as the label, so label.1 sorts above it
+			return (prerelease, 0);
+		}
+
+		// A purely numeric prerelease (1.2.3-4) keeps the "pre" label: pre.1 sorts above any number.
+		return ("pre", 0);
 	}
 
 	private static void CalculateNewVersion(
