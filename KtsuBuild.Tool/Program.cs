@@ -378,7 +378,7 @@ internal sealed class Program
 		rootCommand.Subcommands.Add(metadataCommand);
 	}
 
-	private static void AddWingetCommand(RootCommand rootCommand, IProcessRunner processRunner, IBuildLogger logger)
+	internal static void AddWingetCommand(RootCommand rootCommand, IProcessRunner processRunner, IBuildLogger logger)
 	{
 		WingetCommand wingetCommand = new();
 
@@ -460,7 +460,7 @@ internal sealed class Program
 			try
 			{
 				string manifestDir = Path.Combine(workspace, "winget");
-				await wingetService.UploadManifestsAsync(version, manifestDir, ct).ConfigureAwait(false);
+				await wingetService.UploadManifestsAsync(version, manifestDir, workspace, ct).ConfigureAwait(false);
 
 				logger.WriteSuccess("Manifests uploaded!");
 				return 0;

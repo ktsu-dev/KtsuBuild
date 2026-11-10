@@ -230,13 +230,16 @@ public class WingetServiceTests
 
 	// UploadManifestsAsync
 
+	// With no manifests, or when gh failed, upload logged a warning and returned, so `winget upload`
+	// printed "Manifests uploaded!" and exited 0 (#203).
+
 	[TestMethod]
-	public async Task UploadManifestsAsync_NoManifestFiles_ReturnsEarly()
+	public async Task UploadManifestsAsync_NoManifestFiles_Throws()
 	{
 		string manifestDir = Path.Combine(_tempDir, "manifests");
 		Directory.CreateDirectory(manifestDir);
 
-		await _service.UploadManifestsAsync("1.0.0", manifestDir).ConfigureAwait(false);
+		await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => _service.UploadManifestsAsync("1.0.0", manifestDir, _tempDir)).ConfigureAwait(false);
 
 		await _processRunner.DidNotReceive().RunWithCallbackAsync("gh",
 			Arg.Any<string>(),
@@ -253,7 +256,7 @@ public class WingetServiceTests
 		_processRunner.RunWithCallbackAsync("gh", Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
 			.Returns(0);
 
-		await _service.UploadManifestsAsync("1.0.0", manifestDir).ConfigureAwait(false);
+		await _service.UploadManifestsAsync("1.0.0", manifestDir, _tempDir).ConfigureAwait(false);
 
 		await _processRunner.Received(1).RunWithCallbackAsync("gh",
 			ArgMatch.NotNull<string>(a => a.Contains("release upload v1.0.0")),
@@ -261,7 +264,7 @@ public class WingetServiceTests
 	}
 
 	[TestMethod]
-	public async Task UploadManifestsAsync_UploadFailure_DoesNotThrow()
+	public async Task UploadManifestsAsync_UploadFailure_Throws()
 	{
 		string manifestDir = Path.Combine(_tempDir, "manifests");
 		Directory.CreateDirectory(manifestDir);
@@ -270,13 +273,32 @@ public class WingetServiceTests
 		_processRunner.RunWithCallbackAsync("gh", Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
 			.Returns(1);
 
-		// Should not throw
-		await _service.UploadManifestsAsync("1.0.0", manifestDir).ConfigureAwait(false);
+		InvalidOperationException ex = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => _service.UploadManifestsAsync("1.0.0", manifestDir, _tempDir)).ConfigureAwait(false);
+		StringAssert.Contains(ex.Message, "exited with code 1");
 
 		// The failing upload was still attempted.
 		await _processRunner.Received(1).RunWithCallbackAsync("gh",
 			ArgMatch.NotNull<string>(a => a.Contains("release upload v1.0.0")),
 			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+	}
+
+	// gh picks the release's repository from the git remote of the directory it runs in, so it has to
+	// run in the workspace rather than wherever the tool was started.
+	[TestMethod]
+	public async Task UploadManifestsAsync_RunsGhInTheWorkingDirectory()
+	{
+		string manifestDir = Path.Combine(_tempDir, "manifests");
+		Directory.CreateDirectory(manifestDir);
+		await File.WriteAllTextAsync(Path.Combine(manifestDir, "pkg.yaml"), "content").ConfigureAwait(false);
+
+		_processRunner.RunWithCallbackAsync("gh", Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
+			.Returns(0);
+
+		await _service.UploadManifestsAsync("2.0.0", manifestDir, "/path/to/RepoA").ConfigureAwait(false);
+
+		await _processRunner.Received(1).RunWithCallbackAsync("gh",
+			Arg.Any<string>(),
+			"/path/to/RepoA", Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
 	[TestMethod]
@@ -290,7 +312,7 @@ public class WingetServiceTests
 		_processRunner.RunWithCallbackAsync("gh", Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
 			.Returns(0);
 
-		await _service.UploadManifestsAsync("2.0.0", manifestDir).ConfigureAwait(false);
+		await _service.UploadManifestsAsync("2.0.0", manifestDir, _tempDir).ConfigureAwait(false);
 
 		await _processRunner.Received(1).RunWithCallbackAsync("gh",
 			ArgMatch.NotNull<string>(a => a.Contains("release upload v2.0.0")),
