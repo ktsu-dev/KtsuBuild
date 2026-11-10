@@ -172,15 +172,15 @@ public class WingetService(IProcessRunner processRunner, IBuildLogger logger) : 
 	}
 
 	/// <inheritdoc/>
-	public async Task UploadManifestsAsync(string version, string manifestDirectory, CancellationToken cancellationToken = default)
+	public async Task UploadManifestsAsync(string version, string manifestDirectory, string workingDirectory, CancellationToken cancellationToken = default)
 	{
 		Ensure.NotNull(version);
 		Ensure.NotNull(manifestDirectory);
-		string[] manifestFiles = Directory.GetFiles(manifestDirectory, "*.yaml");
+		Ensure.NotNull(workingDirectory);
+		string[] manifestFiles = Directory.Exists(manifestDirectory) ? Directory.GetFiles(manifestDirectory, "*.yaml") : [];
 		if (manifestFiles.Length == 0)
 		{
-			logger.WriteWarning("No manifest files found to upload");
-			return;
+			throw new InvalidOperationException($"No manifest files found to upload in {manifestDirectory}. Run 'winget generate' first.");
 		}
 
 		logger.WriteInfo($"Uploading {manifestFiles.Length} manifest files to release v{version}...");
@@ -191,19 +191,17 @@ public class WingetService(IProcessRunner processRunner, IBuildLogger logger) : 
 		int exitCode = await processRunner.RunWithCallbackAsync(
 			"gh",
 			args,
-			null,
+			workingDirectory,
 			logger.WriteInfo,
 			logger.WriteError,
 			cancellationToken).ConfigureAwait(false);
 
 		if (exitCode != 0)
 		{
-			logger.WriteWarning("Failed to upload manifest files to release");
+			throw new InvalidOperationException($"gh release upload v{version} exited with code {exitCode}");
 		}
-		else
-		{
-			logger.WriteSuccess("Manifest files uploaded to release");
-		}
+
+		logger.WriteSuccess("Manifest files uploaded to release");
 	}
 
 	private async Task<string?> DetectGitHubRepoAsync(string rootDirectory, CancellationToken cancellationToken)
