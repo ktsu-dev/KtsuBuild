@@ -48,9 +48,6 @@ public class BuildConfigurationProvider(IGitService gitService, IGitHubService g
 		bool isTagged = await gitService.IsCommitTaggedAsync(workspacePath, options.GitSha, cancellationToken).ConfigureAwait(false);
 		bool shouldRelease = isMain && !isTagged && isOfficial;
 
-		// Check for .csx files
-		bool useDotnetScript = Directory.GetFiles(workspacePath, "*.csx", SearchOption.AllDirectories).Length > 0;
-
 		// Setup paths
 		string outputPath = Path.Combine(workspacePath, "output");
 		string stagingPath = Path.Combine(workspacePath, StagingDirectoryName);
@@ -61,13 +58,11 @@ public class BuildConfigurationProvider(IGitService gitService, IGitHubService g
 			IsMain = isMain,
 			IsTagged = isTagged,
 			ShouldRelease = shouldRelease,
-			UseDotnetScript = useDotnetScript,
 			OutputPath = outputPath,
 			StagingPath = stagingPath,
 			PackagePattern = Path.Combine(stagingPath, "*.nupkg"),
 			SymbolsPattern = Path.Combine(stagingPath, "*.snupkg"),
 			ApplicationPattern = Path.Combine(stagingPath, "*.zip"),
-			BuildArgs = useDotnetScript ? "-maxCpuCount:1" : string.Empty,
 			WorkspacePath = workspacePath,
 			ServerUrl = options.ServerUrl,
 			GitRef = options.GitRef,

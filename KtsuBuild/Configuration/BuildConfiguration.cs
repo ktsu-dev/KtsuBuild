@@ -2,6 +2,7 @@
 
 namespace KtsuBuild.Configuration;
 
+using System;
 using System.Diagnostics.CodeAnalysis;
 
 /// <summary>
@@ -32,6 +33,11 @@ public class BuildConfiguration
 	/// <summary>
 	/// Gets or sets whether dotnet-script is needed.
 	/// </summary>
+	/// <remarks>
+	/// No longer filled in by <see cref="BuildConfigurationProvider"/>: the <c>.csx</c> check is made once,
+	/// in <c>PipelineService.RestoreAndBuildAsync</c>, and nothing reads this.
+	/// </remarks>
+	[Obsolete("Nothing reads this. RestoreAndBuildAsync makes the .csx check itself; this property is no longer filled in and will be removed in the next major version.")]
 	public bool UseDotnetScript { get; set; }
 
 	/// <summary>
@@ -62,6 +68,11 @@ public class BuildConfiguration
 	/// <summary>
 	/// Gets or sets additional build arguments.
 	/// </summary>
+	/// <remarks>
+	/// No longer filled in by <see cref="BuildConfigurationProvider"/>: the build argument is derived once,
+	/// in <c>PipelineService.RestoreAndBuildAsync</c>, and nothing reads this.
+	/// </remarks>
+	[Obsolete("Nothing reads this. RestoreAndBuildAsync makes the .csx check itself; this property is no longer filled in and will be removed in the next major version.")]
 	public string BuildArgs { get; set; } = string.Empty;
 
 	/// <summary>
