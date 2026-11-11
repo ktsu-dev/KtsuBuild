@@ -555,6 +555,7 @@ internal sealed class Program
 		Option<string?> packageFrameworkOption = (Option<string?>)packageCommand.Options.First(o => o.Aliases.Contains("-f"));
 		Option<string?> packageVersionOption = (Option<string?>)packageCommand.Options.First(o => o.Aliases.Contains("-V"));
 		Option<string?> packageBuildNumberOption = (Option<string?>)packageCommand.Options.First(o => o.Aliases.Contains("-b"));
+		Option<string?> packageBundleIdOption = (Option<string?>)packageCommand.Options.First(o => o.Name == "--bundle-id");
 
 		packageCommand.SetAction(async (parseResult, ct) =>
 		{
@@ -566,6 +567,7 @@ internal sealed class Program
 			string? framework = parseResult.GetValue(packageFrameworkOption);
 			string? version = parseResult.GetValue(packageVersionOption);
 			string? buildNumber = parseResult.GetValue(packageBuildNumberOption);
+			string? bundleId = parseResult.GetValue(packageBundleIdOption);
 
 			logger.VerboseEnabled = verbose;
 			logger.WriteStepHeader("Packaging iOS Head(s)");
@@ -608,6 +610,7 @@ internal sealed class Program
 					Framework = framework,
 					ShortVersion = version,
 					BuildNumber = buildNumber,
+					BundleId = bundleId,
 					SigningAvailable = buildConfig.IosSigningAvailable,
 					CodesignKey = buildConfig.IosCodesignKey,
 					ProvisionName = buildConfig.IosProvisionName,

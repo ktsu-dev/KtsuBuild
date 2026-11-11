@@ -112,6 +112,46 @@ public class IosServiceTests
 	}
 
 	[TestMethod]
+	[DataRow("com example app")]
+	[DataRow("com.example.app -p:Foo=bar")]
+	[DataRow("com.example.app\"")]
+	[DataRow("com..example")]
+	[DataRow("com.example_app")]
+	public async Task PackageAsync_InvalidBundleId_ThrowsBeforeAnyProcessCalls(string bundleId)
+	{
+		await Assert.ThrowsExactlyAsync<ArgumentException>(() => _service.PackageAsync(new IosPackageOptions
+		{
+			WorkingDirectory = _tempDir,
+			ShortVersion = "1.2.3",
+			BundleId = bundleId,
+			SigningAvailable = true,
+		}, TestContext.CancellationToken)).ConfigureAwait(false);
+
+		_dotNetService.DidNotReceive().GetIosHeads(Arg.Any<string>());
+		await _processRunner.DidNotReceive().RunWithCallbackAsync(
+			Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+		await _processRunner.DidNotReceive().RunAsync(
+			Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+	}
+
+	[TestMethod]
+	[DataRow("com.example.app")]
+	[DataRow("com.example.app-beta")]
+	[DataRow("dev.ktsu.MyApp2")]
+	[DataRow("app")]
+	public void IsValidBundleId_AcceptsReverseDnsIdentifiers(string bundleId) =>
+		Assert.IsTrue(IosService.IsValidBundleId(bundleId));
+
+	[TestMethod]
+	[DataRow("com.example.")]
+	[DataRow(".com.example")]
+	[DataRow("com/example")]
+	[DataRow("")]
+	[DataRow(null)]
+	public void IsValidBundleId_RejectsAnythingElse(string? bundleId) =>
+		Assert.IsFalse(IosService.IsValidBundleId(bundleId));
+
+	[TestMethod]
 	[DataRow("1")]
 	[DataRow("1.4")]
 	[DataRow("1.4.3")]
@@ -299,6 +339,47 @@ public class IosServiceTests
 				a.Contains("-p:BuildIpa=true") &&
 				a.Contains("-p:CodesignKey=\"Apple Distribution: ktsu\"") &&
 				a.Contains("-p:CodesignProvision=\"ktsu profile\"")),
+			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+	}
+
+	[TestMethod]
+	public async Task ArchiveAsync_WithBundleId_PassesApplicationId()
+	{
+		string head = CreateHead("MyApp.iOS");
+		string ipa = Path.Combine(_tempDir, "MyApp.iOS", "bin", "MyApp.ipa");
+		Directory.CreateDirectory(Path.GetDirectoryName(ipa)!);
+		await File.WriteAllTextAsync(ipa, "archive", TestContext.CancellationToken).ConfigureAwait(false);
+
+		_processRunner.RunWithCallbackAsync("dotnet", Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
+			.Returns(0);
+
+		IosArchiveOptions options = ArchiveOpts(_tempDir, head, "net10.0-ios");
+		options.BundleId = "com.example.app.beta";
+		await _service.ArchiveAsync(options, TestContext.CancellationToken).ConfigureAwait(false);
+
+		await _processRunner.Received(1).RunWithCallbackAsync(
+			"dotnet",
+			ArgMatch.NotNull<string>(a => a.Contains("-p:ApplicationId=com.example.app.beta")),
+			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+	}
+
+	[TestMethod]
+	public async Task ArchiveAsync_WithoutBundleId_LeavesApplicationIdToTheProject()
+	{
+		string head = CreateHead("MyApp.iOS");
+		string ipa = Path.Combine(_tempDir, "MyApp.iOS", "bin", "MyApp.ipa");
+		Directory.CreateDirectory(Path.GetDirectoryName(ipa)!);
+		await File.WriteAllTextAsync(ipa, "archive", TestContext.CancellationToken).ConfigureAwait(false);
+
+		_processRunner.RunWithCallbackAsync("dotnet", Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
+			.Returns(0);
+
+		IosArchiveOptions options = ArchiveOpts(_tempDir, head, "net10.0-ios");
+		await _service.ArchiveAsync(options, TestContext.CancellationToken).ConfigureAwait(false);
+
+		await _processRunner.Received(1).RunWithCallbackAsync(
+			"dotnet",
+			ArgMatch.NotNull<string>(a => !a.Contains("ApplicationId")),
 			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
