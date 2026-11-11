@@ -120,6 +120,45 @@ public class ShippedVariantsTests
 	public void FromProject_WithNoContent_ReportsNothing() =>
 		Assert.IsEmpty(ShippedVariants.FromProject(null));
 
+	// A literal OutputType on plain ktsu.Sdk, the way Coder.Editor and CounterStrikeProgression.Site
+	// declare it. DotNetService.IsExecutableProject publishes RID zips for these, so reporting them
+	// as a library left the row and the release disagreeing about what the repository ships.
+
+	[TestMethod]
+	[DataRow("Exe")]
+	[DataRow("WinExe")]
+	[DataRow(" winexe ")]
+	public void FromProject_WithPlainSdkAndAnExecutableOutputType_ReportsAnApp(string outputType) =>
+		Assert.AreEqual("app", Labels(ShippedVariants.FromProject(
+			$"""<Project Sdk="Microsoft.NET.Sdk"><Sdk Name="ktsu.Sdk" /><PropertyGroup><OutputType>{outputType}</OutputType></PropertyGroup></Project>""")));
+
+	[TestMethod]
+	public void FromProject_WithPlainSdkAndOutputTypeLibrary_StillReportsALibrary() =>
+		Assert.AreEqual("lib", Labels(ShippedVariants.FromProject(
+			"""<Sdk Name="ktsu.Sdk" /><PropertyGroup><OutputType>Library</OutputType></PropertyGroup>""")));
+
+	[TestMethod]
+	public void FromProject_WithAKindSdkAndAnExecutableOutputType_ReportsOnlyTheKind() =>
+		// The kind suffix already said what the binary is, so the OutputType adds nothing.
+		Assert.AreEqual("cli", Labels(ShippedVariants.FromProject(
+			"""<Sdk Name="ktsu.Sdk" /><Sdk Name="ktsu.Sdk.ConsoleApp" /><PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>""")));
+
+	[TestMethod]
+	public void FromProject_WithPlainSdkAndNotPackable_ReportsNoLibrary() =>
+		Assert.IsEmpty(ShippedVariants.FromProject(
+			"""<Sdk Name="ktsu.Sdk" /><PropertyGroup><IsPackable>false</IsPackable></PropertyGroup>"""));
+
+	[TestMethod]
+	public void FromProject_WithAnExecutableOutputTypeThatIsNotPackable_ReportsAnApp() =>
+		// CounterStrikeProgression.Site: an executable the release still zips, though it packs nothing.
+		Assert.AreEqual("app", Labels(ShippedVariants.FromProject(
+			"""<Sdk Name="ktsu.Sdk" /><PropertyGroup><OutputType>Exe</OutputType><IsPackable>false</IsPackable></PropertyGroup>""")));
+
+	[TestMethod]
+	public void FromProject_WithPlainSdkAndPackable_StillReportsALibrary() =>
+		Assert.AreEqual("lib", Labels(ShippedVariants.FromProject(
+			"""<Sdk Name="ktsu.Sdk" /><PropertyGroup><IsPackable>true</IsPackable></PropertyGroup>""")));
+
 	[TestMethod]
 	public void Combine_MergesAcrossProjects() =>
 		// Coder ships a library, a windowed app, and a console app across three projects.

@@ -55,4 +55,22 @@ internal static class SdkReferencePatterns
 	/// </summary>
 	internal const string ExecutableSdk =
 		@"Sdk(?:\s+Name)?\s*=\s*""[^""]*\.(?:" + ExecutableSuffixes + @")[/""]";
+
+	/// <summary>
+	/// Matches a literal <c>&lt;OutputType&gt;Exe&lt;/OutputType&gt;</c>, how a project on plain
+	/// <c>ktsu.Sdk</c> says it builds a runnable binary rather than a package.
+	/// </summary>
+	internal const string OutputTypeExe = @"<OutputType>\s*Exe\s*</OutputType>";
+
+	/// <summary>
+	/// Matches a literal <c>&lt;OutputType&gt;WinExe&lt;/OutputType&gt;</c>, the windowed form of
+	/// <see cref="OutputTypeExe"/>.
+	/// </summary>
+	internal const string OutputTypeWinExe = @"<OutputType>\s*WinExe\s*</OutputType>";
+
+	/// <summary>
+	/// Matches <c>&lt;IsPackable&gt;false&lt;/IsPackable&gt;</c>, which keeps a project out of the
+	/// packages a release publishes.
+	/// </summary>
+	internal const string NotPackable = @"<IsPackable>\s*false\s*</IsPackable>";
 }
