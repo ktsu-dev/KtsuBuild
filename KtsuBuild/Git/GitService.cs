@@ -4,6 +4,7 @@ namespace KtsuBuild.Git;
 
 using System.Text.RegularExpressions;
 using KtsuBuild.Abstractions;
+using KtsuBuild.Profile;
 using KtsuBuild.Utilities;
 #if !NET10_0_OR_GREATER
 using static Polyfill;
@@ -30,6 +31,8 @@ public class GitService(IProcessRunner processRunner, IBuildLogger logger) : IGi
 		RegexOptions.CultureInvariant,
 		TimeSpan.FromSeconds(1));
 
+	private static readonly IComparer<string> VersionTagComparer = Comparer<string>.Create(SemanticVersion.CompareVersions);
+
 	/// <inheritdoc/>
 	public async Task<IReadOnlyList<string>> GetTagsAsync(string workingDirectory, CancellationToken cancellationToken = default)
 	{
@@ -41,10 +44,14 @@ public class GitService(IProcessRunner processRunner, IBuildLogger logger) : IGi
 			return [];
 		}
 
+		// git's versionsort.suffix only knows the labels in ListTagsArguments, so it sorts a tag such as
+		// v1.2.3-dev.1 above v1.2.3. IsVersionTag accepts any prerelease label, so order the tags it
+		// keeps by semantic version precedence. The sort is stable, so equal versions keep git's order.
 		return [.. result.StandardOutput
 			.Split('\n', StringSplitOptions.RemoveEmptyEntries)
 			.Select(static s => s.Trim())
-			.Where(IsVersionTag)];
+			.Where(IsVersionTag)
+			.OrderByDescending(static s => s, VersionTagComparer)];
 	}
 
 	/// <summary>

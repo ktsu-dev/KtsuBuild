@@ -378,7 +378,7 @@ internal sealed class Program
 		rootCommand.Subcommands.Add(metadataCommand);
 	}
 
-	private static void AddWingetCommand(RootCommand rootCommand, IProcessRunner processRunner, IBuildLogger logger)
+	internal static void AddWingetCommand(RootCommand rootCommand, IProcessRunner processRunner, IBuildLogger logger)
 	{
 		WingetCommand wingetCommand = new();
 
@@ -460,7 +460,7 @@ internal sealed class Program
 			try
 			{
 				string manifestDir = Path.Combine(workspace, "winget");
-				await wingetService.UploadManifestsAsync(version, manifestDir, ct).ConfigureAwait(false);
+				await wingetService.UploadManifestsAsync(version, manifestDir, workspace, ct).ConfigureAwait(false);
 
 				logger.WriteSuccess("Manifests uploaded!");
 				return 0;
@@ -555,6 +555,7 @@ internal sealed class Program
 		Option<string?> packageFrameworkOption = (Option<string?>)packageCommand.Options.First(o => o.Aliases.Contains("-f"));
 		Option<string?> packageVersionOption = (Option<string?>)packageCommand.Options.First(o => o.Aliases.Contains("-V"));
 		Option<string?> packageBuildNumberOption = (Option<string?>)packageCommand.Options.First(o => o.Aliases.Contains("-b"));
+		Option<string?> packageBundleIdOption = (Option<string?>)packageCommand.Options.First(o => o.Name == "--bundle-id");
 
 		packageCommand.SetAction(async (parseResult, ct) =>
 		{
@@ -566,6 +567,7 @@ internal sealed class Program
 			string? framework = parseResult.GetValue(packageFrameworkOption);
 			string? version = parseResult.GetValue(packageVersionOption);
 			string? buildNumber = parseResult.GetValue(packageBuildNumberOption);
+			string? bundleId = parseResult.GetValue(packageBundleIdOption);
 
 			logger.VerboseEnabled = verbose;
 			logger.WriteStepHeader("Packaging iOS Head(s)");
@@ -608,6 +610,7 @@ internal sealed class Program
 					Framework = framework,
 					ShortVersion = version,
 					BuildNumber = buildNumber,
+					BundleId = bundleId,
 					SigningAvailable = buildConfig.IosSigningAvailable,
 					CodesignKey = buildConfig.IosCodesignKey,
 					ProvisionName = buildConfig.IosProvisionName,
@@ -749,12 +752,6 @@ internal sealed class Program
 				{
 					logger.WriteError($"iOS upload failed: {result.Error}");
 					return 1;
-				}
-
-				if (result.UploadedIpaPaths.Count == 0)
-				{
-					logger.WriteInfo("iOS upload completed with no archives (no .ipa found to upload).");
-					return 0;
 				}
 
 				logger.WriteSuccess($"Uploaded {result.UploadedIpaPaths.Count} iOS archive(s) to TestFlight:");

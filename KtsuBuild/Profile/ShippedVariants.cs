@@ -19,7 +19,10 @@ public enum ShippedVariant
 	/// <summary>A command line program. Declared by <c>ktsu.Sdk.ConsoleApp</c>.</summary>
 	ConsoleApp,
 
-	/// <summary>A windowed application. Declared by <c>ktsu.Sdk.App</c>.</summary>
+	/// <summary>
+	/// An application. Declared by <c>ktsu.Sdk.App</c>, a platform SDK on its own, or a literal
+	/// <c>OutputType</c> of <c>Exe</c> or <c>WinExe</c> on plain <c>ktsu.Sdk</c>.
+	/// </summary>
 	App,
 
 	/// <summary>A .NET tool installed with <c>dotnet tool install</c>. Declared by <c>ktsu.Sdk.Tool</c>.</summary>
@@ -60,7 +63,9 @@ public static partial class ShippedVariants
 	/// <returns>The variants the project declares. Empty when the project does not use the ktsu SDK at all.</returns>
 	/// <remarks>
 	/// A project that declares plain <c>ktsu.Sdk</c> and nothing else is a library, because the SDK
-	/// packs library projects by default. Platform SDKs such as <c>ktsu.Sdk.Windows</c> say which
+	/// packs library projects by default. One that also sets a literal <c>OutputType</c> of
+	/// <c>Exe</c> or <c>WinExe</c> is an app, and one with <c>IsPackable</c> false is not a library,
+	/// because the release publishes neither as a package. Platform SDKs such as <c>ktsu.Sdk.Windows</c> say which
 	/// platform a project targets rather than what kind of thing it is, so a kind suffix alongside
 	/// one wins. On their own they still set <c>OutputType</c>, which is why
 	/// <c>DotNetService.IsExecutableProject</c> treats a bare <c>ktsu.Sdk.Windows</c> as an
@@ -109,7 +114,19 @@ public static partial class ShippedVariants
 		}
 		else if (declaresSdk && variants.Count == 0)
 		{
-			variants.Add(ShippedVariant.Library);
+			if (OutputTypeExeRegex().IsMatch(projectContent) || OutputTypeWinExeRegex().IsMatch(projectContent))
+			{
+				// The release publishes RID zips for exactly these projects, through
+				// DotNetService.IsExecutableProject, so the row says what the release attaches.
+				// A literal OutputType does not say whether the program is windowed or a command
+				// line one (Exe is also what a desktop app on Linux or macOS declares), so it is
+				// an app; a command line program says so with ktsu.Sdk.ConsoleApp.
+				variants.Add(ShippedVariant.App);
+			}
+			else if (!NotPackableRegex().IsMatch(projectContent))
+			{
+				variants.Add(ShippedVariant.Library);
+			}
 		}
 
 		return Order(variants);
@@ -165,4 +182,13 @@ public static partial class ShippedVariants
 		RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
 		MatchTimeoutMilliseconds)]
 	private static partial Regex SdkDeclarationRegex();
+
+	[GeneratedRegex(SdkReferencePatterns.OutputTypeExe, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, MatchTimeoutMilliseconds)]
+	private static partial Regex OutputTypeExeRegex();
+
+	[GeneratedRegex(SdkReferencePatterns.OutputTypeWinExe, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, MatchTimeoutMilliseconds)]
+	private static partial Regex OutputTypeWinExeRegex();
+
+	[GeneratedRegex(SdkReferencePatterns.NotPackable, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, MatchTimeoutMilliseconds)]
+	private static partial Regex NotPackableRegex();
 }
