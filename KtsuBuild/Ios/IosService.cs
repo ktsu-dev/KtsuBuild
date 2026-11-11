@@ -688,22 +688,16 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 	{
 		// The runner's default `openssl` may be LibreSSL, which lacks the legacy provider
 		// and 3DES. Prefer a real OpenSSL 3 from Homebrew when present. Probing for brew is
-		// best-effort: when it is not installed, fall back to the default `openssl`.
-		try
+		// best-effort: when it is not installed the runner reports a failed result, and this falls
+		// back to the default `openssl`.
+		ProcessResult brew = await processRunner.RunAsync("brew", "--prefix openssl@3", null, cancellationToken).ConfigureAwait(false);
+		if (brew.Success)
 		{
-			ProcessResult brew = await processRunner.RunAsync("brew", "--prefix openssl@3", null, cancellationToken).ConfigureAwait(false);
-			if (brew.Success)
+			string candidate = Path.Combine(brew.StandardOutput.Trim(), "bin", "openssl");
+			if (File.Exists(candidate))
 			{
-				string candidate = Path.Combine(brew.StandardOutput.Trim(), "bin", "openssl");
-				if (File.Exists(candidate))
-				{
-					return candidate;
-				}
+				return candidate;
 			}
-		}
-		catch (System.ComponentModel.Win32Exception)
-		{
-			// brew is not on PATH; use the default openssl.
 		}
 
 		return "openssl";
