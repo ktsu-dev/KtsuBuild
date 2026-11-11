@@ -324,8 +324,8 @@ public static class ProjectDetector
 			string content = File.ReadAllText(csproj);
 			string projectName = Path.GetFileNameWithoutExtension(csproj);
 
-			// Skip test and demo projects
-			if (IsTestOrDemoProject(projectName, content))
+			// Skip test, benchmark, sample, example and demo projects
+			if (IsTestOrDemoProject(rootDirectory, csproj, content))
 			{
 				continue;
 			}
@@ -365,7 +365,7 @@ public static class ProjectDetector
 		}
 
 		projectInfo.Type = CSharpProjectType;
-		string csproj = SelectPrimaryProject(csprojFiles, repoNames);
+		string csproj = SelectPrimaryProject(rootDirectory, csprojFiles, repoNames);
 		string content = File.ReadAllText(csproj);
 
 		// Try to parse as XML
@@ -404,6 +404,7 @@ public static class ProjectDetector
 	/// <summary>
 	/// Chooses the project file whose metadata describes what the repository actually ships.
 	/// </summary>
+	/// <param name="rootDirectory">The repository root the project files were found under.</param>
 	/// <param name="csprojFiles">Every project file found under the repository root.</param>
 	/// <param name="repoNames">The names the repository's main project may carry, most authoritative first.</param>
 	/// <returns>The project file to read the Winget manifest metadata from.</returns>
@@ -414,12 +415,12 @@ public static class ProjectDetector
 	/// deterministic and away from test and demo projects, matching how
 	/// <see cref="IsLibraryOnlyCSharpProject"/> already classifies the same repository.
 	/// </remarks>
-	private static string SelectPrimaryProject(string[] csprojFiles, string[] repoNames)
+	private static string SelectPrimaryProject(string rootDirectory, string[] csprojFiles, string[] repoNames)
 	{
 		string[] ordered = [.. csprojFiles.OrderBy(static path => path, StringComparer.Ordinal)];
 
-		string[] candidates = [.. ordered.Where(static path =>
-			!IsTestOrDemoProject(Path.GetFileNameWithoutExtension(path), File.ReadAllText(path)))];
+		string[] candidates = [.. ordered.Where(path =>
+			!IsTestOrDemoProject(rootDirectory, path, File.ReadAllText(path)))];
 
 		// A repository of nothing but test and demo projects has no better project to describe
 		// itself with, so fall back to the full list rather than to no project at all.
@@ -585,13 +586,30 @@ public static class ProjectDetector
 		}
 	}
 
-	private static bool IsTestOrDemoProject(string projectName, string content)
+	/// <summary>
+	/// Determines whether a project supports the repository's deliverables rather than being one.
+	/// </summary>
+	/// <param name="rootDirectory">The repository root the project was found under.</param>
+	/// <param name="projectPath">The project file.</param>
+	/// <param name="content">The project file's content.</param>
+	/// <returns><see langword="true"/> for tests, benchmarks, samples, examples, and demos.</returns>
+	/// <remarks>
+	/// Release and pack skip the same projects through <see cref="SupportingProjects.IsSupporting(string, string)"/>
+	/// and <see cref="TestProjects.IsTestProject"/>, so winget asks both. A narrower check here counted a
+	/// <c>*.Benchmarks</c> console app, or an app under <c>examples/</c>, as something the repository ships,
+	/// and a library beside one was then not library-only (ktsu-dev/KtsuBuild#300). The name checks stay for
+	/// projects that only mention a test, demo, example or sample somewhere in their name.
+	/// </remarks>
+	private static bool IsTestOrDemoProject(string rootDirectory, string projectPath, string content)
 	{
+		string projectName = Path.GetFileNameWithoutExtension(projectPath);
 		return projectName.Contains("Test", StringComparison.OrdinalIgnoreCase) ||
 			   projectName.Contains("Demo", StringComparison.OrdinalIgnoreCase) ||
 			   projectName.Contains("Example", StringComparison.OrdinalIgnoreCase) ||
 			   projectName.Contains("Sample", StringComparison.OrdinalIgnoreCase) ||
-			   content.Contains("Sdk=\"Microsoft.NET.Sdk.Test\"", StringComparison.OrdinalIgnoreCase);
+			   content.Contains("Sdk=\"Microsoft.NET.Sdk.Test\"", StringComparison.OrdinalIgnoreCase) ||
+			   SupportingProjects.IsSupporting(rootDirectory, projectPath) ||
+			   TestProjects.IsTestProject(projectPath);
 	}
 
 	private static bool IsExecutableProject(string content) =>

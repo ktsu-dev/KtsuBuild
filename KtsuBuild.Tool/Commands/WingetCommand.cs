@@ -3,6 +3,8 @@
 namespace KtsuBuild.Tool.Commands;
 
 using System.CommandLine;
+using KtsuBuild.Abstractions;
+using KtsuBuild.Winget;
 
 /// <summary>
 /// Winget command for manifest operations.
@@ -18,6 +20,44 @@ public class WingetCommand : Command
 	{
 		Subcommands.Add(new GenerateCommand());
 		Subcommands.Add(new UploadCommand());
+	}
+
+	/// <summary>
+	/// Reports the outcome of <c>winget generate</c> and chooses its exit code.
+	/// </summary>
+	/// <param name="result">The result manifest generation returned.</param>
+	/// <param name="logger">The logger to report the outcome to.</param>
+	/// <returns>0 when the run succeeded or was skipped, 1 when it failed.</returns>
+	/// <remarks>
+	/// A successful run that wrote no manifests, because nothing executable was found to hash, is a skip
+	/// rather than a failure. It used to be reported as "Generated manifests for " with an empty id
+	/// (ktsu-dev/KtsuBuild#300).
+	/// </remarks>
+	internal static int ReportGenerateResult(WingetManifestResult result, IBuildLogger logger)
+	{
+		Ensure.NotNull(result);
+		Ensure.NotNull(logger);
+
+		if (result.IsLibraryOnly)
+		{
+			logger.WriteInfo("Library-only project - no manifests generated");
+			return 0;
+		}
+
+		if (!result.Success)
+		{
+			logger.WriteError($"Failed to generate manifests: {result.Error}");
+			return 1;
+		}
+
+		if (result.ManifestFiles.Count == 0)
+		{
+			logger.WriteWarning("No manifests generated");
+			return 0;
+		}
+
+		logger.WriteSuccess($"Generated manifests for {result.PackageId}");
+		return 0;
 	}
 
 #pragma warning disable CA1010

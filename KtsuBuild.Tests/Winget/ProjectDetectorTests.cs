@@ -155,6 +155,97 @@ public class ProjectDetectorTests
 		return root;
 	}
 
+	/// <summary>
+	/// A ktsu.Sdk library repository named Foo, plus one extra project written at <paramref name="relativePath"/>.
+	/// </summary>
+	private string CreateLibraryRepositoryWith(string relativePath, string projectContent)
+	{
+		string root = Path.Combine(_tempDir, "Foo");
+		Directory.CreateDirectory(Path.Combine(root, "Foo"));
+		File.WriteAllText(Path.Combine(root, "Foo", "Foo.csproj"), """
+			<Project>
+				<Sdk Name="Microsoft.NET.Sdk" />
+				<Sdk Name="ktsu.Sdk" />
+				<PropertyGroup>
+					<TargetFramework>net10.0</TargetFramework>
+				</PropertyGroup>
+			</Project>
+			""");
+		string extra = Path.Combine(root, relativePath);
+		Directory.CreateDirectory(Path.GetDirectoryName(extra)!);
+		File.WriteAllText(extra, projectContent);
+		return root;
+	}
+
+	[TestMethod]
+	public void IsLibraryOnlyProject_LibraryWithBenchmarksConsoleApp_IsLibraryOnly()
+	{
+		// Release ships nothing for a *.Benchmarks project, so winget must not count it as an application (#300)
+		string root = CreateLibraryRepositoryWith(Path.Combine("Foo.Benchmarks", "Foo.Benchmarks.csproj"), """
+			<Project>
+				<Sdk Name="Microsoft.NET.Sdk" />
+				<Sdk Name="ktsu.Sdk" />
+				<Sdk Name="ktsu.Sdk.ConsoleApp" />
+			</Project>
+			""");
+
+		Assert.IsTrue(ProjectDetector.IsLibraryOnlyProject(root, ProjectDetector.Detect(root)));
+	}
+
+	[TestMethod]
+	public void IsLibraryOnlyProject_LibraryWithAppUnderExamples_IsLibraryOnly()
+	{
+		// An app under examples/ is a supporting project whatever it is called (#300)
+		string root = CreateLibraryRepositoryWith(Path.Combine("examples", "Viewer", "Viewer.csproj"), """
+			<Project>
+				<Sdk Name="Microsoft.NET.Sdk" />
+				<Sdk Name="ktsu.Sdk" />
+				<Sdk Name="ktsu.Sdk.App" />
+			</Project>
+			""");
+
+		Assert.IsTrue(ProjectDetector.IsLibraryOnlyProject(root, ProjectDetector.Detect(root)));
+	}
+
+	[TestMethod]
+	public void IsLibraryOnlyProject_LibraryWithMSTestSdkProjectNotNamedTest_IsLibraryOnly()
+	{
+		// A test project recognised only by its SDK, as release and pack recognise it (#300)
+		string root = CreateLibraryRepositoryWith(Path.Combine("Foo.Checks", "Foo.Checks.csproj"), """
+			<Project Sdk="MSTest.Sdk">
+				<PropertyGroup>
+					<OutputType>Exe</OutputType>
+				</PropertyGroup>
+			</Project>
+			""");
+
+		Assert.IsTrue(ProjectDetector.IsLibraryOnlyProject(root, ProjectDetector.Detect(root)));
+	}
+
+	[TestMethod]
+	public void Detect_AppBesideItsBenchmarks_DescribesTheAppNotTheBenchmark()
+	{
+		// With no project named for the clone folder, the benchmark sorts first but is not what ships (#300)
+		string root = Path.Combine(_tempDir, "checkout");
+		Directory.CreateDirectory(root);
+		File.WriteAllText(Path.Combine(root, "Alpha.Benchmarks.csproj"), """
+			<Project Sdk="Microsoft.NET.Sdk">
+				<PropertyGroup>
+					<OutputType>Exe</OutputType>
+				</PropertyGroup>
+			</Project>
+			""");
+		File.WriteAllText(Path.Combine(root, "Beta.csproj"), """
+			<Project Sdk="Microsoft.NET.Sdk">
+				<PropertyGroup>
+					<OutputType>Exe</OutputType>
+				</PropertyGroup>
+			</Project>
+			""");
+
+		Assert.AreEqual("Beta.exe", ProjectDetector.Detect(root).ExecutableName);
+	}
+
 	[TestMethod]
 	public void Detect_CanonicalFolder_PicksTheMainProject()
 	{
