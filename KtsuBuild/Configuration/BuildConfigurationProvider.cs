@@ -1,4 +1,4 @@
-// Copyright (c) 2023-2026 ktsu-dev contributors
+﻿// Copyright (c) 2023-2026 ktsu-dev contributors
 
 namespace KtsuBuild.Configuration;
 
@@ -100,7 +100,9 @@ public class BuildConfigurationProvider(IGitService gitService, IGitHubService g
 
 		(string githubOwner, string githubRepo) = await ResolveRepositoryAsync(workspacePath, cancellationToken).ConfigureAwait(false);
 
-		string githubToken = Environment.GetEnvironmentVariable("GITHUB_TOKEN") ?? Environment.GetEnvironmentVariable("GH_TOKEN") ?? string.Empty;
+		// An Actions secret that isn't defined arrives as an empty variable, not a missing one, so treat
+		// blank as missing; otherwise an empty GITHUB_TOKEN hides a usable GH_TOKEN.
+		string githubToken = NullIfBlank(Environment.GetEnvironmentVariable("GITHUB_TOKEN")) ?? NullIfBlank(Environment.GetEnvironmentVariable("GH_TOKEN")) ?? string.Empty;
 		string nugetApiKey = Environment.GetEnvironmentVariable("NUGET_API_KEY") ?? string.Empty;
 		string ktsuPackageKey = Environment.GetEnvironmentVariable("KTSU_PACKAGE_KEY") ?? string.Empty;
 		string expectedOwner = Environment.GetEnvironmentVariable("EXPECTED_OWNER") ?? githubOwner;
@@ -152,6 +154,13 @@ public class BuildConfigurationProvider(IGitService gitService, IGitHubService g
 		string? remoteUrl = await gitService.GetRemoteUrlAsync(workspacePath, cancellationToken: cancellationToken).ConfigureAwait(false);
 		return ParseRepositoryFromRemoteUrl(remoteUrl);
 	}
+
+	/// <summary>
+	/// Returns <paramref name="value"/> trimmed, or <see langword="null"/> when it is null, empty or whitespace.
+	/// </summary>
+	/// <param name="value">The value to normalize.</param>
+	/// <returns>The trimmed value, or <see langword="null"/> when it is blank.</returns>
+	private static string? NullIfBlank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value!.Trim();
 
 	/// <summary>
 	/// Parses the GitHub owner and <c>owner/repo</c> pair out of a Git remote URL.
