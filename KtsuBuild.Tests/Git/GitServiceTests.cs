@@ -76,6 +76,20 @@ public class GitServiceTests
 		Assert.AreEqual("v1.4.0,v1.4.0-rc.1,v1.3.0", string.Join(",", tags));
 	}
 
+	// git's versionsort.suffix only knows alpha, beta, rc and pre, so it lists v1.2.3-dev.1 above v1.2.3.
+	// Taking it as the last release made the version calculator go back to 1.2.0 (#261).
+
+	[TestMethod]
+	public async Task GetTagsAsync_UnknownPrereleaseLabel_SortsBelowItsRelease()
+	{
+		_processRunner.RunAsync("git", GitService.ListTagsArguments, Arg.Any<string>(), Arg.Any<CancellationToken>())
+			.Returns(TestHelpers.SuccessResult("v1.2.4-rc1\nv1.2.4-preview.3\nv1.2.3-dev.1\nv1.2.3\nv1.2.2\n"));
+
+		IReadOnlyList<string> tags = await _service.GetTagsAsync("/repo").ConfigureAwait(false);
+
+		Assert.AreEqual("v1.2.4-rc1,v1.2.4-preview.3,v1.2.3,v1.2.3-dev.1,v1.2.2", string.Join(",", tags));
+	}
+
 	[TestMethod]
 	public async Task GetTagsAsync_OnlyNonVersionTags_ReturnsEmptyList()
 	{
@@ -167,6 +181,38 @@ public class GitServiceTests
 			VersionInfo version = await new VersionCalculator(service, new MockBuildLogger()).GetVersionInfoAsync(repo, head).ConfigureAwait(false);
 			Assert.AreEqual("v1.4.0", version.LastTag);
 			Assert.AreEqual("1.4.0", version.LastVersion);
+		}
+		finally
+		{
+			DeleteDirectory(repo);
+		}
+	}
+
+	[TestMethod]
+	[DataRow("dev")]
+	[DataRow("preview")]
+	public async Task GetVersionInfoAsync_RealRepository_UnknownPrereleaseLabelBelowRelease_UsesRelease(string label)
+	{
+		string repo = Path.Combine(Path.GetTempPath(), $"ktsubuild-tags-{Guid.NewGuid():N}");
+		Directory.CreateDirectory(repo);
+
+		try
+		{
+			ProcessRunner runner = new();
+			await CommitAsync(runner, repo, "initial").ConfigureAwait(false);
+			await RunGitAsync(runner, repo, "tag", "v1.2.2").ConfigureAwait(false);
+			await CommitAsync(runner, repo, "Fix thing").ConfigureAwait(false);
+			await RunGitAsync(runner, repo, "tag", "v1.2.3").ConfigureAwait(false);
+			await CommitAsync(runner, repo, "Work").ConfigureAwait(false);
+			await RunGitAsync(runner, repo, "tag", $"v1.2.3-{label}.1").ConfigureAwait(false);
+			await CommitAsync(runner, repo, "Fix crash").ConfigureAwait(false);
+
+			GitService service = new(runner, new MockBuildLogger());
+			string head = await service.GetCurrentCommitHashAsync(repo).ConfigureAwait(false);
+			VersionInfo version = await new VersionCalculator(service, new MockBuildLogger()).GetVersionInfoAsync(repo, head).ConfigureAwait(false);
+
+			Assert.AreEqual("v1.2.3", version.LastTag);
+			Assert.AreEqual("1.2.4", version.Version);
 		}
 		finally
 		{

@@ -36,6 +36,7 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 #pragma warning disable SYSLIB1045 // GeneratedRegex not available in netstandard2.0/2.1
 	private static readonly Regex TargetFrameworkRegex = new(@"<TargetFrameworks?>\s*([^<]+?)\s*</TargetFrameworks?>", RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexDefaults.MatchTimeout);
 	private static readonly Regex ShortVersionRegex = new(@"^[0-9]+(\.[0-9]+){0,2}$", RegexOptions.CultureInvariant | RegexOptions.Compiled, RegexDefaults.MatchTimeout);
+	private static readonly Regex BundleIdRegex = new(@"^[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*$", RegexOptions.CultureInvariant | RegexOptions.Compiled, RegexDefaults.MatchTimeout);
 #pragma warning restore SYSLIB1045
 
 	/// <inheritdoc/>
@@ -53,14 +54,7 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 			return new IosPackageResult { Success = true, Skipped = true, SkipReason = reason };
 		}
 
-		// App Store Connect rejects anything else in CFBundleShortVersionString (ITMS-90060), and
-		// only at upload, so a bad version fails here before any toolchain or keychain work.
-		if (!IsValidShortVersion(options.ShortVersion))
-		{
-			throw new ArgumentException(
-				$"'{options.ShortVersion}' is not a valid CFBundleShortVersionString. Apple accepts one to three period-separated non-negative integers, such as 1.4.3.",
-				nameof(options));
-		}
+		ValidatePackageIdentity(options);
 
 		// iOS archives only on macOS (the Xcode toolchain and the iOS workload are
 		// macOS-only). Skip cleanly elsewhere so the command is safe to call
@@ -109,6 +103,7 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 				RuntimeIdentifier = options.Runtime,
 				Configuration = options.Configuration,
 				Framework = string.IsNullOrEmpty(options.Framework) ? ResolveIosFramework(head) : options.Framework,
+				BundleId = options.BundleId,
 				CodesignKey = options.CodesignKey,
 				ProvisionName = options.ProvisionName,
 			};
@@ -157,12 +152,9 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 			throw new InvalidOperationException("The App Store Connect API key and issuer identifiers are required. Set APP_STORE_CONNECT_KEY_ID and APP_STORE_CONNECT_ISSUER_ID.");
 		}
 
+		// Throws when nothing is found: signing is available, so a missing archive means the
+		// package step didn't run or wrote elsewhere, and a green upload would hide that.
 		IReadOnlyList<string> ipas = LocateIpas(options);
-		if (ipas.Count == 0)
-		{
-			logger.WriteInfo("No iOS .ipa archives found to upload. Run 'ios package' first.");
-			return new IosUploadResult { Success = true };
-		}
 
 		// altool discovers the key by name under ~/.appstoreconnect/private_keys; place it
 		// there for the run and wipe it afterwards.
@@ -241,7 +233,10 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 	/// matching what <c>ios package</c> produced in the same workspace.
 	/// </summary>
 	/// <param name="options">The upload options.</param>
-	/// <returns>The archives to upload, in head order.</returns>
+	/// <returns>The archives to upload, in head order. Never empty.</returns>
+	/// <exception cref="InvalidOperationException">
+	/// The explicit path does not exist, or no head has an archive under its <c>bin</c> directory.
+	/// </exception>
 	public IReadOnlyList<string> LocateIpas(IosUploadOptions options)
 	{
 		Ensure.NotNull(options);
@@ -261,17 +256,28 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 			: [options.Project];
 
 		List<string> ipas = [];
+		List<string> searched = [];
 		foreach (string head in heads)
 		{
 			string headDir = Path.GetDirectoryName(Path.GetFullPath(head)) ?? Directory.GetCurrentDirectory();
-			string? ipa = FindIpa(Path.Combine(headDir, "bin"));
+			string binDir = Path.Combine(headDir, "bin");
+			string? ipa = FindIpa(binDir);
 			if (ipa is null)
 			{
 				logger.WriteWarning($"No .ipa found under {head}; nothing to upload for this head. Run 'ios package' first.");
+				searched.Add($"{head} ({binDir})");
 				continue;
 			}
 
 			ipas.Add(ipa);
+		}
+
+		if (ipas.Count == 0)
+		{
+			string where = searched.Count == 0
+				? $"no iOS heads were found in {options.WorkingDirectory}"
+				: $"searched {string.Join(", ", searched)}";
+			throw new InvalidOperationException($"No iOS .ipa archive found to upload: {where}. Run 'ios package' first, or pass --ipa.");
 		}
 
 		return ipas;
@@ -329,6 +335,33 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 	}
 
 	/// <summary>
+	/// Rejects a marketing version or bundle identifier Apple would refuse, before any toolchain
+	/// or keychain work.
+	/// </summary>
+	/// <param name="options">The package options to check.</param>
+	/// <exception cref="ArgumentException">The version or bundle identifier is not acceptable.</exception>
+	private static void ValidatePackageIdentity(IosPackageOptions options)
+	{
+		// App Store Connect rejects anything else in CFBundleShortVersionString (ITMS-90060), and
+		// only at upload, so a bad version fails here before any toolchain or keychain work.
+		if (!IsValidShortVersion(options.ShortVersion))
+		{
+			throw new ArgumentException(
+				$"'{options.ShortVersion}' is not a valid CFBundleShortVersionString. Apple accepts one to three period-separated non-negative integers, such as 1.4.3.",
+				nameof(options));
+		}
+
+		// The bundle id goes onto the publish command line, so reject anything outside the
+		// characters Apple allows before it can reach MSBuild.
+		if (!string.IsNullOrEmpty(options.BundleId) && !IsValidBundleId(options.BundleId))
+		{
+			throw new ArgumentException(
+				$"'{options.BundleId}' is not a valid bundle identifier. Apple accepts letters, digits, hyphens and periods, such as com.example.app.",
+				nameof(options));
+		}
+	}
+
+	/// <summary>
 	/// Determines whether a version is acceptable as <c>CFBundleShortVersionString</c>: one to
 	/// three period-separated non-negative integers, such as <c>1.4.3</c>.
 	/// </summary>
@@ -336,6 +369,15 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 	/// <returns><see langword="true"/> if App Store Connect accepts the version; otherwise <see langword="false"/>.</returns>
 	public static bool IsValidShortVersion(string? version) =>
 		!string.IsNullOrEmpty(version) && ShortVersionRegex.IsMatch(version);
+
+	/// <summary>
+	/// Determines whether a value is acceptable as <c>CFBundleIdentifier</c>: one or more
+	/// period-separated segments of letters, digits and hyphens, such as <c>com.example.app</c>.
+	/// </summary>
+	/// <param name="bundleId">The candidate bundle identifier.</param>
+	/// <returns><see langword="true"/> if Apple accepts the identifier; otherwise <see langword="false"/>.</returns>
+	public static bool IsValidBundleId(string? bundleId) =>
+		!string.IsNullOrEmpty(bundleId) && BundleIdRegex.IsMatch(bundleId);
 
 	/// <summary>
 	/// Reduces a computed SemVer version to the numeric core App Store Connect accepts as the
@@ -430,12 +472,13 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 		logger.WriteStepHeader($"Archiving iOS Head ({options.RuntimeIdentifier})");
 
 		string frameworkArg = string.IsNullOrEmpty(options.Framework) ? string.Empty : $" -f {options.Framework}";
+		string bundleIdArg = string.IsNullOrEmpty(options.BundleId) ? string.Empty : $" -p:ApplicationId={options.BundleId}";
 
 		// The signing properties carry the certificate common name and profile name. They
 		// are passed straight to MSBuild, matching the reference pipeline; the process
 		// runner does not echo arguments, so they are not logged here.
 		string args = $"publish \"{options.ProjectPath}\" --configuration {options.Configuration}{frameworkArg} " +
-			$"-p:RuntimeIdentifier={options.RuntimeIdentifier} -p:ArchiveOnBuild=true -p:BuildIpa=true " +
+			$"-p:RuntimeIdentifier={options.RuntimeIdentifier} -p:ArchiveOnBuild=true -p:BuildIpa=true{bundleIdArg} " +
 			$"-p:CodesignKey=\"{options.CodesignKey}\" -p:CodesignProvision=\"{options.ProvisionName}\"";
 
 		int exitCode = await processRunner.RunWithCallbackAsync(
@@ -688,22 +731,16 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 	{
 		// The runner's default `openssl` may be LibreSSL, which lacks the legacy provider
 		// and 3DES. Prefer a real OpenSSL 3 from Homebrew when present. Probing for brew is
-		// best-effort: when it is not installed, fall back to the default `openssl`.
-		try
+		// best-effort: when it is not installed the runner reports a failed result, and this falls
+		// back to the default `openssl`.
+		ProcessResult brew = await processRunner.RunAsync("brew", "--prefix openssl@3", null, cancellationToken).ConfigureAwait(false);
+		if (brew.Success)
 		{
-			ProcessResult brew = await processRunner.RunAsync("brew", "--prefix openssl@3", null, cancellationToken).ConfigureAwait(false);
-			if (brew.Success)
+			string candidate = Path.Combine(brew.StandardOutput.Trim(), "bin", "openssl");
+			if (File.Exists(candidate))
 			{
-				string candidate = Path.Combine(brew.StandardOutput.Trim(), "bin", "openssl");
-				if (File.Exists(candidate))
-				{
-					return candidate;
-				}
+				return candidate;
 			}
-		}
-		catch (System.ComponentModel.Win32Exception)
-		{
-			// brew is not on PATH; use the default openssl.
 		}
 
 		return "openssl";

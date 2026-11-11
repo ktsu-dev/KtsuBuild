@@ -2,6 +2,14 @@
 
 Changes since v2.21.0:
 
+- Fall back to GH_TOKEN when GITHUB_TOKEN is empty, and never clear GH_TOKEN [patch] (#293) (matt-edmondson)
+- Fail ios upload when signing is available but no .ipa is found [patch] (#294) (matt-edmondson)
+- Add --bundle-id to ios package [minor] (#295) (matt-edmondson)
+- Report a process that can't start as a failed run, so a missing gh means an unofficial build [patch] (#298) (matt-edmondson)
+- Read a literal OutputType and IsPackable false in the Ships column [patch] (#299) (matt-edmondson)
+- Skip unlisted versions in the profile's Stable badge and latest-SDK check [patch] (#304) (matt-edmondson)
+- Keep the version moving forward after a tag with any prerelease label [patch] (#308) (matt-edmondson)
+- Fail winget upload when gh fails or no manifests exist, and run gh in the workspace [minor] (#309) (matt-edmondson)
 - Warn when a profile readme --only name produces no row, and say why [patch] (#291) (matt-edmondson)
 - Recognise the main project from the GitHub repository name, ignoring case and trailing slashes [minor] (#290) (matt-edmondson)
 - Leave benchmark, sample, example and demo libraries out of the pack [patch] (#284) (matt-edmondson)

@@ -56,6 +56,27 @@ public class GitHubServiceTests
 	}
 
 	[TestMethod]
+	public async Task CreateReleaseAsync_EmptyToken_KeepsExistingGH_TOKEN()
+	{
+		StubGh(0);
+		string? original = Environment.GetEnvironmentVariable("GH_TOKEN");
+		Environment.SetEnvironmentVariable("GH_TOKEN", "pre-existing-token");
+
+		try
+		{
+			ReleaseOptions options = CreateReleaseOptions();
+			options.GithubToken = string.Empty;
+			await _service.CreateReleaseAsync(options).ConfigureAwait(false);
+
+			Assert.AreEqual("pre-existing-token", Environment.GetEnvironmentVariable("GH_TOKEN"));
+		}
+		finally
+		{
+			Environment.SetEnvironmentVariable("GH_TOKEN", original);
+		}
+	}
+
+	[TestMethod]
 	public async Task CreateReleaseAsync_WithGenerateNotes_IncludesGenerateNotesFlag()
 	{
 		StubGh(0);

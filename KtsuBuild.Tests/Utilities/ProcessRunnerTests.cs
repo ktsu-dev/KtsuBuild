@@ -249,6 +249,36 @@ public class ProcessRunnerTests
 			"The child process outlived cancellation and wrote its marker, so it was abandoned rather than killed.");
 	}
 
+	[TestMethod]
+	public async Task RunAsync_ExecutableNotOnPath_ReturnsAFailedResultNamingIt()
+	{
+		// A missing `gh` used to escape as a Win32Exception from process start, past every caller
+		// that handles a failed result, so `ci` and `release` crashed instead of assuming an
+		// unofficial build. Not being able to start is a failure like any other.
+		string missing = $"ktsubuild-missing-{Guid.NewGuid():N}";
+
+		ProcessResult result = await _runner.RunAsync(missing, ["--version"], _tempDir).ConfigureAwait(false);
+
+		Assert.IsFalse(result.Success);
+		Assert.AreEqual(ProcessRunner.CouldNotStartExitCode, result.ExitCode);
+		StringAssert.Contains(result.StandardError, missing);
+		StringAssert.Contains(result.StandardError, "PATH");
+	}
+
+	[TestMethod]
+	public async Task RunWithCallbackAsync_ExecutableNotOnPath_ReportsItOnTheErrorCallback()
+	{
+		string missing = $"ktsubuild-missing-{Guid.NewGuid():N}";
+		List<string> error = [];
+
+		int exitCode = await _runner.RunWithCallbackAsync(
+			missing, ["--version"], _tempDir, null, error.Add).ConfigureAwait(false);
+
+		Assert.AreEqual(ProcessRunner.CouldNotStartExitCode, exitCode);
+		Assert.HasCount(1, error);
+		StringAssert.Contains(error[0], missing);
+	}
+
 	private static string[] SplitLines(string value) =>
 		[.. value.Split('\n', StringSplitOptions.RemoveEmptyEntries).Select(l => l.Trim())];
 

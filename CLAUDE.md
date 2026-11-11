@@ -136,7 +136,7 @@ ktsubuild
     ├── build     # Build iOS head(s) for simulator + device, unsigned (macOS only)
     │   # Options: --workspace, --configuration, --verbose, --project, --runtime, --require-framework
     ├── package   # Provision toolchain + stamp version + sign + archive .ipa (macOS only)
-    │   # Options: --workspace, --configuration, --verbose, --project, --runtime, --framework, --version, --build-number
+    │   # Options: --workspace, --configuration, --verbose, --project, --runtime, --framework, --version, --build-number, --bundle-id
     └── upload    # Upload the signed .ipa to TestFlight (macOS only)
         # Options: --workspace, --configuration, --verbose, --project, --ipa
 ```
@@ -183,7 +183,8 @@ signed `.ipa`. The signing inputs carry secrets and are never logged; only the
 The `ios upload` command is the TestFlight delivery path (plan phase 4). It gates
 on `IOS_SIGNING_AVAILABLE` the same way as `package`, so it is also safe to call
 unconditionally. When signing is available it locates the produced `.ipa` (either
-the `--ipa` path, or by searching each detected head's `bin` directory), installs
+the `--ipa` path, or by searching each detected head's `bin` directory; finding
+none fails the command, naming each head and `bin` directory searched), installs
 the App Store Connect API key (`.p8`) under `~/.appstoreconnect/private_keys`, and
 runs `xcrun altool --upload-app --type ios --apiKey … --apiIssuer …` for each
 archive. `altool`'s exit code is unreliable (it has returned `0` on an App Store

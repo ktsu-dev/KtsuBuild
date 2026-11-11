@@ -363,15 +363,15 @@ The **Ships** column says what each repository produces, read from the SDK its p
 
 | Badge | Declared by | Meaning |
 |-------|-------------|---------|
-| `lib` | plain `ktsu.Sdk` | A NuGet package other projects reference |
+| `lib` | plain `ktsu.Sdk`, unless the project sets `<IsPackable>false</IsPackable>` | A NuGet package other projects reference |
 | `cli` | `ktsu.Sdk.ConsoleApp` | A command line program |
-| `app` | `ktsu.Sdk.App` | A windowed application |
+| `app` | `ktsu.Sdk.App`, a platform SDK with no kind SDK, or plain `ktsu.Sdk` with a literal `<OutputType>` of `Exe` or `WinExe` | An application the release publishes as per-platform zips |
 | `tool` | `ktsu.Sdk.Tool` | A .NET tool installed with `dotnet tool install` |
 
 A repository can ship several at once. Test, benchmark, sample, example, and demo projects are
 skipped, by file name and by the directories above them, so a demo application does not count as
 something the repository ships. Platform SDKs such as `ktsu.Sdk.Windows` say which platform a
-project targets rather than what kind of thing it is, so they are not shown.
+project targets rather than what kind of thing it is, so beside a kind SDK they add nothing.
 
 The **SDK** column shows the version each repository pins for `--sdk-package` in its `global.json`,
 green when the repository has kept up with the newest published version and yellow when it has been

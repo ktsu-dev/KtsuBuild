@@ -119,30 +119,21 @@ public class BuildConfigurationProviderTests
 	}
 
 	[TestMethod]
-	public async Task CreateAsync_WithCsxFiles_SetsBuildArgs()
+	public async Task CreateAsync_WithCsxFiles_LeavesTheObsoleteScriptPropertiesUnset()
 	{
 		SetupDefaultMocks();
 
-		// Create a .csx file
+		// RestoreAndBuildAsync is the one place that looks for .csx files. The provider must not walk the
+		// workspace a second time to fill in a copy of the same rule that nothing reads.
 		await File.WriteAllTextAsync(Path.Combine(_tempDir, "build.csx"), "// script").ConfigureAwait(false);
 
 		BuildConfigurationOptions options = CreateDefaultOptions();
 		BuildConfiguration config = await _provider.CreateAsync(options).ConfigureAwait(false);
 
-		Assert.IsTrue(config.UseDotnetScript);
-		Assert.AreEqual("-maxCpuCount:1", config.BuildArgs);
-	}
-
-	[TestMethod]
-	public async Task CreateAsync_NoCsxFiles_EmptyBuildArgs()
-	{
-		SetupDefaultMocks();
-
-		BuildConfigurationOptions options = CreateDefaultOptions();
-		BuildConfiguration config = await _provider.CreateAsync(options).ConfigureAwait(false);
-
+#pragma warning disable CS0618 // Pinning that the obsolete properties are no longer filled in.
 		Assert.IsFalse(config.UseDotnetScript);
 		Assert.AreEqual(string.Empty, config.BuildArgs);
+#pragma warning restore CS0618
 	}
 
 	[TestMethod]
@@ -318,6 +309,28 @@ public class BuildConfigurationProviderTests
 	{
 		SetupDefaultMocks();
 		Environment.SetEnvironmentVariable("GITHUB_TOKEN", null);
+		Environment.SetEnvironmentVariable("GH_TOKEN", "gh-token-value");
+
+		try
+		{
+			BuildConfiguration config = await _provider.CreateFromEnvironmentAsync(_tempDir).ConfigureAwait(false);
+
+			Assert.AreEqual("gh-token-value", config.GithubToken);
+		}
+		finally
+		{
+			Environment.SetEnvironmentVariable("GITHUB_TOKEN", null);
+			Environment.SetEnvironmentVariable("GH_TOKEN", null);
+		}
+	}
+
+	[TestMethod]
+	[DataRow("")]
+	[DataRow("   ")]
+	public async Task CreateFromEnvironmentAsync_BlankGITHUB_TOKEN_FallsBackToGH_TOKEN(string blank)
+	{
+		SetupDefaultMocks();
+		Environment.SetEnvironmentVariable("GITHUB_TOKEN", blank);
 		Environment.SetEnvironmentVariable("GH_TOKEN", "gh-token-value");
 
 		try

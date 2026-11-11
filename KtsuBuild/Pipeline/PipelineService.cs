@@ -245,9 +245,9 @@ public sealed class PipelineService
 	/// The <c>.csx</c> check is made here, once, rather than read off a configuration, so that a
 	/// caller with no git repository and no GitHub token can still run this stage, and so this is the
 	/// only live copy of the rule. Neither <c>ci</c> nor <c>build</c> carries a build arguments value
-	/// of its own. <see cref="BuildConfigurationProvider"/> still derives the same argument into
-	/// <c>BuildConfiguration.BuildArgs</c>, but nothing in production reads that property any more, so
-	/// that copy is dead and slated for removal in its own change.
+	/// of its own, and <see cref="BuildConfigurationProvider"/> no longer derives one either:
+	/// <c>BuildConfiguration.BuildArgs</c> and <c>BuildConfiguration.UseDotnetScript</c> are obsolete and
+	/// left unset, until the next major version removes them.
 	/// <para>
 	/// Taking no build arguments parameter is the point of the signature, and it is the signature
 	/// rather than any test that forecloses the defect. A caller that can pass its own separately

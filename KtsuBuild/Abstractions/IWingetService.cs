@@ -22,6 +22,8 @@ public interface IWingetService
 	/// </summary>
 	/// <param name="version">The release version.</param>
 	/// <param name="manifestDirectory">The directory containing manifest files.</param>
+	/// <param name="workingDirectory">The repository directory. <c>gh</c> runs here, so it uploads to this repository's release.</param>
 	/// <param name="cancellationToken">A cancellation token.</param>
-	public Task UploadManifestsAsync(string version, string manifestDirectory, CancellationToken cancellationToken = default);
+	/// <exception cref="InvalidOperationException">The directory holds no manifest files, or <c>gh release upload</c> failed.</exception>
+	public Task UploadManifestsAsync(string version, string manifestDirectory, string workingDirectory, CancellationToken cancellationToken = default);
 }
