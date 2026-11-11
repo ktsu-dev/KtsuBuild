@@ -13,12 +13,28 @@ public class SupportingProjectsTests
 	[DataRow("Keybinding.Demo/Keybinding.Demo.csproj")]
 	[DataRow("examples/ImGuiAppDemo/ImGuiAppDemo.csproj")]
 	[DataRow("benchmarks/Perf/Perf.csproj")]
+	[DataRow("Foo.Test/Foo.Test.csproj")]
+	[DataRow("Foo.Demo/Foo.Demo.csproj")]
+	[DataRow("Foo.Benchmarks/Foo.Benchmarks.csproj")]
+	[DataRow("foo.tests/foo.tests.csproj")]
+	[DataRow("Tests/Tests.csproj")]
+	[DataRow("Tests.csproj")]
+	[DataRow(@"Foo.Samples\Foo.Samples.csproj")]
+	[DataRow("ImGuiAppDemo/ImGuiAppDemo.csproj")]
+	[DataRow("WidgetTests/WidgetTests.csproj")]
+	[DataRow("Widget2Example/Widget2Example.csproj")]
 	public void IsSupporting_WithASupportingProject_ReturnsTrue(string path) =>
 		Assert.IsTrue(SupportingProjects.IsSupporting(path));
 
 	[TestMethod]
 	[DataRow("BlastMerge/BlastMerge.csproj")]
 	[DataRow("Widget/Widget.csproj")]
+	[DataRow("Latest/Latest.csproj")]
+	[DataRow("Contest/Contest.csproj")]
+	[DataRow("Protest/Protest.csproj")]
+	[DataRow("Attest/Attest.csproj")]
+	[DataRow("LATEST/LATEST.csproj")]
+	[DataRow("Foo.Latest/Foo.Latest.csproj")]
 	public void IsSupporting_WithADeliverable_ReturnsFalse(string path) =>
 		Assert.IsFalse(SupportingProjects.IsSupporting(path));
 
