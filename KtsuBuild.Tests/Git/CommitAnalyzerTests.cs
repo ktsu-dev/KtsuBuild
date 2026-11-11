@@ -154,6 +154,52 @@ public class CommitAnalyzerTests
 	}
 
 	[TestMethod]
+	public async Task AnalyzeAsync_MetadataCommitUnderFallbackIdentity_IsFiltered()
+	{
+		// The identity KtsuBuild itself commits metadata with when a CI checkout has none (#185).
+		SetupCommits([
+			new CommitInfo { Hash = "a", Subject = "Bump Polyfill from 11.4.0 to 11.4.1", Author = "dependabot[bot]" },
+			new CommitInfo { Hash = "b", Subject = "[bot][skip ci] Update Metadata", Author = "Github Actions" },
+		]);
+		_gitService.GetDiffAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+			.Returns(Task.FromResult(string.Empty));
+
+		(VersionType type, string _) = await _analyzer.AnalyzeAsync("/repo", "abc..def").ConfigureAwait(false);
+
+		Assert.AreEqual(VersionType.Prerelease, type);
+	}
+
+	[TestMethod]
+	public async Task AnalyzeAsync_MetadataSubjectUnderHumanIdentity_IsFiltered()
+	{
+		// A runner with a pre-set identity, or a developer running `metadata update` by hand.
+		SetupCommits([
+			new CommitInfo { Hash = "a", Subject = "Bump Polyfill from 11.4.0 to 11.4.1", Author = "dependabot[bot]" },
+			new CommitInfo { Hash = "b", Subject = "[bot][skip ci] Update Metadata", Author = "developer" },
+		]);
+		_gitService.GetDiffAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+			.Returns(Task.FromResult(string.Empty));
+
+		(VersionType type, string _) = await _analyzer.AnalyzeAsync("/repo", "abc..def").ConfigureAwait(false);
+
+		Assert.AreEqual(VersionType.Prerelease, type);
+	}
+
+	[TestMethod]
+	public async Task AnalyzeAsync_HumanCommitMentioningGithubActions_StillCounts()
+	{
+		SetupCommits([
+			new CommitInfo { Hash = "a", Subject = "Document the Github Actions fallback identity", Author = "developer" },
+		]);
+		_gitService.GetDiffAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+			.Returns(Task.FromResult(string.Empty));
+
+		(VersionType type, string _) = await _analyzer.AnalyzeAsync("/repo", "abc..def").ConfigureAwait(false);
+
+		Assert.AreEqual(VersionType.Patch, type);
+	}
+
+	[TestMethod]
 	public async Task AnalyzeAsync_BotCommitsAreFiltered_ReturnsPrerelease()
 	{
 		// Arrange

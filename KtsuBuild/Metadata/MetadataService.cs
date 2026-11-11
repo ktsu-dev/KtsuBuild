@@ -113,7 +113,7 @@ public class MetadataService(IGitService gitService, IBuildLogger logger) : IMet
 					// A fallback, not an override. A CI checkout has no identity of its own and gets
 					// this one; a developer running the command by hand keeps theirs and authors
 					// the metadata commit themselves.
-					await gitService.EnsureIdentityAsync(config.WorkspacePath, "Github Actions", "actions@users.noreply.github.com", cancellationToken).ConfigureAwait(false);
+					await gitService.EnsureIdentityAsync(config.WorkspacePath, AutomationIdentity.Name, AutomationIdentity.Email, cancellationToken).ConfigureAwait(false);
 					logger.WriteInfo("Committing changes...");
 					releaseHash = await gitService.CommitAsync(config.WorkspacePath, options.CommitMessage, cancellationToken).ConfigureAwait(false);
 					logger.WriteInfo("Pushing changes...");
