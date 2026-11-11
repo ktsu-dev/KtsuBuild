@@ -34,9 +34,11 @@ public class IosBuildService(IDotNetService dotNetService, IBuildLogger logger) 
 	{
 		Ensure.NotNull(options);
 
+		// A relative --project names a path in the workspace, where dotnet runs, not in
+		// the process directory, so every lookup below resolves it the same way.
 		IReadOnlyList<string> heads = string.IsNullOrEmpty(options.Project)
 			? dotNetService.GetIosHeads(options.WorkingDirectory)
-			: [options.Project];
+			: [DotNetService.ResolveAgainst(options.WorkingDirectory, options.Project)];
 
 		if (heads.Count == 0)
 		{

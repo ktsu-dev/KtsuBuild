@@ -668,7 +668,7 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger, st
 	/// the directory the test platform writes to the same one, even when the tool was invoked from
 	/// somewhere other than the workspace.
 	/// </remarks>
-	private static string ResolveAgainst(string workingDirectory, string path)
+	internal static string ResolveAgainst(string workingDirectory, string path)
 		=> Path.IsPathRooted(path) ? path : Path.GetFullPath(Path.Combine(workingDirectory, path));
 
 	/// <summary>
