@@ -1,6 +1,6 @@
-## v2.23.0 (minor)
+## v2.23.1 (patch)
 
-Changes since v2.22.0:
+Changes since v2.23.0:
 
-- Stop scanning for .csx files in BuildConfigurationProvider, and obsolete its copies of the rule [minor] (#307) (matt-edmondson)
+- Skip benchmarks, examples and SDK-only test projects in winget library detection [patch] (#301) (matt-edmondson)
 
