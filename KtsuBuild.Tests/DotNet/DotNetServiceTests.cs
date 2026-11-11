@@ -1103,6 +1103,10 @@ public class DotNetServiceTests
 	public void ClassifyTargetFrameworks_Empty_ReturnsNeutral() =>
 		Assert.AreEqual(ProjectPlatform.Neutral, DotNetService.ClassifyTargetFrameworks([]));
 
+	[TestMethod]
+	public void ClassifyTargetFrameworks_PropertyTokenAndIos_ReturnsIos() =>
+		Assert.AreEqual(ProjectPlatform.Ios, DotNetService.ClassifyTargetFrameworks(["$(TargetFrameworks)", "net10.0-ios"]));
+
 	// GetProjectPlatform
 
 	[TestMethod]
@@ -1137,6 +1141,56 @@ public class DotNetServiceTests
 	{
 		string projPath = Path.Combine(_tempDir, "Lib.csproj");
 		File.WriteAllText(projPath, "<Project><PropertyGroup><TargetFrameworks>net10.0;net10.0-ios</TargetFrameworks></PropertyGroup></Project>");
+
+		Assert.AreEqual(ProjectPlatform.Neutral, _service.GetProjectPlatform(projPath));
+	}
+
+	private const string IosSdkElementHead =
+		"<Project Sdk=\"Microsoft.NET.Sdk\">\n  <Sdk Name=\"ktsu.Sdk\" />\n  <Sdk Name=\"ktsu.Sdk.iOS\" />\n</Project>";
+
+	private const string IosSdkAttributeHead = "<Project Sdk=\"ktsu.Sdk.iOS/2.31.4\">\n</Project>";
+
+	[TestMethod]
+	public void GetProjectPlatform_IosSdkElementWithoutTargetFramework_ReturnsIos()
+	{
+		string projPath = Path.Combine(_tempDir, "Demo.iOS.csproj");
+		File.WriteAllText(projPath, IosSdkElementHead);
+
+		Assert.AreEqual(ProjectPlatform.Ios, _service.GetProjectPlatform(projPath));
+	}
+
+	[TestMethod]
+	public void GetProjectPlatform_IosSdkAttributeWithoutTargetFramework_ReturnsIos()
+	{
+		string projPath = Path.Combine(_tempDir, "Demo.iOS.csproj");
+		File.WriteAllText(projPath, IosSdkAttributeHead);
+
+		Assert.AreEqual(ProjectPlatform.Ios, _service.GetProjectPlatform(projPath));
+	}
+
+	[TestMethod]
+	public void GetProjectPlatform_PropertyTokenAndIosTargetFramework_ReturnsIos()
+	{
+		string projPath = Path.Combine(_tempDir, "App.iOS.csproj");
+		File.WriteAllText(projPath, "<Project><PropertyGroup><TargetFrameworks>$(TargetFrameworks);net10.0-ios</TargetFrameworks></PropertyGroup></Project>");
+
+		Assert.AreEqual(ProjectPlatform.Ios, _service.GetProjectPlatform(projPath));
+	}
+
+	[TestMethod]
+	public void GetProjectPlatform_IosSdkWithNeutralTargetFramework_ReturnsNeutral()
+	{
+		string projPath = Path.Combine(_tempDir, "Shared.csproj");
+		File.WriteAllText(projPath, "<Project Sdk=\"ktsu.Sdk.iOS/2.31.4\"><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>");
+
+		Assert.AreEqual(ProjectPlatform.Neutral, _service.GetProjectPlatform(projPath));
+	}
+
+	[TestMethod]
+	public void GetProjectPlatform_NoTargetFrameworkWithoutIosSdk_ReturnsNeutral()
+	{
+		string projPath = Path.Combine(_tempDir, "Tool.csproj");
+		File.WriteAllText(projPath, "<Project Sdk=\"Microsoft.NET.Sdk\">\n  <Sdk Name=\"ktsu.Sdk.ConsoleApp\" />\n</Project>");
 
 		Assert.AreEqual(ProjectPlatform.Neutral, _service.GetProjectPlatform(projPath));
 	}
@@ -1388,6 +1442,21 @@ public class DotNetServiceTests
 
 		Assert.AreEqual(1, heads.Count);
 		Assert.IsTrue(heads[0].EndsWith("MyApp.iOS.csproj", StringComparison.Ordinal));
+	}
+
+	[TestMethod]
+	[DataRow(IosSdkElementHead)]
+	[DataRow(IosSdkAttributeHead)]
+	public void GetIosHeads_FindsHeadWhoseTargetFrameworkComesFromTheSdk(string projectContent)
+	{
+		string headDir = Path.Combine(_tempDir, "Demo.iOS");
+		Directory.CreateDirectory(headDir);
+		File.WriteAllText(Path.Combine(headDir, "Demo.iOS.csproj"), projectContent);
+
+		IReadOnlyList<string> heads = _service.GetIosHeads(_tempDir);
+
+		Assert.AreEqual(1, heads.Count);
+		Assert.IsTrue(heads[0].EndsWith("Demo.iOS.csproj", StringComparison.Ordinal));
 	}
 
 	[TestMethod]
