@@ -222,64 +222,66 @@ public class TestCommand : Command
 				string[] platformSkipPatterns = [.. skipped.Select(p => Path.GetRelativePath(workspace, p.Project).Replace('\\', '/'))];
 				string[] filterPatterns = [.. exclude, .. platformSkipPatterns];
 
-				if (filterPatterns.Length > 0)
-				{
-					string? solution = SolutionFilter.FindSolution(workspace);
-
-					if (solution is null)
-					{
-						logger.WriteWarning("The workspace has no solution file, so nothing could be excluded from the test run.");
-					}
-					else
-					{
-						// The filter is written from the solution's own project list, so it governs
-						// what runs. This list is the same patterns applied to the test projects, so
-						// what gets reported below matches what the filter actually left out.
-						excludedFromRun = [.. toRun.Where(p => exclude.Any(pattern =>
-							SolutionFilter.Matches(Path.GetRelativePath(workspace, p.Project), pattern)))];
-						toRun = [.. toRun.Except(excludedFromRun)];
-
-						solutionFilter = Path.Combine(workspace, "ktsubuild.filtered.slnf");
-						IReadOnlyList<string> excludedProjects = SolutionFilter.Write(solution, filterPatterns, solutionFilter);
-
-						// A project silently dropped from a run looks identical to a passing run, so
-						// every exclusion is named, and a pattern that matched nothing is called out
-						// rather than left to look like it worked. Platform skips were already named
-						// above (with the reason), so they are not repeated here.
-						HashSet<string> alreadyReported = new(platformSkipPatterns, StringComparer.OrdinalIgnoreCase);
-						foreach (string project in excludedProjects)
-						{
-							string normalized = project.Replace('\\', '/');
-
-							if (!alreadyReported.Contains(normalized))
-							{
-								logger.WriteInfo($"Excluding {normalized} from the test run.");
-							}
-						}
-
-						// Reported, but not as a warning. One workflow file is shared across every
-						// repository, so it passes the same patterns everywhere and matching nothing
-						// is the ordinary case for a repository that has no such projects yet. A
-						// warning on every run of most repositories is the kind of noise that trains
-						// people to stop reading warnings.
-						bool anyExcludeOptionMatched = excludedProjects.Any(project => exclude.Any(pattern =>
-							SolutionFilter.Matches(project, pattern)));
-
-						if (exclude.Length > 0 && !anyExcludeOptionMatched)
-						{
-							logger.WriteInfo($"--exclude matched no projects in {Path.GetFileName(solution)}. Patterns: {string.Join(", ", exclude)}");
-						}
-					}
-				}
-
-				if (toRun.Count == 0)
-				{
-					logger.WriteInfo("Every test project was excluded. Nothing to run.");
-					return 0;
-				}
-
+				// Everything from here to the end of the run is inside the try, so the filter is
+				// deleted on every path once it is written, the early "nothing to run" return included.
 				try
 				{
+					if (filterPatterns.Length > 0)
+					{
+						string? solution = SolutionFilter.FindSolution(workspace);
+
+						if (solution is null)
+						{
+							logger.WriteWarning("The workspace has no solution file, so nothing could be excluded from the test run.");
+						}
+						else
+						{
+							// The filter is written from the solution's own project list, so it governs
+							// what runs. This list is the same patterns applied to the test projects, so
+							// what gets reported below matches what the filter actually left out.
+							excludedFromRun = [.. toRun.Where(p => exclude.Any(pattern =>
+								SolutionFilter.Matches(Path.GetRelativePath(workspace, p.Project), pattern)))];
+							toRun = [.. toRun.Except(excludedFromRun)];
+
+							solutionFilter = Path.Combine(workspace, "ktsubuild.filtered.slnf");
+							IReadOnlyList<string> excludedProjects = SolutionFilter.Write(solution, filterPatterns, solutionFilter);
+
+							// A project silently dropped from a run looks identical to a passing run, so
+							// every exclusion is named, and a pattern that matched nothing is called out
+							// rather than left to look like it worked. Platform skips were already named
+							// above (with the reason), so they are not repeated here.
+							HashSet<string> alreadyReported = new(platformSkipPatterns, StringComparer.OrdinalIgnoreCase);
+							foreach (string project in excludedProjects)
+							{
+								string normalized = project.Replace('\\', '/');
+
+								if (!alreadyReported.Contains(normalized))
+								{
+									logger.WriteInfo($"Excluding {normalized} from the test run.");
+								}
+							}
+
+							// Reported, but not as a warning. One workflow file is shared across every
+							// repository, so it passes the same patterns everywhere and matching nothing
+							// is the ordinary case for a repository that has no such projects yet. A
+							// warning on every run of most repositories is the kind of noise that trains
+							// people to stop reading warnings.
+							bool anyExcludeOptionMatched = excludedProjects.Any(project => exclude.Any(pattern =>
+								SolutionFilter.Matches(project, pattern)));
+
+							if (exclude.Length > 0 && !anyExcludeOptionMatched)
+							{
+								logger.WriteInfo($"--exclude matched no projects in {Path.GetFileName(solution)}. Patterns: {string.Join(", ", exclude)}");
+							}
+						}
+					}
+
+					if (toRun.Count == 0)
+					{
+						logger.WriteInfo("Every test project was excluded. Nothing to run.");
+						return 0;
+					}
+
 					await dotNetService.TestAsync(workspace, configuration, "coverage", hostRuntimeOnly: true, solutionFilter, cancellationToken).ConfigureAwait(false);
 				}
 				finally
