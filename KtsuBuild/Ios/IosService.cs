@@ -678,10 +678,10 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 	{
 		// A fresh, default, unlocked keychain with an auto-lock timeout. The runner is
 		// ephemeral, so this lives only for the run.
-		await RunOrThrowAsync(SecurityTool, $"create-keychain -p \"{keychainPassword}\" {SigningKeychain}", null, "Failed to create the signing keychain.", cancellationToken).ConfigureAwait(false);
-		await RunOrThrowAsync(SecurityTool, $"default-keychain -s {SigningKeychain}", null, "Failed to set the default keychain.", cancellationToken).ConfigureAwait(false);
-		await RunOrThrowAsync(SecurityTool, $"unlock-keychain -p \"{keychainPassword}\" {SigningKeychain}", null, "Failed to unlock the signing keychain.", cancellationToken).ConfigureAwait(false);
-		await RunOrThrowAsync(SecurityTool, $"set-keychain-settings -lut 3600 {SigningKeychain}", null, "Failed to configure keychain settings.", cancellationToken).ConfigureAwait(false);
+		await RunOrThrowAsync(SecurityTool, ["create-keychain", "-p", keychainPassword, SigningKeychain], null, "Failed to create the signing keychain.", cancellationToken).ConfigureAwait(false);
+		await RunOrThrowAsync(SecurityTool, ["default-keychain", "-s", SigningKeychain], null, "Failed to set the default keychain.", cancellationToken).ConfigureAwait(false);
+		await RunOrThrowAsync(SecurityTool, ["unlock-keychain", "-p", keychainPassword, SigningKeychain], null, "Failed to unlock the signing keychain.", cancellationToken).ConfigureAwait(false);
+		await RunOrThrowAsync(SecurityTool, ["set-keychain-settings", "-lut", "3600", SigningKeychain], null, "Failed to configure keychain settings.", cancellationToken).ConfigureAwait(false);
 	}
 
 	private async Task ImportCertificateAsync(byte[] certBytes, IosPackageOptions options, string workDir, CancellationToken cancellationToken)
@@ -695,20 +695,21 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 #endif
 
 		// `security import` infers the .p12 format from the extension and the explicit
-		// `-f pkcs12`, and authorizes codesign/security to use the key.
-		string importArgs = $"import \"{certPath}\" -f pkcs12 -k {SigningKeychain} -P \"{options.CertificatePassword}\" -T /usr/bin/codesign -T /usr/bin/security";
-		ProcessResult import = await processRunner.RunAsync(SecurityTool, importArgs, null, cancellationToken).ConfigureAwait(false);
+		// `-f pkcs12`, and authorizes codesign/security to use the key. Every signing command
+		// passes the secrets as separate arguments: a password is arbitrary text, and quoting
+		// it into one command line breaks on a `"` or a trailing `\`.
+		ProcessResult import = await processRunner.RunAsync(SecurityTool, ImportArguments(certPath, options.CertificatePassword), null, cancellationToken).ConfigureAwait(false);
 		if (!import.Success)
 		{
 			logger.WriteWarning("Direct certificate import failed; transcoding to a 3DES PKCS#12 and retrying.");
 			string legacy = await TranscodeP12ToLegacyAsync(certPath, options.CertificatePassword, workDir, cancellationToken).ConfigureAwait(false);
-			await RunOrThrowAsync(SecurityTool, $"import \"{legacy}\" -f pkcs12 -k {SigningKeychain} -P \"{options.CertificatePassword}\" -T /usr/bin/codesign -T /usr/bin/security", null, "Failed to import the signing certificate after the 3DES transcode.", cancellationToken).ConfigureAwait(false);
+			await RunOrThrowAsync(SecurityTool, ImportArguments(legacy, options.CertificatePassword), null, "Failed to import the signing certificate after the 3DES transcode.", cancellationToken).ConfigureAwait(false);
 		}
 
 		logger.WriteInfo("Imported the signing certificate.");
 
 		// Allow codesign to use the key without an interactive prompt.
-		await RunOrThrowAsync(SecurityTool, $"set-key-partition-list -S apple-tool:,apple:,codesign: -s -k \"{options.KeychainPassword}\" {SigningKeychain}", null, "Failed to set the keychain key partition list.", cancellationToken).ConfigureAwait(false);
+		await RunOrThrowAsync(SecurityTool, ["set-key-partition-list", "-S", "apple-tool:,apple:,codesign:", "-s", "-k", options.KeychainPassword, SigningKeychain], null, "Failed to set the keychain key partition list.", cancellationToken).ConfigureAwait(false);
 	}
 
 	private async Task<string> TranscodeP12ToLegacyAsync(string certPath, string password, string workDir, CancellationToken cancellationToken)
@@ -719,10 +720,10 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 
 		// -legacy loads the legacy provider alongside the default, so this reads both modern
 		// AES and old RC2/3DES inputs.
-		await RunOrThrowAsync(openssl, $"pkcs12 -in \"{certPath}\" -legacy -nodes -passin pass:\"{password}\" -out \"{pem}\"", null, "Could not open the .p12 — wrong certificate password, or it is not a valid PKCS#12.", cancellationToken).ConfigureAwait(false);
+		await RunOrThrowAsync(openssl, ["pkcs12", "-in", certPath, "-legacy", "-nodes", "-passin", $"pass:{password}", "-out", pem], null, "Could not open the .p12 — wrong certificate password, or it is not a valid PKCS#12.", cancellationToken).ConfigureAwait(false);
 
 		// Force 3DES for both bags and a SHA-1 MAC, the format macOS can import.
-		await RunOrThrowAsync(openssl, $"pkcs12 -export -legacy -certpbe PBE-SHA1-3DES -keypbe PBE-SHA1-3DES -macalg sha1 -in \"{pem}\" -out \"{legacy}\" -passout pass:\"{password}\"", null, "Failed to transcode the certificate to a 3DES PKCS#12.", cancellationToken).ConfigureAwait(false);
+		await RunOrThrowAsync(openssl, ["pkcs12", "-export", "-legacy", "-certpbe", "PBE-SHA1-3DES", "-keypbe", "PBE-SHA1-3DES", "-macalg", "sha1", "-in", pem, "-out", legacy, "-passout", $"pass:{password}"], null, "Failed to transcode the certificate to a 3DES PKCS#12.", cancellationToken).ConfigureAwait(false);
 
 		return legacy;
 	}
@@ -763,6 +764,25 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 		await File.WriteAllBytesAsync(profilePath, profileBytes, cancellationToken).ConfigureAwait(false);
 #endif
 		logger.WriteInfo("Installed the provisioning profile.");
+	}
+
+	private static string[] ImportArguments(string certificatePath, string certificatePassword) =>
+		["import", certificatePath, "-f", "pkcs12", "-k", SigningKeychain, "-P", certificatePassword, "-T", "/usr/bin/codesign", "-T", "/usr/bin/security"];
+
+	private async Task RunOrThrowAsync(string fileName, IReadOnlyList<string> arguments, string? workingDirectory, string failureMessage, CancellationToken cancellationToken)
+	{
+		int exitCode = await processRunner.RunWithCallbackAsync(
+			fileName,
+			arguments,
+			workingDirectory,
+			logger.WriteInfo,
+			logger.WriteError,
+			cancellationToken).ConfigureAwait(false);
+
+		if (exitCode != 0)
+		{
+			throw new InvalidOperationException($"{failureMessage} (exit code {exitCode})");
+		}
 	}
 
 	private async Task RunOrThrowAsync(string fileName, string arguments, string? workingDirectory, string failureMessage, CancellationToken cancellationToken)

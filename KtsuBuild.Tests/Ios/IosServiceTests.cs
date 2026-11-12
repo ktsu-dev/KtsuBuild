@@ -6,6 +6,7 @@ using KtsuBuild.Abstractions;
 using KtsuBuild.Ios;
 using KtsuBuild.Tests.Helpers;
 using KtsuBuild.Tests.Mocks;
+using KtsuBuild.Utilities;
 using NSubstitute;
 
 [TestClass]
@@ -546,6 +547,66 @@ public class IosServiceTests
 				ShortVersion = "1.0.0",
 				CertificateP12Base64 = string.Empty,
 			})).ConfigureAwait(false);
+	}
+
+	// SetupSigningAsync — secret passwords stay one argument each
+
+	[TestMethod]
+	[DataRow("ab\"cd")]
+	[DataRow("abc\\")]
+	[DataRow("pass word \\\" x")]
+	public async Task SetupSigningAsync_PassesEachPasswordAsOneArgument(string password)
+	{
+		List<(string FileName, string[] Arguments)> calls = [];
+		_processRunner.RunWithCallbackAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
+			.Returns(callInfo =>
+			{
+				string[] arguments = [.. callInfo.ArgAt<IReadOnlyList<string>>(1)];
+				calls.Add((callInfo.ArgAt<string>(0), arguments));
+
+				// Stop at the partition list, before the profile is written under the user's home.
+				return arguments[0] == "set-key-partition-list" ? 1 : 0;
+			});
+
+		// The direct import fails, so the openssl transcode and the second import run too.
+		_processRunner.RunAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+			.Returns(callInfo =>
+			{
+				calls.Add((callInfo.ArgAt<string>(0), [.. callInfo.ArgAt<IReadOnlyList<string>>(1)]));
+				return new ProcessResult { ExitCode = 1, StandardOutput = string.Empty, StandardError = string.Empty };
+			});
+		_processRunner.RunAsync("brew", Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+			.Returns(new ProcessResult { ExitCode = 1, StandardOutput = string.Empty, StandardError = string.Empty });
+
+		InvalidOperationException ex = await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+			() => _service.SetupSigningAsync(new IosPackageOptions
+			{
+				WorkingDirectory = _tempDir,
+				ShortVersion = "1.0.0",
+				CertificateP12Base64 = Convert.ToBase64String([1, 2, 3]),
+				ProvisioningProfileBase64 = Convert.ToBase64String([4, 5, 6]),
+				CertificatePassword = password,
+				KeychainPassword = password,
+			}, TestContext.CancellationToken)).ConfigureAwait(false);
+		StringAssert.Contains(ex.Message, "partition list");
+
+		string[] Find(string first, int occurrence = 0) => calls.Where(c => c.Arguments[0] == first).Select(c => c.Arguments).ElementAt(occurrence);
+
+		CollectionAssert.AreEqual(new[] { "create-keychain", "-p", password, "build.keychain" }, Find("create-keychain"));
+		CollectionAssert.AreEqual(new[] { "unlock-keychain", "-p", password, "build.keychain" }, Find("unlock-keychain"));
+		for (int i = 0; i < 2; i++)
+		{
+			string[] import = Find("import", i);
+			Assert.HasCount(12, import);
+			CollectionAssert.AreEqual(new[] { "-P", password, "-T", "/usr/bin/codesign", "-T", "/usr/bin/security" }, import[6..]);
+		}
+
+		string[] read = Find("pkcs12", 0);
+		Assert.AreEqual("pass:" + password, read[Array.IndexOf(read, "-passin") + 1]);
+		string[] write = Find("pkcs12", 1);
+		Assert.AreEqual("pass:" + password, write[^1]);
+		Assert.AreEqual("-passout", write[^2]);
+		CollectionAssert.AreEqual(new[] { "-k", password, "build.keychain" }, Find("set-key-partition-list")[^3..]);
 	}
 
 	// Static helpers
