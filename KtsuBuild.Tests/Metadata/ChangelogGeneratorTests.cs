@@ -183,6 +183,48 @@ public class ChangelogGeneratorTests
 	}
 
 	[TestMethod]
+	[DataRow("v1.0.1-rc.1")]
+	[DataRow("v1.0.1-rc1")]
+	[DataRow("v1.0.1-alpha.beta.1")]
+	[DataRow("v1.0.1-dev")]
+	public async Task GenerateAsync_PrereleaseOutsideTheLabelDotNumberFormIsStillAPrerelease(string prereleaseTag)
+	{
+		// Arrange: v1.0.0, then "Feature A" tagged as a prerelease of 1.0.1, then "Fix B" (untagged)
+		// released as v1.0.1. Every spelling of the prerelease must give the same changelog (#322).
+		SetupTaggedHistory(
+			[prereleaseTag, "v1.0.0"],
+			new Dictionary<string, IReadOnlyList<CommitInfo>>
+			{
+				[$"sha-v1.0.0..sha-{prereleaseTag}"] = [new CommitInfo { Hash = "aaa", Subject = "Feature A", Author = "developer" }],
+				[$"sha-{prereleaseTag}..head"] = [new CommitInfo { Hash = "bbb", Subject = "Fix B", Author = "developer" }],
+				["sha-v1.0.0..head"] =
+				[
+					new CommitInfo { Hash = "bbb", Subject = "Fix B", Author = "developer" },
+					new CommitInfo { Hash = "aaa", Subject = "Feature A", Author = "developer" },
+				],
+			});
+
+		// Act
+		await _generator.GenerateAsync(
+			version: "1.0.1",
+			commitHash: "head",
+			workingDirectory: "/repo",
+			outputPath: _tempDir,
+			lineEnding: "\n").ConfigureAwait(false);
+
+		// Assert
+		string content = await File.ReadAllTextAsync(Path.Combine(_tempDir, "CHANGELOG.md")).ConfigureAwait(false);
+		string stable = GetSection(content, "v1.0.1");
+		Assert.IsTrue(stable.StartsWith("## v1.0.1 (patch)", StringComparison.Ordinal), content);
+		Assert.IsTrue(stable.Contains("Changes since v1.0.0:"), content);
+		Assert.IsTrue(stable.Contains("Fix B"), content);
+		Assert.IsTrue(stable.Contains("Feature A"), content);
+		string prerelease = GetSection(content, prereleaseTag);
+		Assert.IsTrue(prerelease.StartsWith($"## {prereleaseTag} (prerelease)", StringComparison.Ordinal), content);
+		Assert.IsTrue(prerelease.Contains("Feature A"), content);
+	}
+
+	[TestMethod]
 	public async Task GenerateAsync_LaterPrereleaseDiffsAgainstThePreviousPrerelease()
 	{
 		// Arrange

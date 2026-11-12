@@ -167,7 +167,7 @@ public class VersionCalculator(IGitService gitService, IBuildLogger logger)
 	/// <summary>
 	/// Splits a prerelease into the label to keep and the number to bump.
 	/// </summary>
-	private static (string Label, int Number) ParsePrerelease(string prerelease)
+	internal static (string Label, int Number) ParsePrerelease(string prerelease)
 	{
 		int lastDot = prerelease.LastIndexOf('.');
 		string lastIdentifier = lastDot >= 0 ? prerelease[(lastDot + 1)..] : prerelease;
