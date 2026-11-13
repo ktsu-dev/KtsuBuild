@@ -336,11 +336,14 @@ public sealed class PipelineService
 			// than silently skip the validation.
 			default:
 				_logger.WriteStepHeader("Validating iOS Head(s)");
-				IosBuildService iosBuildService = new(_dotNetService, _logger);
+				IosBuildService iosBuildService = new(_dotNetService, _processRunner, _logger);
+				(string xcodeVersion, string workloadVersion) = BuildConfigurationProvider.ReadIosToolchainPins();
 				bool success = await iosBuildService.BuildAsync(new IosBuildOptions
 				{
 					WorkingDirectory = workspace,
 					Configuration = configuration,
+					XcodeVersion = xcodeVersion,
+					WorkloadVersion = workloadVersion,
 				}, cancellationToken).ConfigureAwait(false);
 
 				if (success)

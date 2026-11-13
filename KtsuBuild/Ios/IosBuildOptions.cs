@@ -35,4 +35,16 @@ public class IosBuildOptions
 	/// launch-crash class.
 	/// </summary>
 	public IReadOnlyList<string> RequiredFrameworks { get; set; } = [];
+
+	/// <summary>
+	/// Gets or sets the Xcode version to select before building (from <c>IOS_XCODE_VERSION</c>).
+	/// When empty, the Xcode already selected on the host is used.
+	/// </summary>
+	public string XcodeVersion { get; set; } = string.Empty;
+
+	/// <summary>
+	/// Gets or sets the iOS workload version to install before building (from
+	/// <c>IOS_WORKLOAD_VERSION</c>). When empty, the workload already installed is used.
+	/// </summary>
+	public string WorkloadVersion { get; set; } = string.Empty;
 }
