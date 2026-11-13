@@ -267,12 +267,18 @@ Reason: Found changes warranting at least a patch version
 Is Prerelease: False
 ```
 
+Standard output carries only these lines. The diagnostics written while the version is calculated
+go to standard error.
+
 #### `version bump`
 
-Calculate and display the next version number.
+Calculate and display the next version number. Standard output carries the version alone, with the
+diagnostics on standard error, so a script can capture it:
 
 ```bash
 ktsubuild version bump [options]
+
+V=$(ktsubuild version bump --workspace .)
 ```
 
 #### `version create`

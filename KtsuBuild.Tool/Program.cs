@@ -102,7 +102,7 @@ internal sealed class Program
 		rootCommand.Subcommands.Add(command);
 	}
 
-	private static void AddVersionCommand(RootCommand rootCommand, IProcessRunner processRunner, IBuildLogger logger)
+	internal static void AddVersionCommand(RootCommand rootCommand, IProcessRunner processRunner, IBuildLogger logger)
 	{
 		VersionCommand versionCommand = new();
 
@@ -113,10 +113,12 @@ internal sealed class Program
 			string workspace = parseResult.GetValue(GlobalOptions.Workspace)!;
 			bool verbose = parseResult.GetValue(GlobalOptions.Verbose);
 
-			logger.VerboseEnabled = verbose;
+			// Standard output carries the result alone, so a script can capture it; the
+			// diagnostics the version calculation writes go to standard error.
+			KtsuBuild.Utilities.BuildLogger diagnostics = new() { VerboseEnabled = verbose, UseStandardError = true };
 
-			KtsuBuild.Git.GitService gitService = new(processRunner, logger);
-			KtsuBuild.Git.VersionCalculator versionCalculator = new(gitService, logger);
+			KtsuBuild.Git.GitService gitService = new(processRunner, diagnostics);
+			KtsuBuild.Git.VersionCalculator versionCalculator = new(gitService, diagnostics);
 
 #pragma warning disable CA1031 // Top-level command handler must catch all exceptions
 			try
@@ -135,7 +137,7 @@ internal sealed class Program
 			}
 			catch (Exception ex)
 			{
-				logger.WriteError($"Failed to get version info: {ex.Message}");
+				diagnostics.WriteError($"Failed to get version info: {ex.Message}");
 				return 1;
 			}
 #pragma warning restore CA1031
@@ -148,10 +150,12 @@ internal sealed class Program
 			string workspace = parseResult.GetValue(GlobalOptions.Workspace)!;
 			bool verbose = parseResult.GetValue(GlobalOptions.Verbose);
 
-			logger.VerboseEnabled = verbose;
+			// Standard output carries the result alone, so a script can capture it; the
+			// diagnostics the version calculation writes go to standard error.
+			KtsuBuild.Utilities.BuildLogger diagnostics = new() { VerboseEnabled = verbose, UseStandardError = true };
 
-			KtsuBuild.Git.GitService gitService = new(processRunner, logger);
-			KtsuBuild.Git.VersionCalculator versionCalculator = new(gitService, logger);
+			KtsuBuild.Git.GitService gitService = new(processRunner, diagnostics);
+			KtsuBuild.Git.VersionCalculator versionCalculator = new(gitService, diagnostics);
 
 #pragma warning disable CA1031 // Top-level command handler must catch all exceptions
 			try
@@ -164,7 +168,7 @@ internal sealed class Program
 			}
 			catch (Exception ex)
 			{
-				logger.WriteError($"Failed to calculate version: {ex.Message}");
+				diagnostics.WriteError($"Failed to calculate version: {ex.Message}");
 				return 1;
 			}
 #pragma warning restore CA1031
