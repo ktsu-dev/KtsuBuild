@@ -53,8 +53,27 @@ internal static class SdkReferencePatterns
 	/// Compile it with <see cref="System.Text.RegularExpressions.RegexOptions.IgnoreCase"/>, so
 	/// that casing variants such as <c>ktsu.Sdk.iOS</c> and <c>ktsu.Sdk.MacOS</c> also match.
 	/// </summary>
-	internal const string ExecutableSdk =
-		@"Sdk(?:\s+Name)?\s*=\s*""[^""]*\.(?:" + ExecutableSuffixes + @")[/""]";
+	internal const string ExecutableSdk = SdkReferenceOpen + ExecutableSuffixes + SdkReferenceClose;
+
+	/// <summary>
+	/// Matches a reference to <c>ktsu.Sdk.iOS</c>, in either the single-attribute or the
+	/// multi-element form of <see cref="ExecutableSdk"/>. That SDK sets the <c>-ios</c> target
+	/// framework itself, so a consuming project often carries no literal target framework and
+	/// can only be recognized as iOS by the SDK it references. Compile it with
+	/// <see cref="System.Text.RegularExpressions.RegexOptions.IgnoreCase"/>.
+	/// </summary>
+	internal const string IosSdk = SdkReferenceOpen + "Ios" + SdkReferenceClose;
+
+	/// <summary>
+	/// The start of an SDK reference up to the alternation of name suffixes: the
+	/// <c>Sdk="…</c> attribute or <c>Sdk Name="…</c> element, through the dot before the suffix.
+	/// </summary>
+	private const string SdkReferenceOpen = @"Sdk(?:\s+Name)?\s*=\s*""[^""]*\.(?:";
+
+	/// <summary>
+	/// The end of an SDK reference after the name suffix: a version separator or the closing quote.
+	/// </summary>
+	private const string SdkReferenceClose = @")[/""]";
 
 	/// <summary>
 	/// Matches a literal <c>&lt;OutputType&gt;Exe&lt;/OutputType&gt;</c>, how a project on plain
