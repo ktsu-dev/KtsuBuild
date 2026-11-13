@@ -322,8 +322,10 @@ public class IosServiceTests
 				throw new InvalidOperationException("upload failed");
 			}
 		}
-		catch (InvalidOperationException) when (uploadFails)
+		catch (InvalidOperationException ex) when (uploadFails)
 		{
+			// The simulated upload failure; the restore in finally is what is under test.
+			Assert.AreEqual("upload failed", ex.Message);
 		}
 		finally
 		{
