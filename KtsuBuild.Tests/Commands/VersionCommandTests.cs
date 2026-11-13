@@ -48,11 +48,14 @@ public class VersionCommandTests
 
 			Directory.Delete(_repo, recursive: true);
 		}
-		catch (IOException)
+		catch (IOException ex)
 		{
+			// Leaving a temp repository behind must not fail the test; report it instead.
+			TestContext.WriteLine($"Could not delete {_repo}: {ex.Message}");
 		}
-		catch (UnauthorizedAccessException)
+		catch (UnauthorizedAccessException ex)
 		{
+			TestContext.WriteLine($"Could not delete {_repo}: {ex.Message}");
 		}
 	}
 
