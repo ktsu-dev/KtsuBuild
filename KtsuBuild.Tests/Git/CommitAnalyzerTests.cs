@@ -236,6 +236,122 @@ public class CommitAnalyzerTests
 		Assert.IsTrue(reason.Contains("API changes"));
 	}
 
+	private async Task<VersionType> AnalyzeDiffAsync(string diff)
+	{
+		SetupSubjects(["Change code"]);
+		_gitService.GetDiffAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+			.Returns(Task.FromResult(diff));
+		(VersionType type, string _) = await _analyzer.AnalyzeAsync("/repo", "abc..def").ConfigureAwait(false);
+		return type;
+	}
+
+	[TestMethod]
+	public async Task AnalyzeAsync_TestOnlyDiff_IsNotAnApiChange()
+	{
+		// c6a95ec: a test-only commit whose public test class forced a minor bump (#173).
+		string diff = """
+			diff --git a/KtsuBuild.Tests/Commands/CiCommandTests.cs b/KtsuBuild.Tests/Commands/CiCommandTests.cs
+			new file mode 100644
+			--- /dev/null
+			+++ b/KtsuBuild.Tests/Commands/CiCommandTests.cs
+			@@ -0,0 +1,9 @@
+			+namespace KtsuBuild.Tests.Commands;
+			+
+			+[TestClass]
+			+public class CiCommandTests
+			+{
+			+	[TestMethod]
+			+	public async Task Ci_RunsThePipeline() { }
+			+	public CiCommandTests() { }
+			+}
+			""";
+
+		Assert.AreEqual(VersionType.Patch, await AnalyzeDiffAsync(diff).ConfigureAwait(false));
+	}
+
+	[TestMethod]
+	public async Task AnalyzeAsync_NullablePropertyAndAsyncGenericMethod_AreApiChanges()
+	{
+		// 52e94e6: real public API that matched none of the old patterns (#173).
+		string diff = """
+			diff --git a/KtsuBuild/Metadata/MetadataUpdateOptions.cs b/KtsuBuild/Metadata/MetadataUpdateOptions.cs
+			--- a/KtsuBuild/Metadata/MetadataUpdateOptions.cs
+			+++ b/KtsuBuild/Metadata/MetadataUpdateOptions.cs
+			@@ -20,3 +20,5 @@
+			+	public VersionType? ForcedVersionType { get; set; }
+			diff --git a/KtsuBuild/Metadata/MetadataService.cs b/KtsuBuild/Metadata/MetadataService.cs
+			--- a/KtsuBuild/Metadata/MetadataService.cs
+			+++ b/KtsuBuild/Metadata/MetadataService.cs
+			@@ -40,1 +40,1 @@
+			-	public async Task<MetadataUpdateResult> UpdateMetadataAsync(MetadataUpdateOptions options)
+			+	public async Task<MetadataUpdateResult> UpdateMetadataAsync(MetadataUpdateOptions options, CancellationToken cancellationToken = default)
+			""";
+
+		Assert.AreEqual(VersionType.Minor, await AnalyzeDiffAsync(diff).ConfigureAwait(false));
+	}
+
+	[TestMethod]
+	[DataRow("+\tpublic VersionType? ForcedVersionType { get; set; }")]
+	[DataRow("+\tpublic async Task<MetadataUpdateResult> UpdateMetadataAsync(MetadataUpdateOptions options)")]
+	[DataRow("+\tpublic static string Describe(int value) => value.ToString();")]
+	[DataRow("+\tpublic IReadOnlyList<string> Names { get; } = [];")]
+	[DataRow("+\tpublic Dictionary<string, List<int>> Lookup() => [];")]
+	[DataRow("+\tpublic string[] Arguments { get; init; } = [];")]
+	[DataRow("+\tpublic (int Major, int Minor) Parts() => (1, 2);")]
+	[DataRow("+\tpublic T? Find<T>(string key) where T : class => null;")]
+	[DataRow("+\tpublic static readonly TimeSpan Timeout = TimeSpan.FromSeconds(1);")]
+	[DataRow("+\tprotected virtual void OnChanged() { }")]
+	[DataRow("+\tprotected internal override string ToString() => string.Empty;")]
+	[DataRow("+\tpublic required string Name { get; init; }")]
+	[DataRow("+\tpublic event EventHandler? Changed;")]
+	[DataRow("+\tpublic const int Limit = 3;")]
+	[DataRow("+public static class Extensions")]
+	[DataRow("+public sealed record Point(int X, int Y);")]
+	[DataRow("+public delegate void Handler(object sender);")]
+	[DataRow("+\tpublic Widget(string name) { }")]
+	[DataRow("-\tpublic static string Describe(int value) => value.ToString();")]
+	public async Task AnalyzeAsync_PublicMemberShapes_AreApiChanges(string line)
+	{
+		string diff = $"""
+			diff --git a/Lib/Widget.cs b/Lib/Widget.cs
+			--- a/Lib/Widget.cs
+			+++ b/Lib/Widget.cs
+			@@ -1,1 +1,1 @@
+			{line}
+			""";
+
+		Assert.AreEqual(VersionType.Minor, await AnalyzeDiffAsync(diff).ConfigureAwait(false), line);
+	}
+
+	[TestMethod]
+	[DataRow("+\tinternal static string Describe(int value) => value.ToString();")]
+	[DataRow("+\tprivate protected void Reset() { }")]
+	[DataRow("+\t// public void Commented() { }")]
+	[DataRow("+\treturn Describe(publicValue);")]
+	public async Task AnalyzeAsync_NonPublicLines_AreNotApiChanges(string line)
+	{
+		string diff = $"""
+			diff --git a/Lib/Widget.cs b/Lib/Widget.cs
+			--- a/Lib/Widget.cs
+			+++ b/Lib/Widget.cs
+			@@ -1,1 +1,1 @@
+			{line}
+			""";
+
+		Assert.AreEqual(VersionType.Patch, await AnalyzeDiffAsync(diff).ConfigureAwait(false), line);
+	}
+
+	[TestMethod]
+	[DataRow("Foo.Test/FooTests.cs", true)]
+	[DataRow("Foo.Tests/Sub/FooTests.cs", true)]
+	[DataRow("Foo.UnitTests/FooTests.cs", true)]
+	[DataRow("tests/Foo.Integration/FooTests.cs", true)]
+	[DataRow("Foo/FooTests.cs", false)]
+	[DataRow("Foo.Testing/Helpers.cs", false)]
+	[DataRow("Tests.cs", false)]
+	public void IsTestPath_RecognisesTestProjectsAndFolders(string path, bool expected) =>
+		Assert.AreEqual(expected, CommitAnalyzer.IsTestPath(path), path);
+
 	[TestMethod]
 	public async Task AnalyzeAsync_DiffModifiesInternalCodeOnly_ReturnsPatch()
 	{
