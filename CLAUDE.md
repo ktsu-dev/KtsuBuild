@@ -134,12 +134,17 @@ ktsubuild
 │   └── upload    # Upload manifests to GitHub release (--version)
 └── ios
     ├── build     # Build iOS head(s) for simulator + device, unsigned (macOS only)
-    │   # Options: --workspace, --configuration, --verbose, --project, --runtime, --require-framework
+    │   # Options: --workspace, --configuration, --verbose, --dry-run, --project, --runtime, --require-framework
     ├── package   # Provision toolchain + stamp version + sign + archive .ipa (macOS only)
-    │   # Options: --workspace, --configuration, --verbose, --project, --runtime, --framework, --version, --build-number, --bundle-id
+    │   # Options: --workspace, --configuration, --verbose, --dry-run, --project, --runtime, --framework, --version, --build-number, --bundle-id
     └── upload    # Upload the signed .ipa to TestFlight (macOS only)
-        # Options: --workspace, --configuration, --verbose, --project, --ipa
+        # Options: --workspace, --configuration, --verbose, --dry-run, --project, --ipa
 ```
+
+`--dry-run` on the three `ios` subcommands reports what would happen (the detected heads, the
+target framework, version and build number, the archives to upload, and whether signing and the
+App Store Connect key are configured) and exits 0. It runs on any host, starts no `security`,
+`dotnet build`/`publish` or `xcrun` process, and logs only whether each secret is set.
 
 The `ci` command auto-detects iOS heads and runs the unsigned iOS validation
 build as part of the pipeline (after build/test, before release), so a consumer

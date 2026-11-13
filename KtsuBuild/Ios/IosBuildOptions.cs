@@ -35,4 +35,10 @@ public class IosBuildOptions
 	/// launch-crash class.
 	/// </summary>
 	public IReadOnlyList<string> RequiredFrameworks { get; set; } = [];
+
+	/// <summary>
+	/// Gets or sets a value indicating whether to report the heads and runtimes that would be
+	/// built, without building anything or starting any process.
+	/// </summary>
+	public bool DryRun { get; set; }
 }

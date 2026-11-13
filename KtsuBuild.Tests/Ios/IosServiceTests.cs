@@ -61,6 +61,133 @@ public class IosServiceTests
 			Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 
+	// PackageAsync — dry run
+
+	[TestMethod]
+	public async Task PackageAsync_DryRun_ReportsThePlanWithoutAnyProcessOrSecret()
+	{
+		string head = Path.Combine(_tempDir, "MyApp.iOS", "MyApp.iOS.csproj");
+		Directory.CreateDirectory(Path.GetDirectoryName(head)!);
+		await File.WriteAllTextAsync(head, "<Project><PropertyGroup><TargetFrameworks>net10.0;net10.0-ios</TargetFrameworks></PropertyGroup></Project>", TestContext.CancellationToken).ConfigureAwait(false);
+		_dotNetService.GetIosHeads(_tempDir).Returns([head]);
+		RecordingBuildLogger logger = new();
+		IosService service = new(_dotNetService, _processRunner, logger);
+
+		IosPackageResult result = await service.PackageAsync(new IosPackageOptions
+		{
+			WorkingDirectory = _tempDir,
+			ShortVersion = "1.4.3",
+			BuildNumber = "57",
+			SigningAvailable = true,
+			CertificateP12Base64 = "Q0VSVC1TRUNSRVQ=",
+			CertificatePassword = "cert-password-secret",
+			KeychainPassword = "keychain-password-secret",
+			ProvisioningProfileBase64 = "UFJPRklMRS1TRUNSRVQ=",
+			DryRun = true,
+		}).ConfigureAwait(false);
+
+		Assert.IsTrue(result.Success);
+		Assert.IsTrue(result.Skipped);
+		Assert.AreEqual(0, result.IpaPaths.Count);
+		await AssertNoProcessStartedAsync().ConfigureAwait(false);
+
+		string log = string.Join("\n", logger.Infos.Concat(logger.Warnings));
+		Assert.Contains(head, log);
+		Assert.Contains("net10.0-ios", log);
+		Assert.Contains("1.4.3", log);
+		Assert.Contains("57", log);
+		Assert.Contains("signing available: True", log);
+		Assert.DoesNotContain("Q0VSVC1TRUNSRVQ=", log);
+		Assert.DoesNotContain("cert-password-secret", log);
+		Assert.DoesNotContain("keychain-password-secret", log);
+		Assert.DoesNotContain("UFJPRklMRS1TRUNSRVQ=", log);
+	}
+
+	[TestMethod]
+	public async Task PackageAsync_DryRunWithoutSigning_StillReportsTheHeads()
+	{
+		string head = Path.Combine(_tempDir, "MyApp.iOS.csproj");
+		_dotNetService.GetIosHeads(_tempDir).Returns([head]);
+		RecordingBuildLogger logger = new();
+		IosService service = new(_dotNetService, _processRunner, logger);
+
+		IosPackageResult result = await service.PackageAsync(new IosPackageOptions
+		{
+			WorkingDirectory = _tempDir,
+			ShortVersion = "1.0.0",
+			Framework = "net10.0-ios",
+			SigningAvailable = false,
+			DryRun = true,
+		}).ConfigureAwait(false);
+
+		Assert.IsTrue(result.Success);
+		Assert.IsTrue(result.Skipped);
+		await AssertNoProcessStartedAsync().ConfigureAwait(false);
+		Assert.IsTrue(logger.Infos.Any(m => m.Contains(head, StringComparison.Ordinal)));
+		Assert.IsTrue(logger.Infos.Any(m => m.Contains("signing available: False", StringComparison.Ordinal)));
+	}
+
+	// UploadAsync — dry run
+
+	[TestMethod]
+	public async Task UploadAsync_DryRun_ReportsTheArchiveWithoutAnyProcessOrSecret()
+	{
+		string ipa = Path.Combine(_tempDir, "MyApp.ipa");
+		await File.WriteAllTextAsync(ipa, "ipa", TestContext.CancellationToken).ConfigureAwait(false);
+		RecordingBuildLogger logger = new();
+		IosService service = new(_dotNetService, _processRunner, logger);
+
+		IosUploadResult result = await service.UploadAsync(new IosUploadOptions
+		{
+			WorkingDirectory = _tempDir,
+			IpaPath = ipa,
+			SigningAvailable = true,
+			AppStoreConnectKeyBase64 = "UDgtS0VZLVNFQ1JFVA==",
+			AppStoreConnectKeyId = "KEYID-SECRET",
+			AppStoreConnectIssuerId = "ISSUER-SECRET",
+			DryRun = true,
+		}).ConfigureAwait(false);
+
+		Assert.IsTrue(result.Success);
+		Assert.IsTrue(result.Skipped);
+		Assert.AreEqual(0, result.UploadedIpaPaths.Count);
+		await AssertNoProcessStartedAsync().ConfigureAwait(false);
+
+		string log = string.Join("\n", logger.Infos.Concat(logger.Warnings));
+		Assert.Contains(ipa, log);
+		Assert.DoesNotContain("UDgtS0VZLVNFQ1JFVA==", log);
+		Assert.DoesNotContain("KEYID-SECRET", log);
+		Assert.DoesNotContain("ISSUER-SECRET", log);
+	}
+
+	[TestMethod]
+	public async Task UploadAsync_DryRunWithNoArchive_WarnsAndSucceeds()
+	{
+		_dotNetService.GetIosHeads(_tempDir).Returns([]);
+		RecordingBuildLogger logger = new();
+		IosService service = new(_dotNetService, _processRunner, logger);
+
+		IosUploadResult result = await service.UploadAsync(new IosUploadOptions
+		{
+			WorkingDirectory = _tempDir,
+			SigningAvailable = true,
+			DryRun = true,
+		}).ConfigureAwait(false);
+
+		Assert.IsTrue(result.Success);
+		Assert.IsTrue(result.Skipped);
+		await AssertNoProcessStartedAsync().ConfigureAwait(false);
+		Assert.HasCount(1, logger.Warnings);
+	}
+
+	private async Task AssertNoProcessStartedAsync()
+	{
+		await _processRunner.DidNotReceive().RunWithCallbackAsync(
+			Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+		await _processRunner.DidNotReceive().RunAsync(
+			Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+	}
+
 	// UploadAsync — signing gate
 
 	// PackageAsync — marketing version

@@ -206,6 +206,32 @@ public class IosBuildServiceTests
 		Assert.IsFalse(_service.VerifyDeviceBundle(head, "Release", IosBuildService.DeviceRuntime, []));
 	}
 
+	// BuildAsync — dry run
+
+	[TestMethod]
+	public async Task BuildAsync_DryRun_ReportsHeadsWithoutBuilding()
+	{
+		string head = Path.Combine(_tempDir, "MyApp.iOS", "MyApp.iOS.csproj");
+		_dotNetService.GetIosHeads(_tempDir).Returns([head]);
+		RecordingBuildLogger logger = new();
+		IosBuildService service = new(_dotNetService, logger);
+
+		bool success = await service.BuildAsync(new IosBuildOptions
+		{
+			WorkingDirectory = _tempDir,
+			RequiredFrameworks = ["Native"],
+			DryRun = true,
+		}).ConfigureAwait(false);
+
+		Assert.IsTrue(success);
+		await _dotNetService.DidNotReceive().BuildIosAsync(
+			Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<bool>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+		Assert.IsTrue(logger.Infos.Any(m => m.Contains(head, StringComparison.Ordinal)
+			&& m.Contains(IosBuildService.SimulatorRuntime, StringComparison.Ordinal)
+			&& m.Contains(IosBuildService.DeviceRuntime, StringComparison.Ordinal)));
+		Assert.IsTrue(logger.Infos.Any(m => m.Contains("Native", StringComparison.Ordinal)));
+	}
+
 	// Creates a head project plus a device .app bundle under bin/{configuration}, optionally
 	// embedding a named native framework binary. Returns the head .csproj path.
 	private string CreateHeadWithDeviceBundle(string name, string? embedFramework, string configuration = "Release")

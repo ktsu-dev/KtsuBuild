@@ -58,4 +58,11 @@ public class IosUploadOptions
 	/// value).
 	/// </summary>
 	public string AppStoreConnectIssuerId { get; set; } = string.Empty;
+
+	/// <summary>
+	/// Gets or sets a value indicating whether to report what would be uploaded (the archives found
+	/// and whether signing and the App Store Connect key are configured) without installing the key
+	/// or calling altool. No process is started and no secret is logged.
+	/// </summary>
+	public bool DryRun { get; set; }
 }

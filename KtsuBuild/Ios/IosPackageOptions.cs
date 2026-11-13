@@ -118,4 +118,12 @@ public class IosPackageOptions
 	/// example <c>26.2.10233/10.0.100</c>). When empty, workload installation is skipped.
 	/// </summary>
 	public string WorkloadVersion { get; set; } = string.Empty;
+
+	/// <summary>
+	/// Gets or sets a value indicating whether to report what would be packaged (heads, target
+	/// framework, version, build number and whether signing is available) without provisioning the
+	/// toolchain, touching a keychain, stamping a plist or archiving. No process is started and no
+	/// secret is logged.
+	/// </summary>
+	public bool DryRun { get; set; }
 }

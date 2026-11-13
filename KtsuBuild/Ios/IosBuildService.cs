@@ -51,6 +51,22 @@ public class IosBuildService(IDotNetService dotNetService, IBuildLogger logger) 
 			? [SimulatorRuntime, DeviceRuntime]
 			: [options.Runtime];
 
+		if (options.DryRun)
+		{
+			logger.WriteInfo($"[DRY RUN] Would build {heads.Count} iOS head(s) ({options.Configuration}, unsigned):");
+			foreach (string head in heads)
+			{
+				logger.WriteInfo($"[DRY RUN]   {head}: {string.Join(", ", runtimes)}");
+			}
+
+			if (options.RequiredFrameworks.Count > 0)
+			{
+				logger.WriteInfo($"[DRY RUN] Would require embedded frameworks: {string.Join(", ", options.RequiredFrameworks)}");
+			}
+
+			return true;
+		}
+
 		foreach (string head in heads)
 		{
 			logger.WriteInfo($"Building iOS head: {head}");

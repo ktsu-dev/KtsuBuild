@@ -52,6 +52,7 @@ public class IosCommand : Command
 			Options.Add(GlobalOptions.Workspace);
 			Options.Add(GlobalOptions.Configuration);
 			Options.Add(GlobalOptions.Verbose);
+			Options.Add(GlobalOptions.DryRun);
 			Options.Add(ProjectOption);
 			Options.Add(RuntimeOption);
 			Options.Add(RequireFrameworkOption);
@@ -103,6 +104,7 @@ public class IosCommand : Command
 			Options.Add(GlobalOptions.Workspace);
 			Options.Add(GlobalOptions.Configuration);
 			Options.Add(GlobalOptions.Verbose);
+			Options.Add(GlobalOptions.DryRun);
 			Options.Add(ProjectOption);
 			Options.Add(RuntimeOption);
 			Options.Add(FrameworkOption);
@@ -133,6 +135,7 @@ public class IosCommand : Command
 			Options.Add(GlobalOptions.Workspace);
 			Options.Add(GlobalOptions.Configuration);
 			Options.Add(GlobalOptions.Verbose);
+			Options.Add(GlobalOptions.DryRun);
 			Options.Add(ProjectOption);
 			Options.Add(IpaOption);
 		}

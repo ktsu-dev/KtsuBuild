@@ -33,6 +33,18 @@ public class IosCommandTests
 	}
 
 	[TestMethod]
+	[DataRow("build")]
+	[DataRow("package")]
+	[DataRow("upload")]
+	public void Subcommand_AcceptsDryRun(string subcommand)
+	{
+		ParseResult result = new IosCommand().Parse($"{subcommand} --dry-run");
+
+		Assert.IsEmpty(result.Errors);
+		Assert.IsTrue(result.GetValue<bool>("--dry-run"));
+	}
+
+	[TestMethod]
 	public async Task Program_WiresIosPackageOptions()
 	{
 		// Building the command tree looks up every ios package option the handler reads, so a
