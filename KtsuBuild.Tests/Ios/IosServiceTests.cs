@@ -6,6 +6,7 @@ using KtsuBuild.Abstractions;
 using KtsuBuild.Ios;
 using KtsuBuild.Tests.Helpers;
 using KtsuBuild.Tests.Mocks;
+using KtsuBuild.Utilities;
 using NSubstitute;
 
 [TestClass]
@@ -282,6 +283,84 @@ public class IosServiceTests
 		}));
 	}
 
+	// App Store Connect key placement — a developer's own key must survive an upload
+
+	[TestMethod]
+	public async Task AppStoreConnectKey_NoExistingKey_IsWrittenForTheRunAndDeletedAfter()
+	{
+		string keyDir = Path.Combine(_tempDir, "private_keys");
+		byte[] runKey = [1, 2, 3];
+
+		InstalledAppStoreConnectKey key = await _service.InstallAppStoreConnectKeyAsync(keyDir, runKey, "ABC123", TestContext.CancellationToken).ConfigureAwait(false);
+
+		Assert.AreEqual(Path.Combine(keyDir, "AuthKey_ABC123.p8"), key.Path);
+		CollectionAssert.AreEqual(runKey, await File.ReadAllBytesAsync(key.Path, TestContext.CancellationToken).ConfigureAwait(false));
+
+		IosService.RemoveAppStoreConnectKey(key);
+
+		Assert.IsFalse(File.Exists(key.Path), "An ephemeral runner must not be left holding the key.");
+	}
+
+	[TestMethod]
+	[DataRow(true)]
+	[DataRow(false)]
+	public async Task AppStoreConnectKey_ExistingDifferentKey_IsRestoredAfterTheUpload(bool uploadFails)
+	{
+		string keyDir = Path.Combine(_tempDir, "private_keys");
+		Directory.CreateDirectory(keyDir);
+		string keyPath = Path.Combine(keyDir, "AuthKey_ABC123.p8");
+		byte[] developerKey = [9, 9, 9, 9];
+		await File.WriteAllBytesAsync(keyPath, developerKey, TestContext.CancellationToken).ConfigureAwait(false);
+		byte[] runKey = [1, 2, 3];
+
+		InstalledAppStoreConnectKey key = await _service.InstallAppStoreConnectKeyAsync(keyDir, runKey, "ABC123", TestContext.CancellationToken).ConfigureAwait(false);
+		try
+		{
+			// altool reads the run's key during the upload.
+			CollectionAssert.AreEqual(runKey, await File.ReadAllBytesAsync(keyPath, TestContext.CancellationToken).ConfigureAwait(false));
+			if (uploadFails)
+			{
+				throw new InvalidOperationException("upload failed");
+			}
+		}
+		catch (InvalidOperationException ex) when (uploadFails)
+		{
+			// The simulated upload failure; the restore in finally is what is under test.
+			Assert.AreEqual("upload failed", ex.Message);
+		}
+		finally
+		{
+			IosService.RemoveAppStoreConnectKey(key);
+		}
+
+		Assert.IsTrue(File.Exists(keyPath));
+		CollectionAssert.AreEqual(developerKey, await File.ReadAllBytesAsync(keyPath, TestContext.CancellationToken).ConfigureAwait(false));
+	}
+
+	[TestMethod]
+	public void AppStoreConnectKey_DefaultDirectory_IsWhereAltoolLooks()
+	{
+		string expected = Path.Combine(".appstoreconnect", "private_keys");
+		Assert.IsTrue(
+			IosService.DefaultAppStoreConnectKeyDirectory.EndsWith(expected, StringComparison.Ordinal),
+			IosService.DefaultAppStoreConnectKeyDirectory);
+	}
+
+	[TestMethod]
+	public async Task AppStoreConnectKey_ExistingSameKey_IsLeftInPlace()
+	{
+		string keyDir = Path.Combine(_tempDir, "private_keys");
+		Directory.CreateDirectory(keyDir);
+		string keyPath = Path.Combine(keyDir, "AuthKey_ABC123.p8");
+		byte[] sameKey = [1, 2, 3];
+		await File.WriteAllBytesAsync(keyPath, sameKey, TestContext.CancellationToken).ConfigureAwait(false);
+
+		InstalledAppStoreConnectKey key = await _service.InstallAppStoreConnectKeyAsync(keyDir, sameKey, "ABC123", TestContext.CancellationToken).ConfigureAwait(false);
+		IosService.RemoveAppStoreConnectKey(key);
+
+		CollectionAssert.AreEqual(sameKey, await File.ReadAllBytesAsync(keyPath, TestContext.CancellationToken).ConfigureAwait(false));
+	}
+
 	[TestMethod]
 	public void LocateIpas_FindsArchiveUnderHeadBin()
 	{
@@ -367,6 +446,38 @@ public class IosServiceTests
 				a.Contains("-p:CodesignProvision=\"ktsu profile\"")),
 			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
+
+	[TestMethod]
+	public async Task ArchiveAsync_SigningValuesWithCommaOrSemicolon_ReachMsBuildEscaped()
+	{
+		string head = CreateHead("MyApp.iOS");
+		string ipa = Path.Combine(_tempDir, "MyApp.iOS", "bin", "Release", "net10.0-ios", "ios-arm64", "publish", "MyApp.ipa");
+		Directory.CreateDirectory(Path.GetDirectoryName(ipa)!);
+		await File.WriteAllTextAsync(ipa, "archive").ConfigureAwait(false);
+
+		string? captured = null;
+		_processRunner.RunWithCallbackAsync("dotnet", Arg.Do<string>(a => captured = a), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
+			.Returns(0);
+
+		await _service.ArchiveAsync(ArchiveOpts(_tempDir, head, "net10.0-ios", "Apple Distribution: Acme, Inc. (ABCDE12345)", "Acme;App 100%"), TestContext.CancellationToken).ConfigureAwait(false);
+
+		// The process runner splits the string into argv, so assert on the elements MSBuild
+		// receives: each property is one element, with ',' ';' and '%' MSBuild-escaped so
+		// MSBuild neither splits the value (MSB1006) nor unescapes it into something else.
+		Assert.IsNotNull(captured);
+		List<string> argv = KtsuBuild.Utilities.CommandLineArguments.Split(captured);
+		CollectionAssert.Contains(argv, "-p:CodesignKey=Apple Distribution: Acme%2C Inc. (ABCDE12345)");
+		CollectionAssert.Contains(argv, "-p:CodesignProvision=Acme%3BApp 100%25");
+	}
+
+	[TestMethod]
+	[DataRow("Apple Distribution: ktsu", "Apple Distribution: ktsu")]
+	[DataRow("Acme, Inc.", "Acme%2C Inc.")]
+	[DataRow("a;b", "a%3Bb")]
+	[DataRow("100%", "100%25")]
+	[DataRow("%3B", "%253B")]
+	public void EscapeMsBuildPropertyValue_EscapesSeparatorsAndPercent(string value, string expected) =>
+		Assert.AreEqual(expected, IosService.EscapeMsBuildPropertyValue(value));
 
 	[TestMethod]
 	public async Task ArchiveAsync_WithBundleId_PassesApplicationId()
@@ -546,6 +657,66 @@ public class IosServiceTests
 				ShortVersion = "1.0.0",
 				CertificateP12Base64 = string.Empty,
 			})).ConfigureAwait(false);
+	}
+
+	// SetupSigningAsync — secret passwords stay one argument each
+
+	[TestMethod]
+	[DataRow("ab\"cd")]
+	[DataRow("abc\\")]
+	[DataRow("pass word \\\" x")]
+	public async Task SetupSigningAsync_PassesEachPasswordAsOneArgument(string password)
+	{
+		List<(string FileName, string[] Arguments)> calls = [];
+		_processRunner.RunWithCallbackAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
+			.Returns(callInfo =>
+			{
+				string[] arguments = [.. callInfo.ArgAt<IReadOnlyList<string>>(1)];
+				calls.Add((callInfo.ArgAt<string>(0), arguments));
+
+				// Stop at the partition list, before the profile is written under the user's home.
+				return arguments[0] == "set-key-partition-list" ? 1 : 0;
+			});
+
+		// The direct import fails, so the openssl transcode and the second import run too.
+		_processRunner.RunAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+			.Returns(callInfo =>
+			{
+				calls.Add((callInfo.ArgAt<string>(0), [.. callInfo.ArgAt<IReadOnlyList<string>>(1)]));
+				return new ProcessResult { ExitCode = 1, StandardOutput = string.Empty, StandardError = string.Empty };
+			});
+		_processRunner.RunAsync("brew", Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+			.Returns(new ProcessResult { ExitCode = 1, StandardOutput = string.Empty, StandardError = string.Empty });
+
+		InvalidOperationException ex = await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+			() => _service.SetupSigningAsync(new IosPackageOptions
+			{
+				WorkingDirectory = _tempDir,
+				ShortVersion = "1.0.0",
+				CertificateP12Base64 = Convert.ToBase64String([1, 2, 3]),
+				ProvisioningProfileBase64 = Convert.ToBase64String([4, 5, 6]),
+				CertificatePassword = password,
+				KeychainPassword = password,
+			}, TestContext.CancellationToken)).ConfigureAwait(false);
+		StringAssert.Contains(ex.Message, "partition list");
+
+		string[] Find(string first, int occurrence = 0) => calls.Where(c => c.Arguments[0] == first).Select(c => c.Arguments).ElementAt(occurrence);
+
+		CollectionAssert.AreEqual(new[] { "create-keychain", "-p", password, "build.keychain" }, Find("create-keychain"));
+		CollectionAssert.AreEqual(new[] { "unlock-keychain", "-p", password, "build.keychain" }, Find("unlock-keychain"));
+		for (int i = 0; i < 2; i++)
+		{
+			string[] import = Find("import", i);
+			Assert.HasCount(12, import);
+			CollectionAssert.AreEqual(new[] { "-P", password, "-T", "/usr/bin/codesign", "-T", "/usr/bin/security" }, import[6..]);
+		}
+
+		string[] read = Find("pkcs12", 0);
+		Assert.AreEqual("pass:" + password, read[Array.IndexOf(read, "-passin") + 1]);
+		string[] write = Find("pkcs12", 1);
+		Assert.AreEqual("pass:" + password, write[^1]);
+		Assert.AreEqual("-passout", write[^2]);
+		CollectionAssert.AreEqual(new[] { "-k", password, "build.keychain" }, Find("set-key-partition-list")[^3..]);
 	}
 
 	// Static helpers

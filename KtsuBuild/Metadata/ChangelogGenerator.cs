@@ -385,22 +385,36 @@ public class ChangelogGenerator(IGitService gitService, IBuildLogger logger)
 
 		// A prerelease searches for the previous prerelease, anything else for a stable tag, so a
 		// numberless prerelease such as v1.0.0-dev is never taken for v1.0.0.
-		bool searchIsPrerelease = toIsPrerelease;
+		(int, int, int, bool, int) searchVersion = (searchMajor, searchMinor, searchPatch, toIsPrerelease, searchPrerelease);
 
-		// Look for a matching tag in the available tags
-		foreach (string tag in allTags)
+		// A previous prerelease must be in the same series (alpha.2 for alpha.3, not beta.2), and older
+		// than toTag. allTags is newest first, so once a later series on the same X.Y.Z exists, its tag
+		// with the same number would otherwise be found first and give an empty range.
+		string? searchLabel = toIsPrerelease ? GetPrereleaseLabel(toTag) : null;
+		int start = toIsPrerelease ? IndexOfTag(allTags, toTag) + 1 : 0;
+
+		// If no matching tag found, fall back to the original fromTag
+		return FindTag(allTags, start, searchVersion, searchLabel) ?? fromTag;
+	}
+
+	/// <summary>
+	/// Finds the first tag from <paramref name="start"/> whose parsed version is
+	/// <paramref name="searchVersion"/> and, when <paramref name="searchLabel"/> is set, whose
+	/// prerelease label matches it.
+	/// </summary>
+	private static string? FindTag(IReadOnlyList<string> allTags, int start, (int, int, int, bool, int) searchVersion, string? searchLabel)
+	{
+		for (int i = start; i < allTags.Count; i++)
 		{
-			(int tagMajor, int tagMinor, int tagPatch, bool tagIsPrerelease, int tagPrerelease) = ParseVersion(tag);
-
-			if (tagMajor == searchMajor && tagMinor == searchMinor && tagPatch == searchPatch
-				&& tagIsPrerelease == searchIsPrerelease && tagPrerelease == searchPrerelease)
+			string tag = allTags[i];
+			if (ParseVersion(tag) == searchVersion
+				&& (searchLabel is null || string.Equals(GetPrereleaseLabel(tag), searchLabel, StringComparison.Ordinal)))
 			{
 				return tag;
 			}
 		}
 
-		// If no matching tag found, fall back to the original fromTag
-		return fromTag;
+		return null;
 	}
 
 	private static string DetermineVersionType(string fromTag, string toTag)
@@ -429,6 +443,18 @@ public class ChangelogGenerator(IGitService gitService, IBuildLogger logger)
 		}
 
 		return string.Empty;
+	}
+
+	/// <summary>
+	/// Returns a tag's prerelease label as <see cref="VersionCalculator.ParsePrerelease"/> reads it
+	/// (<c>alpha</c> for <c>v2.0.0-alpha.3</c>), or <see langword="null"/> for a stable tag.
+	/// </summary>
+	private static string? GetPrereleaseLabel(string tag)
+	{
+		int buildIndex = tag.IndexOf('+', StringComparison.Ordinal);
+		string version = buildIndex >= 0 ? tag[..buildIndex] : tag;
+		int prereleaseIndex = version.IndexOf('-', StringComparison.Ordinal);
+		return prereleaseIndex >= 0 ? VersionCalculator.ParsePrerelease(version[(prereleaseIndex + 1)..]).Label : null;
 	}
 
 	/// <summary>

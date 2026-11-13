@@ -258,6 +258,7 @@ public class TestCommandTests
 		Assert.AreEqual(0, await RunAll("**/*.Test.csproj").ConfigureAwait(false));
 		Assert.IsEmpty(_dotnetArguments);
 		Assert.IsTrue(RecordingBuildLogger.Any(_logger.Infos, "Every test project was excluded. Nothing to run."));
+		Assert.IsFalse(File.Exists(FilterPath), "The generated filter belongs to the run, not to the workspace.");
 	}
 
 	[TestMethod]

@@ -43,6 +43,15 @@ public class BuildLogger : IBuildLogger
 	/// <inheritdoc/>
 	public bool VerboseEnabled { get; set; }
 
+	/// <summary>
+	/// Gets or sets a value indicating whether messages go to standard error rather than standard
+	/// output. A command whose standard output is its result, such as <c>version bump</c>, sets
+	/// this so a script capturing that output gets the result alone.
+	/// </summary>
+	public bool UseStandardError { get; set; }
+
+	private TextWriter Output => UseStandardError ? Console.Error : Console.Out;
+
 	/// <inheritdoc/>
 	public void WriteStepHeader(string message)
 	{
@@ -56,7 +65,7 @@ public class BuildLogger : IBuildLogger
 	public void WriteInfo(string message)
 	{
 		Ensure.NotNull(message);
-		Console.WriteLine(message);
+		Output.WriteLine(message);
 		_logger?.LogInformation(MessageTemplate, message);
 	}
 
@@ -95,13 +104,13 @@ public class BuildLogger : IBuildLogger
 		}
 	}
 
-	private static void WriteColored(string message, ConsoleColor color)
+	private void WriteColored(string message, ConsoleColor color)
 	{
 		ConsoleColor originalColor = Console.ForegroundColor;
 		try
 		{
 			Console.ForegroundColor = color;
-			Console.WriteLine(message);
+			Output.WriteLine(message);
 		}
 		finally
 		{
