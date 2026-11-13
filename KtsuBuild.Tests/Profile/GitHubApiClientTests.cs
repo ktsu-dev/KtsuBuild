@@ -138,7 +138,7 @@ public class GitHubApiClientTests
 		GitHubWorkflowRun? run = await _client.GetLatestWorkflowRunAsync("ktsu-dev", "TUI", "dotnet.yml", "main").ConfigureAwait(false);
 
 		Assert.Contains("branch=main", _requestedArguments[0]);
-		Assert.Contains("per_page=1", _requestedArguments[0]);
+		Assert.Contains("status=completed", _requestedArguments[0]);
 		Assert.AreEqual("success", run?.Conclusion);
 	}
 
@@ -155,6 +155,45 @@ public class GitHubApiClientTests
 
 		Assert.AreEqual("completed", run?.Status);
 		Assert.AreEqual("failure", run?.Conclusion);
+	}
+
+	[TestMethod]
+	public async Task GetLatestWorkflowRunAsync_SkipsAForkPullRequestFromABranchNamedMain()
+	{
+		// branch=main also matches a fork's pull request opened from its own main. Its failure is not
+		// the repository's status, and the push run behind it is.
+		RespondWith("""
+			{"workflow_runs":[
+				{"status":"completed","conclusion":"failure","event":"pull_request"},
+				{"status":"completed","conclusion":"failure","event":"pull_request_target"},
+				{"status":"completed","conclusion":"success","event":"push"}
+			]}
+			""");
+
+		GitHubWorkflowRun? run = await _client.GetLatestWorkflowRunAsync("ktsu-dev", "TUI", "ci.yml", "main").ConfigureAwait(false);
+
+		Assert.AreEqual("success", run?.Conclusion);
+	}
+
+	[TestMethod]
+	[DataRow("push")]
+	[DataRow("schedule")]
+	[DataRow("workflow_dispatch")]
+	public async Task GetLatestWorkflowRunAsync_ReadsTheBranchsOwnRuns(string runEvent)
+	{
+		RespondWith($$"""{"workflow_runs":[{"status":"completed","conclusion":"failure","event":"{{runEvent}}"},{"status":"completed","conclusion":"success","event":"push"}]}""");
+
+		GitHubWorkflowRun? run = await _client.GetLatestWorkflowRunAsync("ktsu-dev", "TUI", "ci.yml", "main").ConfigureAwait(false);
+
+		Assert.AreEqual("failure", run?.Conclusion);
+	}
+
+	[TestMethod]
+	public async Task GetLatestWorkflowRunAsync_WithOnlyPullRequestRuns_ReturnsNull()
+	{
+		RespondWith("""{"workflow_runs":[{"status":"completed","conclusion":"success","event":"pull_request"}]}""");
+
+		Assert.IsNull(await _client.GetLatestWorkflowRunAsync("ktsu-dev", "TUI", "ci.yml", "main").ConfigureAwait(false));
 	}
 
 	[TestMethod]
