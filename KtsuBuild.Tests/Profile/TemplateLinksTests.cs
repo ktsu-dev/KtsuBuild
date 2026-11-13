@@ -128,6 +128,46 @@ public class TemplateLinksTests
 				[Archived("PersistenceProvider")])));
 
 	[TestMethod]
+	public void FindRetired_DoesNotFlagABareLinkThatEndsASentence() =>
+		// The period was read as part of the name, so the live repository looked unknown and the whole
+		// profile run failed calling it archived.
+		Assert.IsEmpty(TemplateLinks.FindRetired(
+			"See https://github.com/ktsu-dev/Semantics.",
+			"ktsu-dev",
+			[Live("Semantics")]));
+
+	[TestMethod]
+	public void FindRetired_DoesNotFlagACloneUrl() =>
+		Assert.IsEmpty(TemplateLinks.FindRetired(
+			"git clone https://github.com/ktsu-dev/Semantics.git",
+			"ktsu-dev",
+			[Live("Semantics")]));
+
+	[TestMethod]
+	public void FindRetired_DoesNotFlagACloneUrlThatEndsASentence() =>
+		Assert.IsEmpty(TemplateLinks.FindRetired(
+			"Clone https://github.com/ktsu-dev/Semantics.GIT.",
+			"ktsu-dev",
+			[Live("Semantics")]));
+
+	[TestMethod]
+	public void FindLinkedRepositories_KeepsTheLeadingDotOfDotGithub() =>
+		Assert.AreEqual(
+			".github",
+			string.Join(",", TemplateLinks.FindLinkedRepositories(
+				"https://github.com/ktsu-dev/.github, https://github.com/ktsu-dev/.github. and https://github.com/ktsu-dev/.github.git",
+				"ktsu-dev")));
+
+	[TestMethod]
+	public void FindRetired_StillFlagsAnArchivedRepositoryLinkedByCloneUrl() =>
+		Assert.AreEqual(
+			"PersistenceProvider",
+			string.Join(",", TemplateLinks.FindRetired(
+				"git clone https://github.com/ktsu-dev/PersistenceProvider.git",
+				"ktsu-dev",
+				[Archived("PersistenceProvider")])));
+
+	[TestMethod]
 	public void FindRetired_WithNoLinks_ReturnsNothing() =>
 		Assert.IsEmpty(TemplateLinks.FindRetired("no links here", "ktsu-dev", [Live("Semantics")]));
 }

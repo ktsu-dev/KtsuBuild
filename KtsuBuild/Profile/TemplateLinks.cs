@@ -43,14 +43,36 @@ public static partial class TemplateLinks
 				continue;
 			}
 
-			string name = match.Groups["repo"].Value;
-			if (!names.Contains(name, StringComparer.OrdinalIgnoreCase))
+			string name = NormalizeRepositoryName(match.Groups["repo"].Value);
+			if (name.Length > 0 && !names.Contains(name, StringComparer.OrdinalIgnoreCase))
 			{
 				names.Add(name);
 			}
 		}
 
 		return names;
+	}
+
+	/// <summary>
+	/// Removes what the link pattern captures past the end of a repository name.
+	/// </summary>
+	/// <param name="captured">The captured name.</param>
+	/// <returns>The repository name.</returns>
+	/// <remarks>
+	/// The name pattern has to allow dots, so it also takes the period that ends a sentence after a bare
+	/// URL, and the <c>.git</c> of a clone URL. Either made a live repository look unknown, which failed the
+	/// whole profile run. GitHub repository names cannot end in a dot, so trailing dots are never part of
+	/// the name, and a leading dot such as <c>.github</c>'s is kept.
+	/// </remarks>
+	private static string NormalizeRepositoryName(string captured)
+	{
+		string name = captured.TrimEnd('.');
+		if (name.EndsWith(".git", StringComparison.OrdinalIgnoreCase))
+		{
+			name = name[..^".git".Length].TrimEnd('.');
+		}
+
+		return name;
 	}
 
 	/// <summary>
