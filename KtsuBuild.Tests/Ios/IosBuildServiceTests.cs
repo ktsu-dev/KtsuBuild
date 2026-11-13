@@ -363,9 +363,11 @@ public class IosBuildServiceTests
 		Assert.IsTrue(success);
 		await _dotNetService.DidNotReceive().BuildIosAsync(
 			Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<bool>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
-		Assert.IsTrue(logger.Infos.Any(m => m.Contains(head, StringComparison.Ordinal)
-			&& m.Contains(IosBuildService.SimulatorRuntime, StringComparison.Ordinal)
-			&& m.Contains(IosBuildService.DeviceRuntime, StringComparison.Ordinal)));
+		Assert.Contains(
+			m => m.Contains(head, StringComparison.Ordinal)
+				&& m.Contains(IosBuildService.SimulatorRuntime, StringComparison.Ordinal)
+				&& m.Contains(IosBuildService.DeviceRuntime, StringComparison.Ordinal),
+			logger.Infos);
 		Assert.Contains(m => m.Contains("Native", StringComparison.Ordinal), logger.Infos);
 	}
 

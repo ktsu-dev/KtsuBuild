@@ -69,36 +69,11 @@ public class IosBuildService(IDotNetService dotNetService, IBuildLogger logger) 
 
 		if (options.DryRun)
 		{
-			logger.WriteInfo($"[DRY RUN] Would build {heads.Count} iOS head(s) ({options.Configuration}, unsigned):");
-			foreach (string head in heads)
-			{
-				logger.WriteInfo($"[DRY RUN]   {head}: {string.Join(", ", runtimes)}");
-			}
-
-			if (options.RequiredFrameworks.Count > 0)
-			{
-				logger.WriteInfo($"[DRY RUN] Would require embedded frameworks: {string.Join(", ", options.RequiredFrameworks)}");
-			}
-
-			if (!string.IsNullOrWhiteSpace(options.XcodeVersion) || !string.IsNullOrWhiteSpace(options.WorkloadVersion))
-			{
-				logger.WriteInfo($"[DRY RUN] Would provision Xcode '{options.XcodeVersion}' and iOS workload '{options.WorkloadVersion}' first");
-			}
-
+			ReportDryRun(options, heads, runtimes);
 			return true;
 		}
 
-		// Apply the same Xcode and workload pins as `ios package`, so the pull-request build
-		// and the release build cannot drift apart. No pins means the host's toolchain as-is.
-		if (!string.IsNullOrWhiteSpace(options.XcodeVersion) || !string.IsNullOrWhiteSpace(options.WorkloadVersion))
-		{
-			if (toolchain is null)
-			{
-				throw new InvalidOperationException("An Xcode or iOS workload pin is set, but this IosBuildService was created without a process runner to provision it.");
-			}
-
-			await toolchain.ProvisionToolchainAsync(options.XcodeVersion, options.WorkloadVersion, cancellationToken).ConfigureAwait(false);
-		}
+		await ProvisionToolchainAsync(options, cancellationToken).ConfigureAwait(false);
 
 		foreach (string head in heads)
 		{
@@ -115,6 +90,47 @@ public class IosBuildService(IDotNetService dotNetService, IBuildLogger logger) 
 		}
 
 		return true;
+	}
+
+	private static bool HasToolchainPins(IosBuildOptions options) =>
+		!string.IsNullOrWhiteSpace(options.XcodeVersion) || !string.IsNullOrWhiteSpace(options.WorkloadVersion);
+
+	// Reports what BuildAsync would do, for --dry-run: the heads and runtimes, any required
+	// frameworks, and the toolchain pins. Starts no process.
+	private void ReportDryRun(IosBuildOptions options, IReadOnlyList<string> heads, string[] runtimes)
+	{
+		logger.WriteInfo($"[DRY RUN] Would build {heads.Count} iOS head(s) ({options.Configuration}, unsigned):");
+		foreach (string head in heads)
+		{
+			logger.WriteInfo($"[DRY RUN]   {head}: {string.Join(", ", runtimes)}");
+		}
+
+		if (options.RequiredFrameworks.Count > 0)
+		{
+			logger.WriteInfo($"[DRY RUN] Would require embedded frameworks: {string.Join(", ", options.RequiredFrameworks)}");
+		}
+
+		if (HasToolchainPins(options))
+		{
+			logger.WriteInfo($"[DRY RUN] Would provision Xcode '{options.XcodeVersion}' and iOS workload '{options.WorkloadVersion}' first");
+		}
+	}
+
+	// Applies the same Xcode and workload pins as `ios package`, so the pull-request build and
+	// the release build cannot drift apart. No pins means the host's toolchain as-is.
+	private async Task ProvisionToolchainAsync(IosBuildOptions options, CancellationToken cancellationToken)
+	{
+		if (!HasToolchainPins(options))
+		{
+			return;
+		}
+
+		if (toolchain is null)
+		{
+			throw new InvalidOperationException("An Xcode or iOS workload pin is set, but this IosBuildService was created without a process runner to provision it.");
+		}
+
+		await toolchain.ProvisionToolchainAsync(options.XcodeVersion, options.WorkloadVersion, cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <summary>
