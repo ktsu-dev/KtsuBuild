@@ -268,22 +268,7 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger, st
 
 		Directory.CreateDirectory(outputPath);
 
-		// Pack only what the repository ships: the projects buildable on the current host, less tests
-		// and the benchmarks, samples, examples and demos SupportingProjects recognises. ktsu.Sdk makes
-		// every non-test library packable, so without the second filter a library under samples/ was
-		// pushed to every feed, and a package on nuget.org can be unlisted but never deleted. The
-		// release's RID zips apply the same two checks (ReleaseService.IsDeliverable).
-		List<string> packableProjects = [];
-		foreach (string project in GetBuildableProjects(workingDirectory).Where(p => !IsTestProject(p)))
-		{
-			if (SupportingProjects.IsSupporting(workingDirectory, project))
-			{
-				logger.WriteInfo($"Skipping {Path.GetFileNameWithoutExtension(project)}: a benchmark, sample, example or demo is not packed");
-				continue;
-			}
-
-			packableProjects.Add(project);
-		}
+		List<string> packableProjects = SelectPackableProjects(workingDirectory);
 
 		if (packableProjects.Count == 0)
 		{
@@ -515,6 +500,70 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger, st
 		// Rooted, because these paths go to dotnet running inside the workspace, which would resolve
 		// a relative one against the workspace a second time.
 		return [.. Directory.GetFiles(Path.GetFullPath(workingDirectory), "*.csproj", SearchOption.AllDirectories)];
+	}
+
+	/// <summary>
+	/// Chooses the projects a release packs.
+	/// </summary>
+	/// <param name="workingDirectory">The workspace directory.</param>
+	/// <returns>The project paths to pack, each named in a log line when it is skipped.</returns>
+	private List<string> SelectPackableProjects(string workingDirectory)
+	{
+		// Pack only what the repository ships: the projects buildable on the current host, less tests
+		// and the benchmarks, samples, examples and demos SupportingProjects recognises. ktsu.Sdk makes
+		// every non-test library packable, so without the second filter a library under samples/ was
+		// pushed to every feed, and a package on nuget.org can be unlisted but never deleted. The
+		// release's RID zips apply the same two checks (ReleaseService.IsDeliverable).
+		//
+		// Restore and build run at the workspace root, so they cover only the projects in the solution.
+		// A project left out of it (a scratch project, a template, a submodule's own projects) has no
+		// assets file and no build output, and dotnet pack --no-build fails it with NETSDK1004, which
+		// aborted the release after a green build and test. Pack the same set restore and build used.
+		HashSet<string>? solutionProjects = ReadSolutionProjects(workingDirectory);
+		List<string> packableProjects = [];
+		foreach (string project in GetBuildableProjects(workingDirectory).Where(p => !IsTestProject(p)))
+		{
+			if (solutionProjects is not null && !solutionProjects.Contains(Path.GetFullPath(project)))
+			{
+				logger.WriteInfo($"Skipping {Path.GetFileNameWithoutExtension(project)}: it is not in the solution, so it was not restored or built");
+				continue;
+			}
+
+			if (SupportingProjects.IsSupporting(workingDirectory, project))
+			{
+				logger.WriteInfo($"Skipping {Path.GetFileNameWithoutExtension(project)}: a benchmark, sample, example or demo is not packed");
+				continue;
+			}
+
+			packableProjects.Add(project);
+		}
+
+		return packableProjects;
+	}
+
+	/// <summary>
+	/// Reads the full paths of the projects in the workspace's solution, the set a restore and build
+	/// at the workspace root cover.
+	/// </summary>
+	/// <param name="workingDirectory">The workspace directory.</param>
+	/// <returns>The project paths, or <see langword="null"/> when the workspace has no solution file.</returns>
+	private static HashSet<string>? ReadSolutionProjects(string workingDirectory)
+	{
+		string? solution = SolutionFilter.FindSolution(workingDirectory);
+		if (solution is null)
+		{
+			return null;
+		}
+
+		string solutionDirectory = Path.GetDirectoryName(Path.GetFullPath(solution))!;
+		StringComparer pathComparer = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+
+		// A .sln writes its paths with backslashes on every platform, so they are normalized before
+		// being resolved against the solution's own directory.
+		return new HashSet<string>(
+			SolutionFilter.ReadProjects(solution)
+				.Select(p => Path.GetFullPath(Path.Combine(solutionDirectory, p.Replace('\\', Path.DirectorySeparatorChar).Replace('/', Path.DirectorySeparatorChar)))),
+			pathComparer);
 	}
 
 	/// <inheritdoc/>
