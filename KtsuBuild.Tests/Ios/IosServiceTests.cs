@@ -447,6 +447,38 @@ public class IosServiceTests
 	}
 
 	[TestMethod]
+	public async Task ArchiveAsync_SigningValuesWithCommaOrSemicolon_ReachMsBuildEscaped()
+	{
+		string head = CreateHead("MyApp.iOS");
+		string ipa = Path.Combine(_tempDir, "MyApp.iOS", "bin", "Release", "net10.0-ios", "ios-arm64", "publish", "MyApp.ipa");
+		Directory.CreateDirectory(Path.GetDirectoryName(ipa)!);
+		await File.WriteAllTextAsync(ipa, "archive").ConfigureAwait(false);
+
+		string? captured = null;
+		_processRunner.RunWithCallbackAsync("dotnet", Arg.Do<string>(a => captured = a), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
+			.Returns(0);
+
+		await _service.ArchiveAsync(ArchiveOpts(_tempDir, head, "net10.0-ios", "Apple Distribution: Acme, Inc. (ABCDE12345)", "Acme;App 100%"), TestContext.CancellationToken).ConfigureAwait(false);
+
+		// The process runner splits the string into argv, so assert on the elements MSBuild
+		// receives: each property is one element, with ',' ';' and '%' MSBuild-escaped so
+		// MSBuild neither splits the value (MSB1006) nor unescapes it into something else.
+		Assert.IsNotNull(captured);
+		List<string> argv = KtsuBuild.Utilities.CommandLineArguments.Split(captured);
+		CollectionAssert.Contains(argv, "-p:CodesignKey=Apple Distribution: Acme%2C Inc. (ABCDE12345)");
+		CollectionAssert.Contains(argv, "-p:CodesignProvision=Acme%3BApp 100%25");
+	}
+
+	[TestMethod]
+	[DataRow("Apple Distribution: ktsu", "Apple Distribution: ktsu")]
+	[DataRow("Acme, Inc.", "Acme%2C Inc.")]
+	[DataRow("a;b", "a%3Bb")]
+	[DataRow("100%", "100%25")]
+	[DataRow("%3B", "%253B")]
+	public void EscapeMsBuildPropertyValue_EscapesSeparatorsAndPercent(string value, string expected) =>
+		Assert.AreEqual(expected, IosService.EscapeMsBuildPropertyValue(value));
+
+	[TestMethod]
 	public async Task ArchiveAsync_WithBundleId_PassesApplicationId()
 	{
 		string head = CreateHead("MyApp.iOS");

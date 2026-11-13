@@ -540,12 +540,14 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 		string frameworkArg = string.IsNullOrEmpty(options.Framework) ? string.Empty : $" -f {options.Framework}";
 		string bundleIdArg = string.IsNullOrEmpty(options.BundleId) ? string.Empty : $" -p:ApplicationId={options.BundleId}";
 
-		// The signing properties carry the certificate common name and profile name. They
-		// are passed straight to MSBuild, matching the reference pipeline; the process
-		// runner does not echo arguments, so they are not logged here.
+		// The signing properties carry the certificate common name and profile name. The
+		// process runner's splitter consumes the grouping quotes, so MSBuild sees the value
+		// unquoted and would split it on ',' or ';' (MSB1006 for "Acme, Inc."). Escaping
+		// those characters makes MSBuild read the value back exactly. The process runner does
+		// not echo arguments, so they are not logged here.
 		string args = $"publish \"{options.ProjectPath}\" --configuration {options.Configuration}{frameworkArg} " +
 			$"-p:RuntimeIdentifier={options.RuntimeIdentifier} -p:ArchiveOnBuild=true -p:BuildIpa=true{bundleIdArg} " +
-			$"-p:CodesignKey=\"{options.CodesignKey}\" -p:CodesignProvision=\"{options.ProvisionName}\"";
+			$"-p:CodesignKey=\"{EscapeMsBuildPropertyValue(options.CodesignKey)}\" -p:CodesignProvision=\"{EscapeMsBuildPropertyValue(options.ProvisionName)}\"";
 
 		int exitCode = await processRunner.RunWithCallbackAsync(
 			"dotnet",
@@ -568,6 +570,20 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 		logger.WriteInfo($"Archive: {ipa}");
 		return ipa;
 	}
+
+	/// <summary>
+	/// Escapes a value for an MSBuild <c>-p:Name=Value</c> switch, so that MSBuild reads it back
+	/// verbatim: <c>%</c>, <c>;</c> and <c>,</c> become <c>%25</c>, <c>%3B</c> and <c>%2C</c>.
+	/// Unescaped, MSBuild splits a value on <c>;</c> and <c>,</c> and rejects the remainder as
+	/// an invalid property (MSB1006).
+	/// </summary>
+	/// <param name="value">The property value.</param>
+	/// <returns>The escaped value.</returns>
+	internal static string EscapeMsBuildPropertyValue(string? value) =>
+		(value ?? string.Empty)
+			.Replace("%", "%25", StringComparison.Ordinal)
+			.Replace(";", "%3B", StringComparison.Ordinal)
+			.Replace(",", "%2C", StringComparison.Ordinal);
 
 	/// <summary>
 	/// Imports the distribution certificate into a temporary keychain and installs the
