@@ -4,6 +4,7 @@ namespace KtsuBuild.Publishing;
 
 using System.Text.Json;
 using KtsuBuild.Abstractions;
+using KtsuBuild.Git;
 using KtsuBuild.Utilities;
 #if !NET10_0_OR_GREATER
 using static Polyfill;
@@ -31,7 +32,7 @@ public class GitHubService(IProcessRunner processRunner, IGitService gitService,
 		}
 
 		// Configure git identity, without disturbing one the repository or the developer already has
-		await gitService.EnsureIdentityAsync(options.WorkingDirectory, "Github Actions", "actions@users.noreply.github.com", cancellationToken).ConfigureAwait(false);
+		await gitService.EnsureIdentityAsync(options.WorkingDirectory, AutomationIdentity.Name, AutomationIdentity.Email, cancellationToken).ConfigureAwait(false);
 
 		// Create and push tag
 		string tagName = $"v{options.Version}";

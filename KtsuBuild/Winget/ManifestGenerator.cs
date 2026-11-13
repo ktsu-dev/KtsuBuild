@@ -79,19 +79,19 @@ public static class ManifestGenerator
 		sb.AppendLine($"PackageIdentifier: {config.PackageId}");
 		sb.AppendLine($"PackageVersion: {config.Version}");
 		sb.AppendLine("PackageLocale: en-US");
-		sb.AppendLine($"Publisher: {config.Publisher}");
+		sb.AppendLine($"Publisher: {Quote(config.Publisher)}");
 		sb.AppendLine($"PublisherUrl: https://github.com/{config.Owner}");
 		sb.AppendLine($"PublisherSupportUrl: https://github.com/{config.GitHubRepo}/issues");
 		sb.AppendLine("# PrivacyUrl:");
-		sb.AppendLine($"Author: {config.Publisher}");
-		sb.AppendLine($"PackageName: {config.PackageName}");
+		sb.AppendLine($"Author: {Quote(config.Publisher)}");
+		sb.AppendLine($"PackageName: {Quote(config.PackageName)}");
 		sb.AppendLine($"PackageUrl: https://github.com/{config.GitHubRepo}");
-		sb.AppendLine($"License: {projectInfo.License}");
+		sb.AppendLine($"License: {Quote(projectInfo.License)}");
 		sb.AppendLine($"LicenseUrl: https://github.com/{config.GitHubRepo}/blob/main/LICENSE.md");
-		sb.AppendLine($"Copyright: {projectInfo.Copyright ?? $"Copyright (c) {config.Publisher}"}");
+		sb.AppendLine($"Copyright: {Quote(projectInfo.Copyright ?? $"Copyright (c) {config.Publisher}")}");
 		sb.AppendLine("# CopyrightUrl:");
-		sb.AppendLine($"ShortDescription: {config.ShortDescription}");
-		sb.AppendLine($"Description: {projectInfo.Description}");
+		sb.AppendLine($"ShortDescription: {Quote(config.ShortDescription)}");
+		sb.AppendLine($"Description: {Quote(projectInfo.Description)}");
 		sb.AppendLine($"Moniker: {config.CommandAlias}");
 
 		// Tags
@@ -100,7 +100,7 @@ public static class ManifestGenerator
 			sb.AppendLine("Tags:");
 			foreach (string tag in projectInfo.Tags.Take(10))
 			{
-				sb.AppendLine($"- {tag}");
+				sb.AppendLine($"- {Quote(tag)}");
 			}
 		}
 
@@ -116,6 +116,52 @@ public static class ManifestGenerator
 		sb.AppendLine("ManifestVersion: 1.10.0");
 
 		await File.WriteAllTextAsync(path, sb.ToString(), cancellationToken).ConfigureAwait(false);
+	}
+
+	/// <summary>
+	/// Writes free text as a YAML double-quoted scalar, so that prose containing <c>: </c>, <c> #</c>,
+	/// a leading indicator such as <c>[</c>, <c>"</c> or <c>@</c>, or a line break reads back as exactly
+	/// the text given rather than breaking or truncating the manifest.
+	/// </summary>
+	/// <param name="value">The text to write. CRLF line breaks are written as LF.</param>
+	/// <returns>The quoted scalar.</returns>
+	private static string Quote(string? value)
+	{
+		StringBuilder sb = new("\"");
+		foreach (char c in (value ?? string.Empty).Replace("\r\n", "\n"))
+		{
+			switch (c)
+			{
+				case '\\':
+					sb.Append("\\\\");
+					break;
+				case '"':
+					sb.Append("\\\"");
+					break;
+				case '\n':
+					sb.Append("\\n");
+					break;
+				case '\r':
+					sb.Append("\\r");
+					break;
+				case '\t':
+					sb.Append("\\t");
+					break;
+				default:
+					if (char.IsControl(c))
+					{
+						sb.Append("\\u").Append(((int)c).ToString("X4", System.Globalization.CultureInfo.InvariantCulture));
+					}
+					else
+					{
+						sb.Append(c);
+					}
+
+					break;
+			}
+		}
+
+		return sb.Append('"').ToString();
 	}
 
 	private static async Task WriteInstallerManifestAsync(

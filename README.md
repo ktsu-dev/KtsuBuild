@@ -267,12 +267,18 @@ Reason: Found changes warranting at least a patch version
 Is Prerelease: False
 ```
 
+Standard output carries only these lines. The diagnostics written while the version is calculated
+go to standard error.
+
 #### `version bump`
 
-Calculate and display the next version number.
+Calculate and display the next version number. Standard output carries the version alone, with the
+diagnostics on standard error, so a script can capture it:
 
 ```bash
 ktsubuild version bump [options]
+
+V=$(ktsubuild version bump --workspace .)
 ```
 
 #### `version create`
@@ -468,7 +474,7 @@ git commit -m "[skip ci] Update documentation"
 
 If no CLI option or commit tag is specified, KtsuBuild automatically determines the version bump by:
 
-1. **Public API analysis**: Diffs C# files for added/removed/modified public types, methods, properties, and constants. Any public API surface change triggers a **minor** bump.
+1. **Public API analysis**: Diffs C# files for added/removed/modified public or protected types, methods, properties, fields, events, constructors, and constants. Any public API surface change triggers a **minor** bump. Test code is left out: files under a `*.Test`, `*.Tests`, `*.UnitTests` or `*.IntegrationTests` project, or a `test`/`tests` folder, never count.
 2. **Commit filtering**: Bot commits (dependabot, renovate, etc.) and PR merge commits are excluded from analysis.
 3. **Fallback**: Meaningful code changes default to **patch**; trivial changes default to **prerelease**.
 

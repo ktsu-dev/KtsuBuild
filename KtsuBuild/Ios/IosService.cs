@@ -5,6 +5,7 @@ namespace KtsuBuild.Ios;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using KtsuBuild.Abstractions;
+using KtsuBuild.DotNet;
 using KtsuBuild.Utilities;
 #if !NET10_0_OR_GREATER
 using static Polyfill;
@@ -73,9 +74,7 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 			return new IosPackageResult { Success = true, Skipped = true, SkipReason = reason };
 		}
 
-		IReadOnlyList<string> heads = string.IsNullOrEmpty(options.Project)
-			? dotNetService.GetIosHeads(options.WorkingDirectory)
-			: [options.Project];
+		IReadOnlyList<string> heads = ResolveHeads(options.WorkingDirectory, options.Project);
 
 		if (heads.Count == 0)
 		{
@@ -169,8 +168,9 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 		IReadOnlyList<string> ipas = LocateIpas(options);
 
 		// altool discovers the key by name under ~/.appstoreconnect/private_keys; place it
-		// there for the run and wipe it afterwards.
-		string keyPath = await InstallAppStoreConnectKeyAsync(keyBytes, options.AppStoreConnectKeyId, cancellationToken).ConfigureAwait(false);
+		// there for the run and put things back afterwards. A key the developer already keeps
+		// there (for altool, Transporter or fastlane) is restored, not deleted.
+		InstalledAppStoreConnectKey key = await InstallAppStoreConnectKeyAsync(DefaultAppStoreConnectKeyDirectory, keyBytes, options.AppStoreConnectKeyId, cancellationToken).ConfigureAwait(false);
 		List<string> uploaded = [];
 		try
 		{
@@ -182,7 +182,7 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 		}
 		finally
 		{
-			TryDeleteFile(keyPath);
+			RemoveAppStoreConnectKey(key);
 		}
 
 		return new IosUploadResult { Success = true, UploadedIpaPaths = uploaded };
@@ -352,9 +352,7 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 			return [options.IpaPath];
 		}
 
-		IReadOnlyList<string> heads = string.IsNullOrEmpty(options.Project)
-			? dotNetService.GetIosHeads(options.WorkingDirectory)
-			: [options.Project];
+		IReadOnlyList<string> heads = ResolveHeads(options.WorkingDirectory, options.Project);
 
 		List<string> ipas = [];
 		List<string> searched = [];
@@ -384,15 +382,54 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 		return ipas;
 	}
 
-	private async Task<string> InstallAppStoreConnectKeyAsync(byte[] keyBytes, string apiKeyId, CancellationToken cancellationToken)
+	/// <summary>
+	/// Gets the directory altool searches for API keys: <c>~/.appstoreconnect/private_keys</c>.
+	/// </summary>
+	internal static string DefaultAppStoreConnectKeyDirectory => Path.Combine(
+		Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+		".appstoreconnect",
+		"private_keys");
+
+	/// <summary>
+	/// Writes the App Store Connect API key to <c>AuthKey_&lt;id&gt;.p8</c> under
+	/// <paramref name="keyDir"/>, remembering what was there before so
+	/// <see cref="RemoveAppStoreConnectKey"/> can put it back. A file that already holds the
+	/// same key is not rewritten.
+	/// </summary>
+	/// <param name="keyDir">The directory altool searches, normally <c>~/.appstoreconnect/private_keys</c>.</param>
+	/// <param name="keyBytes">The decoded <c>.p8</c>.</param>
+	/// <param name="apiKeyId">The App Store Connect API key identifier.</param>
+	/// <param name="cancellationToken">A cancellation token.</param>
+	/// <returns>The installed key, with the file's earlier contents when it already existed.</returns>
+	internal async Task<InstalledAppStoreConnectKey> InstallAppStoreConnectKeyAsync(string keyDir, byte[] keyBytes, string apiKeyId, CancellationToken cancellationToken)
 	{
-		string keyDir = Path.Combine(
-			Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-			".appstoreconnect",
-			"private_keys");
+		InstalledAppStoreConnectKey key = await WriteAppStoreConnectKeyAsync(keyDir, keyBytes, apiKeyId, cancellationToken).ConfigureAwait(false);
+		logger.WriteInfo(key.OriginalContents is null
+			? "Installed the App Store Connect API key."
+			: "An App Store Connect API key with this id is already installed; it will be left as it was after the upload.");
+		return key;
+	}
+
+	private static async Task<InstalledAppStoreConnectKey> WriteAppStoreConnectKeyAsync(string keyDir, byte[] keyBytes, string apiKeyId, CancellationToken cancellationToken)
+	{
 		Directory.CreateDirectory(keyDir);
 
 		string keyPath = Path.Combine(keyDir, $"AuthKey_{apiKeyId}.p8");
+		byte[]? original = null;
+		if (File.Exists(keyPath))
+		{
+#if NETSTANDARD
+			original = File.ReadAllBytes(keyPath);
+#else
+			original = await File.ReadAllBytesAsync(keyPath, cancellationToken).ConfigureAwait(false);
+#endif
+		}
+
+		if (original is not null && original.AsSpan().SequenceEqual(keyBytes))
+		{
+			return new InstalledAppStoreConnectKey(keyPath, original);
+		}
+
 #if NETSTANDARD
 		File.WriteAllBytes(keyPath, keyBytes);
 		cancellationToken.ThrowIfCancellationRequested();
@@ -410,8 +447,34 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 		}
 #endif
 
-		logger.WriteInfo("Installed the App Store Connect API key.");
-		return keyPath;
+		return new InstalledAppStoreConnectKey(keyPath, original);
+	}
+
+	/// <summary>
+	/// Undoes <see cref="InstallAppStoreConnectKeyAsync"/>: deletes a key file this run created,
+	/// and writes back the earlier contents of one that already existed.
+	/// </summary>
+	/// <param name="key">The installed key.</param>
+	internal static void RemoveAppStoreConnectKey(InstalledAppStoreConnectKey key)
+	{
+		Ensure.NotNull(key);
+		if (key.OriginalContents is null)
+		{
+			TryDeleteFile(key.Path);
+			return;
+		}
+
+		try
+		{
+			if (!File.Exists(key.Path) || !File.ReadAllBytes(key.Path).AsSpan().SequenceEqual(key.OriginalContents))
+			{
+				File.WriteAllBytes(key.Path, key.OriginalContents);
+			}
+		}
+		catch (IOException)
+		{
+			// Best effort, like the delete: the upload's own outcome is what the caller reports.
+		}
 	}
 
 	/// <summary>
@@ -575,12 +638,14 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 		string frameworkArg = string.IsNullOrEmpty(options.Framework) ? string.Empty : $" -f {options.Framework}";
 		string bundleIdArg = string.IsNullOrEmpty(options.BundleId) ? string.Empty : $" -p:ApplicationId={options.BundleId}";
 
-		// The signing properties carry the certificate common name and profile name. They
-		// are passed straight to MSBuild, matching the reference pipeline; the process
-		// runner does not echo arguments, so they are not logged here.
+		// The signing properties carry the certificate common name and profile name. The
+		// process runner's splitter consumes the grouping quotes, so MSBuild sees the value
+		// unquoted and would split it on ',' or ';' (MSB1006 for "Acme, Inc."). Escaping
+		// those characters makes MSBuild read the value back exactly. The process runner does
+		// not echo arguments, so they are not logged here.
 		string args = $"publish \"{options.ProjectPath}\" --configuration {options.Configuration}{frameworkArg} " +
 			$"-p:RuntimeIdentifier={options.RuntimeIdentifier} -p:ArchiveOnBuild=true -p:BuildIpa=true{bundleIdArg} " +
-			$"-p:CodesignKey=\"{options.CodesignKey}\" -p:CodesignProvision=\"{options.ProvisionName}\"";
+			$"-p:CodesignKey=\"{EscapeMsBuildPropertyValue(options.CodesignKey)}\" -p:CodesignProvision=\"{EscapeMsBuildPropertyValue(options.ProvisionName)}\"";
 
 		int exitCode = await processRunner.RunWithCallbackAsync(
 			"dotnet",
@@ -595,7 +660,8 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 			throw new InvalidOperationException($"iOS archive failed for {options.ProjectPath} ({options.RuntimeIdentifier}) with exit code {exitCode}");
 		}
 
-		string headDir = Path.GetDirectoryName(Path.GetFullPath(options.ProjectPath)) ?? Directory.GetCurrentDirectory();
+		string projectPath = DotNetService.ResolveAgainst(options.WorkingDirectory, options.ProjectPath);
+		string headDir = Path.GetDirectoryName(projectPath) ?? options.WorkingDirectory;
 		string binDir = Path.Combine(headDir, "bin");
 		string ipa = FindIpa(binDir)
 			?? throw new InvalidOperationException($"iOS archive completed but no .ipa was produced under {binDir}.");
@@ -603,6 +669,20 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 		logger.WriteInfo($"Archive: {ipa}");
 		return ipa;
 	}
+
+	/// <summary>
+	/// Escapes a value for an MSBuild <c>-p:Name=Value</c> switch, so that MSBuild reads it back
+	/// verbatim: <c>%</c>, <c>;</c> and <c>,</c> become <c>%25</c>, <c>%3B</c> and <c>%2C</c>.
+	/// Unescaped, MSBuild splits a value on <c>;</c> and <c>,</c> and rejects the remainder as
+	/// an invalid property (MSB1006).
+	/// </summary>
+	/// <param name="value">The property value.</param>
+	/// <returns>The escaped value.</returns>
+	internal static string EscapeMsBuildPropertyValue(string? value) =>
+		(value ?? string.Empty)
+			.Replace("%", "%25", StringComparison.Ordinal)
+			.Replace(";", "%3B", StringComparison.Ordinal)
+			.Replace(",", "%2C", StringComparison.Ordinal);
 
 	/// <summary>
 	/// Imports the distribution certificate into a temporary keychain and installs the
@@ -646,6 +726,20 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 			TryDeleteDirectory(workDir);
 		}
 	}
+
+	/// <summary>
+	/// Returns the iOS heads to act on: the explicit project when one is given, otherwise
+	/// every head detected in the workspace. A relative project names a path in the
+	/// workspace, where <c>dotnet</c> runs, not in the process directory, so it is
+	/// resolved against <paramref name="workingDirectory"/> before any file lookup.
+	/// </summary>
+	/// <param name="workingDirectory">The workspace the run is scoped to.</param>
+	/// <param name="project">The explicit head project, or null to detect heads.</param>
+	/// <returns>The head project paths.</returns>
+	internal IReadOnlyList<string> ResolveHeads(string workingDirectory, string? project) =>
+		string.IsNullOrEmpty(project)
+			? dotNetService.GetIosHeads(workingDirectory)
+			: [DotNetService.ResolveAgainst(workingDirectory, project!)];
 
 	/// <summary>
 	/// Resolves the head's <c>Info.plist</c>: the conventional location is next to the
@@ -779,10 +873,10 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 	{
 		// A fresh, default, unlocked keychain with an auto-lock timeout. The runner is
 		// ephemeral, so this lives only for the run.
-		await RunOrThrowAsync(SecurityTool, $"create-keychain -p \"{keychainPassword}\" {SigningKeychain}", null, "Failed to create the signing keychain.", cancellationToken).ConfigureAwait(false);
-		await RunOrThrowAsync(SecurityTool, $"default-keychain -s {SigningKeychain}", null, "Failed to set the default keychain.", cancellationToken).ConfigureAwait(false);
-		await RunOrThrowAsync(SecurityTool, $"unlock-keychain -p \"{keychainPassword}\" {SigningKeychain}", null, "Failed to unlock the signing keychain.", cancellationToken).ConfigureAwait(false);
-		await RunOrThrowAsync(SecurityTool, $"set-keychain-settings -lut 3600 {SigningKeychain}", null, "Failed to configure keychain settings.", cancellationToken).ConfigureAwait(false);
+		await RunOrThrowAsync(SecurityTool, ["create-keychain", "-p", keychainPassword, SigningKeychain], null, "Failed to create the signing keychain.", cancellationToken).ConfigureAwait(false);
+		await RunOrThrowAsync(SecurityTool, ["default-keychain", "-s", SigningKeychain], null, "Failed to set the default keychain.", cancellationToken).ConfigureAwait(false);
+		await RunOrThrowAsync(SecurityTool, ["unlock-keychain", "-p", keychainPassword, SigningKeychain], null, "Failed to unlock the signing keychain.", cancellationToken).ConfigureAwait(false);
+		await RunOrThrowAsync(SecurityTool, ["set-keychain-settings", "-lut", "3600", SigningKeychain], null, "Failed to configure keychain settings.", cancellationToken).ConfigureAwait(false);
 	}
 
 	private async Task ImportCertificateAsync(byte[] certBytes, IosPackageOptions options, string workDir, CancellationToken cancellationToken)
@@ -796,20 +890,21 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 #endif
 
 		// `security import` infers the .p12 format from the extension and the explicit
-		// `-f pkcs12`, and authorizes codesign/security to use the key.
-		string importArgs = $"import \"{certPath}\" -f pkcs12 -k {SigningKeychain} -P \"{options.CertificatePassword}\" -T /usr/bin/codesign -T /usr/bin/security";
-		ProcessResult import = await processRunner.RunAsync(SecurityTool, importArgs, null, cancellationToken).ConfigureAwait(false);
+		// `-f pkcs12`, and authorizes codesign/security to use the key. Every signing command
+		// passes the secrets as separate arguments: a password is arbitrary text, and quoting
+		// it into one command line breaks on a `"` or a trailing `\`.
+		ProcessResult import = await processRunner.RunAsync(SecurityTool, ImportArguments(certPath, options.CertificatePassword), null, cancellationToken).ConfigureAwait(false);
 		if (!import.Success)
 		{
 			logger.WriteWarning("Direct certificate import failed; transcoding to a 3DES PKCS#12 and retrying.");
 			string legacy = await TranscodeP12ToLegacyAsync(certPath, options.CertificatePassword, workDir, cancellationToken).ConfigureAwait(false);
-			await RunOrThrowAsync(SecurityTool, $"import \"{legacy}\" -f pkcs12 -k {SigningKeychain} -P \"{options.CertificatePassword}\" -T /usr/bin/codesign -T /usr/bin/security", null, "Failed to import the signing certificate after the 3DES transcode.", cancellationToken).ConfigureAwait(false);
+			await RunOrThrowAsync(SecurityTool, ImportArguments(legacy, options.CertificatePassword), null, "Failed to import the signing certificate after the 3DES transcode.", cancellationToken).ConfigureAwait(false);
 		}
 
 		logger.WriteInfo("Imported the signing certificate.");
 
 		// Allow codesign to use the key without an interactive prompt.
-		await RunOrThrowAsync(SecurityTool, $"set-key-partition-list -S apple-tool:,apple:,codesign: -s -k \"{options.KeychainPassword}\" {SigningKeychain}", null, "Failed to set the keychain key partition list.", cancellationToken).ConfigureAwait(false);
+		await RunOrThrowAsync(SecurityTool, ["set-key-partition-list", "-S", "apple-tool:,apple:,codesign:", "-s", "-k", options.KeychainPassword, SigningKeychain], null, "Failed to set the keychain key partition list.", cancellationToken).ConfigureAwait(false);
 	}
 
 	private async Task<string> TranscodeP12ToLegacyAsync(string certPath, string password, string workDir, CancellationToken cancellationToken)
@@ -820,10 +915,10 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 
 		// -legacy loads the legacy provider alongside the default, so this reads both modern
 		// AES and old RC2/3DES inputs.
-		await RunOrThrowAsync(openssl, $"pkcs12 -in \"{certPath}\" -legacy -nodes -passin pass:\"{password}\" -out \"{pem}\"", null, "Could not open the .p12 — wrong certificate password, or it is not a valid PKCS#12.", cancellationToken).ConfigureAwait(false);
+		await RunOrThrowAsync(openssl, ["pkcs12", "-in", certPath, "-legacy", "-nodes", "-passin", $"pass:{password}", "-out", pem], null, "Could not open the .p12 — wrong certificate password, or it is not a valid PKCS#12.", cancellationToken).ConfigureAwait(false);
 
 		// Force 3DES for both bags and a SHA-1 MAC, the format macOS can import.
-		await RunOrThrowAsync(openssl, $"pkcs12 -export -legacy -certpbe PBE-SHA1-3DES -keypbe PBE-SHA1-3DES -macalg sha1 -in \"{pem}\" -out \"{legacy}\" -passout pass:\"{password}\"", null, "Failed to transcode the certificate to a 3DES PKCS#12.", cancellationToken).ConfigureAwait(false);
+		await RunOrThrowAsync(openssl, ["pkcs12", "-export", "-legacy", "-certpbe", "PBE-SHA1-3DES", "-keypbe", "PBE-SHA1-3DES", "-macalg", "sha1", "-in", pem, "-out", legacy, "-passout", $"pass:{password}"], null, "Failed to transcode the certificate to a 3DES PKCS#12.", cancellationToken).ConfigureAwait(false);
 
 		return legacy;
 	}
@@ -864,6 +959,25 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 		await File.WriteAllBytesAsync(profilePath, profileBytes, cancellationToken).ConfigureAwait(false);
 #endif
 		logger.WriteInfo("Installed the provisioning profile.");
+	}
+
+	private static string[] ImportArguments(string certificatePath, string certificatePassword) =>
+		["import", certificatePath, "-f", "pkcs12", "-k", SigningKeychain, "-P", certificatePassword, "-T", "/usr/bin/codesign", "-T", "/usr/bin/security"];
+
+	private async Task RunOrThrowAsync(string fileName, IReadOnlyList<string> arguments, string? workingDirectory, string failureMessage, CancellationToken cancellationToken)
+	{
+		int exitCode = await processRunner.RunWithCallbackAsync(
+			fileName,
+			arguments,
+			workingDirectory,
+			logger.WriteInfo,
+			logger.WriteError,
+			cancellationToken).ConfigureAwait(false);
+
+		if (exitCode != 0)
+		{
+			throw new InvalidOperationException($"{failureMessage} (exit code {exitCode})");
+		}
 	}
 
 	private async Task RunOrThrowAsync(string fileName, string arguments, string? workingDirectory, string failureMessage, CancellationToken cancellationToken)
@@ -939,3 +1053,10 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 		}
 	}
 }
+
+/// <summary>
+/// An App Store Connect API key placed for an upload.
+/// </summary>
+/// <param name="Path">The key file altool reads.</param>
+/// <param name="OriginalContents">The file's contents before the upload, or <see langword="null"/> when the upload created it.</param>
+internal sealed record InstalledAppStoreConnectKey(string Path, byte[]? OriginalContents);

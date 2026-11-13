@@ -188,6 +188,22 @@ public class IosBuildServiceTests
 		Assert.IsFalse(result);
 	}
 
+	[TestMethod]
+	public async Task BuildAsync_RelativeProject_VerifiesBundleUnderWorkspace()
+	{
+		string head = CreateHeadWithDeviceBundle("MyApp.iOS", embedFramework: null);
+		Assert.AreNotEqual(Path.GetFullPath(_tempDir), Path.GetFullPath(Directory.GetCurrentDirectory()));
+
+		bool result = await _service.BuildAsync(new IosBuildOptions
+		{
+			WorkingDirectory = _tempDir,
+			Project = Path.Combine("MyApp.iOS", "MyApp.iOS.csproj"),
+		}).ConfigureAwait(false);
+
+		Assert.IsTrue(result);
+		await _dotNetService.Received().BuildIosAsync(_tempDir, Path.GetFullPath(head), IosBuildService.DeviceRuntime, Arg.Any<string>(), false, Arg.Any<CancellationToken>()).ConfigureAwait(false);
+	}
+
 	// VerifyDeviceBundle (direct)
 
 	[TestMethod]

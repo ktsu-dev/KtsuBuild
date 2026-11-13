@@ -19,6 +19,10 @@ using static Polyfill;
 /// <param name="logger">The build logger.</param>
 public class GitHubApiClient(IProcessRunner processRunner, IBuildLogger logger) : IGitHubApiClient
 {
+	// Enough completed runs that a few fork pull requests opened from a branch named like the
+	// repository's own cannot push its last real run off the page.
+	private const int WorkflowRunPageSize = 20;
+
 	private const int PageSize = 100;
 
 	/// <summary>The one HTTP failure that is an answer rather than an outage.</summary>
@@ -195,7 +199,13 @@ public class GitHubApiClient(IProcessRunner processRunner, IBuildLogger logger) 
 	{
 		// Only completed runs: a queued or in-progress run has no conclusion yet, and would hide the
 		// result of the last run that finished.
-		string endpoint = $"/repos/{organization}/{repository}/actions/workflows/{workflowFileName}/runs?per_page=1&status=completed";
+		//
+		// The branch filter matches a run's head branch, so a fork's pull request opened from its own
+		// main matches too, and its CI result would stand in for the repository's. The API filters on
+		// one event at a time, and the branch's real runs come from push, schedule and
+		// workflow_dispatch alike, so pull request runs are skipped here instead, from a page deep
+		// enough that a few of them cannot hide the branch's own last run.
+		string endpoint = $"/repos/{organization}/{repository}/actions/workflows/{workflowFileName}/runs?per_page={WorkflowRunPageSize}&status=completed";
 		if (!string.IsNullOrEmpty(branch))
 		{
 			endpoint += $"&branch={branch}";
@@ -210,8 +220,15 @@ public class GitHubApiClient(IProcessRunner processRunner, IBuildLogger logger) 
 			return null;
 		}
 
-		JsonElement run = runs[0];
-		return new GitHubWorkflowRun(GetString(run, "status"), GetString(run, "conclusion"));
+		foreach (JsonElement run in runs.EnumerateArray())
+		{
+			if (GetString(run, "event") is not ("pull_request" or "pull_request_target"))
+			{
+				return new GitHubWorkflowRun(GetString(run, "status"), GetString(run, "conclusion"));
+			}
+		}
+
+		return null;
 	}
 
 	/// <summary>

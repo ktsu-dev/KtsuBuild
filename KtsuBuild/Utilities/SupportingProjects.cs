@@ -101,10 +101,17 @@ public static partial class SupportingProjects
 	/// Demo belongs here for the same reason sample and example do. They name the same thing, and a
 	/// demo left in the list reports its SDK as something the repository ships, so Keybinding would
 	/// claim a command line program it does not have.
+	/// <para>
+	/// The keyword has to start a word of the name, or <c>Latest</c>, <c>Contest</c> and <c>Protest</c>
+	/// would count as tests and silently lose their release zips and their place in the Ships column.
+	/// A word starts after a separator (<c>Widget.Tests</c>, <c>Tests</c>), in any case, or at a
+	/// camel-case boundary (<c>ImGuiAppDemo</c>, <c>WidgetTests</c>), where the keyword has to be
+	/// capitalised because the capital is what marks the boundary.
+	/// </para>
 	/// </remarks>
 	[GeneratedRegex(
-		@"(Benchmark|Test|Sample|Example|Demo)s?\.csproj$",
-		RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
+		@"(?:(?<=^|[./\\])(?i:Benchmark|Test|Sample|Example|Demo)|(?<=[a-z0-9])(?:Benchmark|Test|Sample|Example|Demo))(?i:s?\.csproj)$",
+		RegexOptions.CultureInvariant,
 		MatchTimeoutMilliseconds)]
 	private static partial Regex SupportingProjectRegex();
 }

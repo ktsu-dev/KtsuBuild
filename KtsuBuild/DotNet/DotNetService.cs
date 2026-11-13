@@ -41,6 +41,7 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger, st
 	// that ktsu.Sdk.* projects actually use. SdkReferencePatterns holds the suffix list, shared
 	// with Winget.ProjectDetector so the two classifications cannot drift apart.
 	private static readonly Regex SdkExecutableRegex = new(SdkReferencePatterns.ExecutableSdk, RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexDefaults.MatchTimeout);
+	private static readonly Regex SdkIosRegex = new(SdkReferencePatterns.IosSdk, RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexDefaults.MatchTimeout);
 	private static readonly Regex TargetFrameworkRegex = new(@"<TargetFrameworks?>\s*([^<]+?)\s*</TargetFrameworks?>", RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexDefaults.MatchTimeout);
 #pragma warning restore SYSLIB1045
 
@@ -591,7 +592,18 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger, st
 			return ProjectPlatform.Neutral;
 		}
 
-		return ClassifyTargetFrameworks(GetTargetFrameworks(File.ReadAllText(projectPath)));
+		string content = File.ReadAllText(projectPath);
+		List<string> targetFrameworks = [.. GetTargetFrameworks(content).Where(tfm => !IsPropertyReference(tfm))];
+
+		// ktsu.Sdk.iOS sets the -ios target framework itself, so the idiomatic head declares
+		// none of its own. With no literal target framework, the SDK it references is the
+		// only signal of its platform.
+		if (targetFrameworks.Count == 0 && SdkIosRegex.IsMatch(content))
+		{
+			return ProjectPlatform.Ios;
+		}
+
+		return ClassifyTargetFrameworks(targetFrameworks);
 	}
 
 	/// <inheritdoc/>
@@ -624,7 +636,8 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger, st
 	/// built on any host, selecting a framework where needed). A project whose target
 	/// frameworks are all iOS, or all Windows, is classified accordingly. Anything else
 	/// (including mixes of platform-specific frameworks) is treated as neutral so it is
-	/// not filtered out.
+	/// not filtered out. A <c>$(...)</c> property token is skipped rather than read as a
+	/// neutral target framework.
 	/// </summary>
 	/// <param name="targetFrameworks">The target framework monikers.</param>
 	/// <returns>The platform classification.</returns>
@@ -638,7 +651,9 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger, st
 
 		foreach (string tfm in targetFrameworks)
 		{
-			if (string.IsNullOrWhiteSpace(tfm))
+			// A $(...) token is a property MSBuild expands, not a target framework, so it
+			// says nothing about the platform.
+			if (string.IsNullOrWhiteSpace(tfm) || IsPropertyReference(tfm))
 			{
 				continue;
 			}
@@ -691,6 +706,9 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger, st
 			   SdkExecutableRegex.IsMatch(content);
 	}
 
+	private static bool IsPropertyReference(string targetFramework) =>
+		targetFramework.Contains("$(", StringComparison.Ordinal);
+
 	private static IEnumerable<string> GetTargetFrameworks(string projectContent)
 	{
 		foreach (Match match in TargetFrameworkRegex.Matches(projectContent))
@@ -717,7 +735,7 @@ public class DotNetService(IProcessRunner processRunner, IBuildLogger logger, st
 	/// the directory the test platform writes to the same one, even when the tool was invoked from
 	/// somewhere other than the workspace.
 	/// </remarks>
-	private static string ResolveAgainst(string workingDirectory, string path)
+	internal static string ResolveAgainst(string workingDirectory, string path)
 		=> Path.IsPathRooted(path) ? path : Path.GetFullPath(Path.Combine(workingDirectory, path));
 
 	/// <summary>

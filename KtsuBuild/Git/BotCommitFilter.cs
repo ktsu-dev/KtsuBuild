@@ -24,6 +24,13 @@ internal static class BotCommitFilter
 	private static readonly string[] SubjectPatterns = ["ProjectDirector", "SyncFileContents"];
 
 	/// <summary>
+	/// Values the whole author or subject must equal: KtsuBuild's own fallback identity and its metadata
+	/// commit subject. They are matched in full, so a human commit that only mentions them still counts.
+	/// </summary>
+	private static readonly string[] ExactAuthors = [AutomationIdentity.Name];
+	private static readonly string[] ExactSubjects = [AutomationIdentity.MetadataCommitMessage];
+
+	/// <summary>
 	/// Determines whether a commit was made by a bot or by automation.
 	/// </summary>
 	/// <param name="commit">The commit to check.</param>
@@ -31,7 +38,11 @@ internal static class BotCommitFilter
 	internal static bool IsBotCommit(CommitInfo commit)
 	{
 		Ensure.NotNull(commit);
-		return AuthorPatterns.Any(p => commit.Author.Contains(p, StringComparison.OrdinalIgnoreCase)) ||
-			SubjectPatterns.Any(p => commit.Subject.Contains(p, StringComparison.OrdinalIgnoreCase));
+		string author = commit.Author.Trim();
+		string subject = commit.Subject.Trim();
+		return AuthorPatterns.Any(p => author.Contains(p, StringComparison.OrdinalIgnoreCase)) ||
+			ExactAuthors.Any(a => author.Equals(a, StringComparison.OrdinalIgnoreCase)) ||
+			SubjectPatterns.Any(p => subject.Contains(p, StringComparison.OrdinalIgnoreCase)) ||
+			ExactSubjects.Any(s => subject.Equals(s, StringComparison.OrdinalIgnoreCase));
 	}
 }

@@ -183,6 +183,50 @@ public class ChangelogGeneratorTests
 	}
 
 	[TestMethod]
+	public async Task GenerateAsync_StartingANewPrereleaseSeriesKeepsTheEarlierSeriesNotes()
+	{
+		// Arrange: alpha.1-3 then beta.1-2 on the same 2.0.0, then an untagged commit released as
+		// beta.3. The alpha entries must diff against the previous alpha, not the beta with the
+		// same number, which comes after them (#321).
+		static CommitInfo Commit(string subject) => new() { Hash = subject, Subject = subject, Author = "developer" };
+		SetupTaggedHistory(
+			["v2.0.0-beta.2", "v2.0.0-beta.1", "v2.0.0-alpha.3", "v2.0.0-alpha.2", "v2.0.0-alpha.1", "v1.0.0"],
+			new Dictionary<string, IReadOnlyList<CommitInfo>>
+			{
+				["sha-v1.0.0..sha-v2.0.0-alpha.1"] = [Commit("Feature A1")],
+				["sha-v2.0.0-alpha.1..sha-v2.0.0-alpha.2"] = [Commit("Feature A2")],
+				["sha-v2.0.0-alpha.2..sha-v2.0.0-alpha.3"] = [Commit("Feature A3")],
+				["sha-v2.0.0-alpha.3..sha-v2.0.0-beta.1"] = [Commit("Feature B1")],
+				["sha-v2.0.0-beta.1..sha-v2.0.0-beta.2"] = [Commit("Feature B2")],
+				["sha-v2.0.0-beta.2..head"] = [Commit("Feature B3")],
+			});
+
+		// Act
+		await _generator.GenerateAsync(
+			version: "2.0.0-beta.3",
+			commitHash: "head",
+			workingDirectory: "/repo",
+			outputPath: _tempDir,
+			lineEnding: "\n").ConfigureAwait(false);
+
+		// Assert
+		string content = await File.ReadAllTextAsync(Path.Combine(_tempDir, "CHANGELOG.md")).ConfigureAwait(false);
+		string alpha3 = GetSection(content, "v2.0.0-alpha.3");
+		Assert.IsTrue(alpha3.Contains("Changes since v2.0.0-alpha.2:"), content);
+		Assert.IsTrue(alpha3.Contains("Feature A3"), content);
+		string alpha2 = GetSection(content, "v2.0.0-alpha.2");
+		Assert.IsTrue(alpha2.Contains("Changes since v2.0.0-alpha.1:"), content);
+		Assert.IsTrue(alpha2.Contains("Feature A2"), content);
+		string beta2 = GetSection(content, "v2.0.0-beta.2");
+		Assert.IsTrue(beta2.Contains("Changes since v2.0.0-beta.1:"), content);
+		Assert.IsTrue(beta2.Contains("Feature B2"), content);
+		string beta3 = GetSection(content, "v2.0.0-beta.3");
+		Assert.IsTrue(beta3.Contains("Changes since v2.0.0-beta.2:"), content);
+		Assert.IsTrue(beta3.Contains("Feature B3"), content);
+		Assert.IsFalse(content.Contains("No significant changes"), content);
+	}
+
+	[TestMethod]
 	public async Task GenerateAsync_LaterPrereleaseDiffsAgainstThePreviousPrerelease()
 	{
 		// Arrange

@@ -293,7 +293,7 @@ Version bumps can be controlled three ways (in order of precedence):
 1. **CLI/GitHub Actions `--version-bump` option**: Explicitly force `major`, `minor`, or `patch`
 2. **Commit message tags**: `[major]`, `[minor]`, `[patch]`, `[pre]`, `[skip ci]`
 3. **Auto-detection** (when no tag and no forced bump):
-   - Public API diff analysis (added/removed public types, methods, properties) → minor
+   - Public API diff analysis (added/removed public or protected types, methods, properties, fields, events, constructors) → minor. Files under test projects (`*.Test`, `*.Tests`, `*.UnitTests`, `*.IntegrationTests`) or `test`/`tests` folders are left out
    - Meaningful code changes → patch
    - Bot/merge commits only → prerelease
 
