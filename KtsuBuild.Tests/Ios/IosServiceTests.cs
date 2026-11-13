@@ -282,6 +282,84 @@ public class IosServiceTests
 		}));
 	}
 
+	// App Store Connect key placement — a developer's own key must survive an upload
+
+	[TestMethod]
+	public async Task AppStoreConnectKey_NoExistingKey_IsWrittenForTheRunAndDeletedAfter()
+	{
+		string keyDir = Path.Combine(_tempDir, "private_keys");
+		byte[] runKey = [1, 2, 3];
+
+		InstalledAppStoreConnectKey key = await _service.InstallAppStoreConnectKeyAsync(keyDir, runKey, "ABC123", TestContext.CancellationToken).ConfigureAwait(false);
+
+		Assert.AreEqual(Path.Combine(keyDir, "AuthKey_ABC123.p8"), key.Path);
+		CollectionAssert.AreEqual(runKey, await File.ReadAllBytesAsync(key.Path, TestContext.CancellationToken).ConfigureAwait(false));
+
+		IosService.RemoveAppStoreConnectKey(key);
+
+		Assert.IsFalse(File.Exists(key.Path), "An ephemeral runner must not be left holding the key.");
+	}
+
+	[TestMethod]
+	[DataRow(true)]
+	[DataRow(false)]
+	public async Task AppStoreConnectKey_ExistingDifferentKey_IsRestoredAfterTheUpload(bool uploadFails)
+	{
+		string keyDir = Path.Combine(_tempDir, "private_keys");
+		Directory.CreateDirectory(keyDir);
+		string keyPath = Path.Combine(keyDir, "AuthKey_ABC123.p8");
+		byte[] developerKey = [9, 9, 9, 9];
+		await File.WriteAllBytesAsync(keyPath, developerKey, TestContext.CancellationToken).ConfigureAwait(false);
+		byte[] runKey = [1, 2, 3];
+
+		InstalledAppStoreConnectKey key = await _service.InstallAppStoreConnectKeyAsync(keyDir, runKey, "ABC123", TestContext.CancellationToken).ConfigureAwait(false);
+		try
+		{
+			// altool reads the run's key during the upload.
+			CollectionAssert.AreEqual(runKey, await File.ReadAllBytesAsync(keyPath, TestContext.CancellationToken).ConfigureAwait(false));
+			if (uploadFails)
+			{
+				throw new InvalidOperationException("upload failed");
+			}
+		}
+		catch (InvalidOperationException ex) when (uploadFails)
+		{
+			// The simulated upload failure; the restore in finally is what is under test.
+			Assert.AreEqual("upload failed", ex.Message);
+		}
+		finally
+		{
+			IosService.RemoveAppStoreConnectKey(key);
+		}
+
+		Assert.IsTrue(File.Exists(keyPath));
+		CollectionAssert.AreEqual(developerKey, await File.ReadAllBytesAsync(keyPath, TestContext.CancellationToken).ConfigureAwait(false));
+	}
+
+	[TestMethod]
+	public void AppStoreConnectKey_DefaultDirectory_IsWhereAltoolLooks()
+	{
+		string expected = Path.Combine(".appstoreconnect", "private_keys");
+		Assert.IsTrue(
+			IosService.DefaultAppStoreConnectKeyDirectory.EndsWith(expected, StringComparison.Ordinal),
+			IosService.DefaultAppStoreConnectKeyDirectory);
+	}
+
+	[TestMethod]
+	public async Task AppStoreConnectKey_ExistingSameKey_IsLeftInPlace()
+	{
+		string keyDir = Path.Combine(_tempDir, "private_keys");
+		Directory.CreateDirectory(keyDir);
+		string keyPath = Path.Combine(keyDir, "AuthKey_ABC123.p8");
+		byte[] sameKey = [1, 2, 3];
+		await File.WriteAllBytesAsync(keyPath, sameKey, TestContext.CancellationToken).ConfigureAwait(false);
+
+		InstalledAppStoreConnectKey key = await _service.InstallAppStoreConnectKeyAsync(keyDir, sameKey, "ABC123", TestContext.CancellationToken).ConfigureAwait(false);
+		IosService.RemoveAppStoreConnectKey(key);
+
+		CollectionAssert.AreEqual(sameKey, await File.ReadAllBytesAsync(keyPath, TestContext.CancellationToken).ConfigureAwait(false));
+	}
+
 	[TestMethod]
 	public void LocateIpas_FindsArchiveUnderHeadBin()
 	{
