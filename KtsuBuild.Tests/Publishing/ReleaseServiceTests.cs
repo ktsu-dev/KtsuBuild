@@ -128,9 +128,7 @@ public class ReleaseServiceTests
 		BuildConfiguration config = CreateDefaultConfig();
 		config.GithubToken = "token123";
 
-		// Create a fake nupkg in staging
-		Directory.CreateDirectory(config.StagingPath);
-		await File.WriteAllTextAsync(Path.Combine(config.StagingPath, "test.nupkg"), "fake").ConfigureAwait(false);
+		PackWrites("test.nupkg");
 
 		await _service.ExecuteReleaseAsync(config, _tempDir, "Release").ConfigureAwait(false);
 
@@ -174,8 +172,7 @@ public class ReleaseServiceTests
 		config.GithubToken = "token123";
 		config.NuGetApiKey = "nuget-key";
 
-		Directory.CreateDirectory(config.StagingPath);
-		await File.WriteAllTextAsync(Path.Combine(config.StagingPath, "test.nupkg"), "fake").ConfigureAwait(false);
+		PackWrites("test.nupkg");
 
 		await _service.ExecuteReleaseAsync(config, _tempDir, "Release").ConfigureAwait(false);
 
@@ -190,8 +187,7 @@ public class ReleaseServiceTests
 		config.GithubToken = "token123";
 		config.KtsuPackageKey = "ktsu-key";
 
-		Directory.CreateDirectory(config.StagingPath);
-		await File.WriteAllTextAsync(Path.Combine(config.StagingPath, "test.nupkg"), "fake").ConfigureAwait(false);
+		PackWrites("test.nupkg");
 
 		await _service.ExecuteReleaseAsync(config, _tempDir, "Release").ConfigureAwait(false);
 
@@ -218,8 +214,7 @@ public class ReleaseServiceTests
 		BuildConfiguration config = CreateDefaultConfig();
 		config.GithubToken = string.Empty;
 
-		Directory.CreateDirectory(config.StagingPath);
-		await File.WriteAllTextAsync(Path.Combine(config.StagingPath, "test.nupkg"), "fake").ConfigureAwait(false);
+		PackWrites("test.nupkg");
 
 		await _service.ExecuteReleaseAsync(config, _tempDir, "Release").ConfigureAwait(false);
 
@@ -234,8 +229,7 @@ public class ReleaseServiceTests
 		config.GithubToken = string.Empty;
 		config.NuGetApiKey = "k";
 
-		Directory.CreateDirectory(config.StagingPath);
-		await File.WriteAllTextAsync(Path.Combine(config.StagingPath, "test.nupkg"), "fake", TestContext.CancellationToken).ConfigureAwait(false);
+		PackWrites("test.nupkg");
 
 		await _service.ExecuteReleaseAsync(config, _tempDir, "Release", TestContext.CancellationToken).ConfigureAwait(false);
 
@@ -252,8 +246,7 @@ public class ReleaseServiceTests
 		config.GithubToken = string.Empty;
 		config.KtsuPackageKey = "ktsu-key";
 
-		Directory.CreateDirectory(config.StagingPath);
-		await File.WriteAllTextAsync(Path.Combine(config.StagingPath, "test.nupkg"), "fake", TestContext.CancellationToken).ConfigureAwait(false);
+		PackWrites("test.nupkg");
 
 		await _service.ExecuteReleaseAsync(config, _tempDir, "Release", TestContext.CancellationToken).ConfigureAwait(false);
 
@@ -273,8 +266,7 @@ public class ReleaseServiceTests
 		config.NuGetApiKey = "k";
 		config.KtsuPackageKey = string.Empty;
 
-		Directory.CreateDirectory(config.StagingPath);
-		await File.WriteAllTextAsync(Path.Combine(config.StagingPath, "test.nupkg"), "fake", TestContext.CancellationToken).ConfigureAwait(false);
+		PackWrites("test.nupkg");
 
 		await service.ExecuteReleaseAsync(config, _tempDir, "Release", TestContext.CancellationToken).ConfigureAwait(false);
 
@@ -467,12 +459,10 @@ public class ReleaseServiceTests
 	[TestMethod]
 	public async Task ExecuteReleaseAsync_GeneratesHashesFile_ForZipArchives()
 	{
+		string projPath = await WriteProjectAsync("app", "app.csproj").ConfigureAwait(false);
+		StubExecutableProject(projPath);
+		PublishWrites("app.exe");
 		BuildConfiguration config = CreateDefaultConfig();
-		Directory.CreateDirectory(config.StagingPath);
-
-		// Create a fake zip file
-		string zipPath = Path.Combine(config.StagingPath, "app-1.0.0-win-x64.zip");
-		await File.WriteAllTextAsync(zipPath, "fake-zip-content").ConfigureAwait(false);
 
 		await _service.ExecuteReleaseAsync(config, _tempDir, "Release").ConfigureAwait(false);
 
@@ -481,6 +471,132 @@ public class ReleaseServiceTests
 		string content = await File.ReadAllTextAsync(hashesPath).ConfigureAwait(false);
 		Assert.IsTrue(content.Contains("app-1.0.0-win-x64.zip="), "Should contain filename=hash entry");
 	}
+
+	// staging/ and output/ are fixed paths under the workspace. A second release in a reused checkout
+	// (a local run, or a self-hosted runner) found the previous version's files still there, and
+	// everything after pack globs staging/: the old packages were pushed again, the old zips were
+	// hashed into hashes.txt for winget, and both were attached to the new GitHub release.
+
+	[TestMethod]
+	public async Task ExecuteReleaseAsync_InAReusedWorkspace_PublishesHashesAndUploadsOnlyTheCurrentVersion()
+	{
+		BuildConfiguration config = CreateDefaultConfig();
+		config.Version = "1.2.4";
+		config.GithubToken = "token123";
+		config.NuGetApiKey = "nuget-key";
+		Directory.CreateDirectory(config.StagingPath);
+		await File.WriteAllTextAsync(Path.Combine(config.StagingPath, "Foo.1.2.3.nupkg"), "old", TestContext.CancellationToken).ConfigureAwait(false);
+		await File.WriteAllTextAsync(Path.Combine(config.StagingPath, "Foo-1.2.3-win-x64.zip"), "old", TestContext.CancellationToken).ConfigureAwait(false);
+
+		string projPath = await WriteProjectAsync("Foo", "Foo.csproj").ConfigureAwait(false);
+		StubExecutableProject(projPath);
+		PublishWrites("Foo.exe");
+		PackWrites("Foo.1.2.4.nupkg");
+
+		string[]? stagedWhenPushed = null;
+		_nuGetPublisher.PublishToNuGetOrgAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+			.Returns(_ =>
+			{
+				stagedWhenPushed = StagedFileNames(config);
+				return Task.CompletedTask;
+			});
+		string[]? stagedWhenReleased = null;
+		_gitHubService.CreateReleaseAsync(Arg.Any<ReleaseOptions>(), Arg.Any<CancellationToken>())
+			.Returns(_ =>
+			{
+				stagedWhenReleased = StagedFileNames(config);
+				return Task.CompletedTask;
+			});
+
+		await _service.ExecuteReleaseAsync(config, _tempDir, "Release", TestContext.CancellationToken).ConfigureAwait(false);
+
+		Assert.IsNotNull(stagedWhenPushed);
+		Assert.IsNotNull(stagedWhenReleased);
+		CollectionAssert.DoesNotContain(stagedWhenPushed, "Foo.1.2.3.nupkg");
+		CollectionAssert.Contains(stagedWhenPushed, "Foo.1.2.4.nupkg");
+		CollectionAssert.DoesNotContain(stagedWhenReleased, "Foo.1.2.3.nupkg");
+		CollectionAssert.DoesNotContain(stagedWhenReleased, "Foo-1.2.3-win-x64.zip");
+		CollectionAssert.Contains(stagedWhenReleased, "Foo-1.2.4-win-x64.zip");
+
+		string hashes = await File.ReadAllTextAsync(Path.Combine(config.StagingPath, "hashes.txt"), TestContext.CancellationToken).ConfigureAwait(false);
+		Assert.DoesNotContain("1.2.3", hashes);
+		Assert.Contains("Foo-1.2.4-win-x64.zip=", hashes);
+	}
+
+	[TestMethod]
+	public async Task ExecuteReleaseAsync_InAReusedWorkspace_ZipsOnlyWhatThisPublishWrote()
+	{
+		BuildConfiguration config = CreateDefaultConfig();
+		string staleDir = Path.Combine(config.OutputPath, "Foo-win-x64");
+		Directory.CreateDirectory(staleDir);
+		await File.WriteAllTextAsync(Path.Combine(staleDir, "Removed.dll"), "left by an earlier publish", TestContext.CancellationToken).ConfigureAwait(false);
+
+		string projPath = await WriteProjectAsync("Foo", "Foo.csproj").ConfigureAwait(false);
+		StubExecutableProject(projPath);
+		PublishWrites("Foo.exe");
+
+		await _service.ExecuteReleaseAsync(config, _tempDir, "Release", TestContext.CancellationToken).ConfigureAwait(false);
+
+		System.IO.Compression.ZipArchive zip = await System.IO.Compression.ZipFile.OpenReadAsync(Path.Combine(config.StagingPath, "Foo-1.0.0-win-x64.zip"), TestContext.CancellationToken).ConfigureAwait(false);
+		string[] entries;
+		await using (zip.ConfigureAwait(false))
+		{
+			entries = [.. zip.Entries.Select(e => e.FullName)];
+		}
+
+		CollectionAssert.Contains(entries, "Foo.exe");
+		CollectionAssert.DoesNotContain(entries, "Removed.dll");
+	}
+
+	[TestMethod]
+	public async Task ExecuteReleaseAsync_WithTheWorkspaceAsStagingPath_RefusesAndDeletesNothing()
+	{
+		BuildConfiguration config = CreateDefaultConfig();
+		config.StagingPath = _tempDir;
+		string keep = Path.Combine(_tempDir, "Keep.cs");
+		await File.WriteAllTextAsync(keep, "// source", TestContext.CancellationToken).ConfigureAwait(false);
+
+		await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+			() => _service.ExecuteReleaseAsync(config, _tempDir, "Release", TestContext.CancellationToken)).ConfigureAwait(false);
+
+		Assert.IsTrue(File.Exists(keep));
+		await _dotNetService.DidNotReceive().PackAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+	}
+
+	/// <summary>
+	/// Makes the stubbed pack write the named packages into the staging directory it is handed, as
+	/// <c>dotnet pack</c> does.
+	/// </summary>
+	private void PackWrites(params string[] fileNames) =>
+		_dotNetService.PackAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+			.Returns(async call =>
+			{
+				string staging = call.ArgAt<string>(1);
+				Directory.CreateDirectory(staging);
+				foreach (string fileName in fileNames)
+				{
+					await File.WriteAllTextAsync(Path.Combine(staging, fileName), "package").ConfigureAwait(false);
+				}
+			});
+
+	/// <summary>
+	/// Makes the stubbed publish write the named files into the output directory it is handed, as
+	/// <c>dotnet publish</c> does.
+	/// </summary>
+	private void PublishWrites(params string[] fileNames) =>
+		_dotNetService.PublishAsync(Arg.Any<PublishOptions>(), Arg.Any<CancellationToken>())
+			.Returns(async call =>
+			{
+				PublishOptions options = call.ArgAt<PublishOptions>(0);
+				Directory.CreateDirectory(options.OutputPath);
+				foreach (string fileName in fileNames)
+				{
+					await File.WriteAllTextAsync(Path.Combine(options.OutputPath, fileName), "binary").ConfigureAwait(false);
+				}
+			});
+
+	private static string[] StagedFileNames(BuildConfiguration config) =>
+		[.. Directory.GetFiles(config.StagingPath).Select(Path.GetFileName).OfType<string>()];
 
 	/// <summary>
 	/// Writes an empty project file at a path relative to the workspace and returns its full path.
