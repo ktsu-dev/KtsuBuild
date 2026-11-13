@@ -127,6 +127,31 @@ public class IosServiceTests
 		Assert.IsTrue(logger.Infos.Any(m => m.Contains("signing available: False", StringComparison.Ordinal)));
 	}
 
+	[TestMethod]
+	public async Task PackageAsync_DryRunWithInvalidIdentity_WarnsInsteadOfThrowing()
+	{
+		_dotNetService.GetIosHeads(_tempDir).Returns([]);
+		RecordingBuildLogger logger = new();
+		IosService service = new(_dotNetService, _processRunner, logger);
+
+		IosPackageResult result = await service.PackageAsync(new IosPackageOptions
+		{
+			WorkingDirectory = _tempDir,
+			ShortVersion = "1.4.3-pre.1",
+			BundleId = "com.example app",
+			SigningAvailable = true,
+			DryRun = true,
+		}).ConfigureAwait(false);
+
+		Assert.IsTrue(result.Success);
+		Assert.IsTrue(result.Skipped);
+		await AssertNoProcessStartedAsync().ConfigureAwait(false);
+		Assert.HasCount(2, logger.Warnings);
+		Assert.IsTrue(logger.Warnings.Any(m => m.Contains("1.4.3-pre.1", StringComparison.Ordinal)));
+		Assert.IsTrue(logger.Warnings.Any(m => m.Contains("com.example app", StringComparison.Ordinal)));
+		Assert.IsTrue(logger.Infos.Any(m => m.Contains("No iOS heads", StringComparison.Ordinal)));
+	}
+
 	// UploadAsync — dry run
 
 	[TestMethod]
