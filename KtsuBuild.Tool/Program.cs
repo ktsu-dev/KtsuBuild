@@ -505,7 +505,7 @@ internal sealed class Program
 				}
 
 				KtsuBuild.DotNet.DotNetService dotNetService = new(processRunner, logger);
-				KtsuBuild.Ios.IosBuildService iosBuildService = new(dotNetService, logger);
+				KtsuBuild.Ios.IosBuildService iosBuildService = new(dotNetService, processRunner, logger);
 
 				bool success = await iosBuildService.BuildAsync(new KtsuBuild.Ios.IosBuildOptions
 				{
@@ -514,7 +514,7 @@ internal sealed class Program
 					Project = project,
 					Runtime = runtime,
 					RequiredFrameworks = requireFrameworks,
-				}, ct).ConfigureAwait(false);
+				}.WithToolchainPinsFromEnvironment(), ct).ConfigureAwait(false);
 
 				if (!success)
 				{
