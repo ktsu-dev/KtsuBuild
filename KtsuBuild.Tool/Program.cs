@@ -506,7 +506,6 @@ internal sealed class Program
 
 				KtsuBuild.DotNet.DotNetService dotNetService = new(processRunner, logger);
 				KtsuBuild.Ios.IosBuildService iosBuildService = new(dotNetService, processRunner, logger);
-				(string xcodeVersion, string workloadVersion) = KtsuBuild.Configuration.BuildConfigurationProvider.ReadIosToolchainPins();
 
 				bool success = await iosBuildService.BuildAsync(new KtsuBuild.Ios.IosBuildOptions
 				{
@@ -515,9 +514,7 @@ internal sealed class Program
 					Project = project,
 					Runtime = runtime,
 					RequiredFrameworks = requireFrameworks,
-					XcodeVersion = xcodeVersion,
-					WorkloadVersion = workloadVersion,
-				}, ct).ConfigureAwait(false);
+				}.WithToolchainPinsFromEnvironment(), ct).ConfigureAwait(false);
 
 				if (!success)
 				{

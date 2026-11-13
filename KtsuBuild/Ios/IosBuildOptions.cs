@@ -47,4 +47,15 @@ public class IosBuildOptions
 	/// <c>IOS_WORKLOAD_VERSION</c>). When empty, the workload already installed is used.
 	/// </summary>
 	public string WorkloadVersion { get; set; } = string.Empty;
+
+	/// <summary>
+	/// Sets <see cref="XcodeVersion"/> and <see cref="WorkloadVersion"/> from the pins in the
+	/// environment, the same ones <c>ios package</c> applies.
+	/// </summary>
+	/// <returns>These options, for chaining.</returns>
+	public IosBuildOptions WithToolchainPinsFromEnvironment()
+	{
+		(XcodeVersion, WorkloadVersion) = KtsuBuild.Configuration.BuildConfigurationProvider.ReadIosToolchainPins();
+		return this;
+	}
 }

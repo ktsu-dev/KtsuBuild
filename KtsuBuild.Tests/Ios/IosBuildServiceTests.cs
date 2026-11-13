@@ -282,6 +282,37 @@ public class IosBuildServiceTests
 	}
 
 	[TestMethod]
+	[DoNotParallelize]
+	public void WithToolchainPinsFromEnvironment_ReadsBothPins()
+	{
+		string? savedXcode = Environment.GetEnvironmentVariable("IOS_XCODE_VERSION");
+		string? savedWorkload = Environment.GetEnvironmentVariable("IOS_WORKLOAD_VERSION");
+		try
+		{
+			Environment.SetEnvironmentVariable("IOS_XCODE_VERSION", "26.2");
+			Environment.SetEnvironmentVariable("IOS_WORKLOAD_VERSION", "26.2.10233/10.0.100");
+
+			IosBuildOptions options = new IosBuildOptions { WorkingDirectory = _tempDir }.WithToolchainPinsFromEnvironment();
+
+			Assert.AreEqual("26.2", options.XcodeVersion);
+			Assert.AreEqual("26.2.10233/10.0.100", options.WorkloadVersion);
+
+			Environment.SetEnvironmentVariable("IOS_XCODE_VERSION", null);
+			Environment.SetEnvironmentVariable("IOS_WORKLOAD_VERSION", null);
+
+			options.WithToolchainPinsFromEnvironment();
+
+			Assert.AreEqual(string.Empty, options.XcodeVersion);
+			Assert.AreEqual(string.Empty, options.WorkloadVersion);
+		}
+		finally
+		{
+			Environment.SetEnvironmentVariable("IOS_XCODE_VERSION", savedXcode);
+			Environment.SetEnvironmentVariable("IOS_WORKLOAD_VERSION", savedWorkload);
+		}
+	}
+
+	[TestMethod]
 	public async Task BuildAsync_PinWithoutProcessRunner_Throws()
 	{
 		_dotNetService.GetIosHeads(_tempDir).Returns([Path.Combine(_tempDir, "MyApp.iOS.csproj")]);
