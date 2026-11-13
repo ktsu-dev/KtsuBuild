@@ -4,6 +4,7 @@ namespace KtsuBuild.Tests.Winget;
 
 using KtsuBuild.Tests.Helpers;
 using KtsuBuild.Winget;
+using YamlDotNet.Serialization;
 
 [TestClass]
 public class ManifestGeneratorTests
@@ -113,7 +114,7 @@ public class ManifestGeneratorTests
 		await ManifestGenerator.GenerateAsync(_config, _projectInfo, _hashes, _tempDir).ConfigureAwait(false);
 
 		string content = await File.ReadAllTextAsync(Path.Combine(_tempDir, "ktsu-dev.MyApp.locale.en-US.yaml")).ConfigureAwait(false);
-		Assert.IsTrue(content.Contains("Publisher: ktsu.dev"));
+		Assert.IsTrue(content.Contains("Publisher: \"ktsu.dev\""));
 	}
 
 	[TestMethod]
@@ -122,7 +123,7 @@ public class ManifestGeneratorTests
 		await ManifestGenerator.GenerateAsync(_config, _projectInfo, _hashes, _tempDir).ConfigureAwait(false);
 
 		string content = await File.ReadAllTextAsync(Path.Combine(_tempDir, "ktsu-dev.MyApp.locale.en-US.yaml")).ConfigureAwait(false);
-		Assert.IsTrue(content.Contains("PackageName: MyApp"));
+		Assert.IsTrue(content.Contains("PackageName: \"MyApp\""));
 	}
 
 	[TestMethod]
@@ -131,7 +132,7 @@ public class ManifestGeneratorTests
 		await ManifestGenerator.GenerateAsync(_config, _projectInfo, _hashes, _tempDir).ConfigureAwait(false);
 
 		string content = await File.ReadAllTextAsync(Path.Combine(_tempDir, "ktsu-dev.MyApp.locale.en-US.yaml")).ConfigureAwait(false);
-		Assert.IsTrue(content.Contains("ShortDescription: A test application"));
+		Assert.IsTrue(content.Contains("ShortDescription: \"A test application\""));
 	}
 
 	[TestMethod]
@@ -141,9 +142,9 @@ public class ManifestGeneratorTests
 
 		string content = await File.ReadAllTextAsync(Path.Combine(_tempDir, "ktsu-dev.MyApp.locale.en-US.yaml")).ConfigureAwait(false);
 		Assert.IsTrue(content.Contains("Tags:"));
-		Assert.IsTrue(content.Contains("- dotnet"));
-		Assert.IsTrue(content.Contains("- csharp"));
-		Assert.IsTrue(content.Contains("- tool"));
+		Assert.IsTrue(content.Contains("- \"dotnet\""));
+		Assert.IsTrue(content.Contains("- \"csharp\""));
+		Assert.IsTrue(content.Contains("- \"tool\""));
 	}
 
 	[TestMethod]
@@ -158,8 +159,45 @@ public class ManifestGeneratorTests
 		await ManifestGenerator.GenerateAsync(_config, _projectInfo, _hashes, _tempDir).ConfigureAwait(false);
 
 		string content = await File.ReadAllTextAsync(Path.Combine(_tempDir, "ktsu-dev.MyApp.locale.en-US.yaml")).ConfigureAwait(false);
-		Assert.IsTrue(content.Contains("- tag9"), "Should include tag9 (10th tag)");
-		Assert.IsFalse(content.Contains("- tag10"), "Should not include tag10 (11th tag)");
+		Assert.IsTrue(content.Contains("- \"tag9\""), "Should include tag9 (10th tag)");
+		Assert.IsFalse(content.Contains("- \"tag10\""), "Should not include tag10 (11th tag)");
+	}
+
+	[TestMethod]
+	[DataRow("A tool: merges files")]
+	[DataRow("[Beta] merge tool")]
+	[DataRow("\"Quoted\" tool")]
+	[DataRow("@scope tool")]
+	[DataRow("Supports #tags and more")]
+	[DataRow("Line one.\n\nLine two: more")]
+	[DataRow("Line one.\r\nLine two")]
+	[DataRow("C:\\tools\\merge\ttabbed")]
+	public async Task GenerateAsync_LocaleManifest_ReadsBackFreeTextAsWritten(string text)
+	{
+		ArgumentNullException.ThrowIfNull(text);
+
+		_config.Publisher = text;
+		_config.PackageName = text;
+		_config.ShortDescription = text;
+		_projectInfo.Description = text;
+		_projectInfo.License = text;
+		_projectInfo.Copyright = text;
+		_projectInfo.Tags.Clear();
+		_projectInfo.Tags.Add(text);
+
+		await ManifestGenerator.GenerateAsync(_config, _projectInfo, _hashes, _tempDir, TestContext.CancellationToken).ConfigureAwait(false);
+
+		string content = await File.ReadAllTextAsync(Path.Combine(_tempDir, "ktsu-dev.MyApp.locale.en-US.yaml"), TestContext.CancellationToken).ConfigureAwait(false);
+		Dictionary<string, object> manifest = new DeserializerBuilder().Build().Deserialize<Dictionary<string, object>>(content);
+		string expected = text.Replace("\r\n", "\n");
+
+		foreach (string key in new[] { "Publisher", "Author", "PackageName", "License", "Copyright", "ShortDescription", "Description" })
+		{
+			Assert.AreEqual(expected, manifest[key], key);
+		}
+
+		CollectionAssert.AreEqual(new[] { expected }, ((List<object>)manifest["Tags"]).ToArray());
+		Assert.AreEqual("defaultLocale", manifest["ManifestType"], "No key after the free text should be lost");
 	}
 
 	[TestMethod]
@@ -182,7 +220,7 @@ public class ManifestGeneratorTests
 
 		string content = await File.ReadAllTextAsync(Path.Combine(_tempDir, "ktsu-dev.MyApp.locale.en-US.yaml"), TestContext.CancellationToken).ConfigureAwait(false);
 		Assert.DoesNotContain("License: MIT", content);
-		Assert.Contains("License: ImageGui Freeware License\n", content.ReplaceLineEndings("\n"));
+		Assert.Contains("License: \"ImageGui Freeware License\"\n", content.ReplaceLineEndings("\n"));
 	}
 
 	[TestMethod]
@@ -195,7 +233,7 @@ public class ManifestGeneratorTests
 		await ManifestGenerator.GenerateAsync(_config, detected, _hashes, _tempDir, TestContext.CancellationToken).ConfigureAwait(false);
 
 		string content = await File.ReadAllTextAsync(Path.Combine(_tempDir, "ktsu-dev.MyApp.locale.en-US.yaml"), TestContext.CancellationToken).ConfigureAwait(false);
-		Assert.Contains("Copyright: Copyright (c) 2023-2026 ktsu-dev contributors\n", content.ReplaceLineEndings("\n"));
+		Assert.Contains("Copyright: \"Copyright (c) 2023-2026 ktsu-dev contributors\"\n", content.ReplaceLineEndings("\n"));
 	}
 
 	[TestMethod]
@@ -204,8 +242,8 @@ public class ManifestGeneratorTests
 		await ManifestGenerator.GenerateAsync(_config, _projectInfo, _hashes, _tempDir, TestContext.CancellationToken).ConfigureAwait(false);
 
 		string content = (await File.ReadAllTextAsync(Path.Combine(_tempDir, "ktsu-dev.MyApp.locale.en-US.yaml"), TestContext.CancellationToken).ConfigureAwait(false)).ReplaceLineEndings("\n");
-		Assert.Contains("License: MIT\n", content);
-		Assert.Contains("Copyright: Copyright (c) ktsu.dev\n", content);
+		Assert.Contains("License: \"MIT\"\n", content);
+		Assert.Contains("Copyright: \"Copyright (c) ktsu.dev\"\n", content);
 	}
 
 	[TestMethod]
