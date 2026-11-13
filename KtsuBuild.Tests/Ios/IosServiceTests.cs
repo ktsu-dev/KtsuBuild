@@ -290,7 +290,7 @@ public class IosServiceTests
 		string keyDir = Path.Combine(_tempDir, "private_keys");
 		byte[] runKey = [1, 2, 3];
 
-		InstalledAppStoreConnectKey key = await IosService.InstallAppStoreConnectKeyAsync(keyDir, runKey, "ABC123", TestContext.CancellationToken).ConfigureAwait(false);
+		InstalledAppStoreConnectKey key = await _service.InstallAppStoreConnectKeyAsync(keyDir, runKey, "ABC123", TestContext.CancellationToken).ConfigureAwait(false);
 
 		Assert.AreEqual(Path.Combine(keyDir, "AuthKey_ABC123.p8"), key.Path);
 		CollectionAssert.AreEqual(runKey, await File.ReadAllBytesAsync(key.Path, TestContext.CancellationToken).ConfigureAwait(false));
@@ -312,7 +312,7 @@ public class IosServiceTests
 		await File.WriteAllBytesAsync(keyPath, developerKey, TestContext.CancellationToken).ConfigureAwait(false);
 		byte[] runKey = [1, 2, 3];
 
-		InstalledAppStoreConnectKey key = await IosService.InstallAppStoreConnectKeyAsync(keyDir, runKey, "ABC123", TestContext.CancellationToken).ConfigureAwait(false);
+		InstalledAppStoreConnectKey key = await _service.InstallAppStoreConnectKeyAsync(keyDir, runKey, "ABC123", TestContext.CancellationToken).ConfigureAwait(false);
 		try
 		{
 			// altool reads the run's key during the upload.
@@ -337,6 +337,15 @@ public class IosServiceTests
 	}
 
 	[TestMethod]
+	public void AppStoreConnectKey_DefaultDirectory_IsWhereAltoolLooks()
+	{
+		string expected = Path.Combine(".appstoreconnect", "private_keys");
+		Assert.IsTrue(
+			IosService.DefaultAppStoreConnectKeyDirectory.EndsWith(expected, StringComparison.Ordinal),
+			IosService.DefaultAppStoreConnectKeyDirectory);
+	}
+
+	[TestMethod]
 	public async Task AppStoreConnectKey_ExistingSameKey_IsLeftInPlace()
 	{
 		string keyDir = Path.Combine(_tempDir, "private_keys");
@@ -345,7 +354,7 @@ public class IosServiceTests
 		byte[] sameKey = [1, 2, 3];
 		await File.WriteAllBytesAsync(keyPath, sameKey, TestContext.CancellationToken).ConfigureAwait(false);
 
-		InstalledAppStoreConnectKey key = await IosService.InstallAppStoreConnectKeyAsync(keyDir, sameKey, "ABC123", TestContext.CancellationToken).ConfigureAwait(false);
+		InstalledAppStoreConnectKey key = await _service.InstallAppStoreConnectKeyAsync(keyDir, sameKey, "ABC123", TestContext.CancellationToken).ConfigureAwait(false);
 		IosService.RemoveAppStoreConnectKey(key);
 
 		CollectionAssert.AreEqual(sameKey, await File.ReadAllBytesAsync(keyPath, TestContext.CancellationToken).ConfigureAwait(false));

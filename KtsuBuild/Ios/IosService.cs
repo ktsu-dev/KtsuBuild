@@ -159,14 +159,7 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 		// altool discovers the key by name under ~/.appstoreconnect/private_keys; place it
 		// there for the run and put things back afterwards. A key the developer already keeps
 		// there (for altool, Transporter or fastlane) is restored, not deleted.
-		string keyDir = Path.Combine(
-			Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-			".appstoreconnect",
-			"private_keys");
-		InstalledAppStoreConnectKey key = await InstallAppStoreConnectKeyAsync(keyDir, keyBytes, options.AppStoreConnectKeyId, cancellationToken).ConfigureAwait(false);
-		logger.WriteInfo(key.OriginalContents is null
-			? "Installed the App Store Connect API key."
-			: "An App Store Connect API key with this id is already installed; it will be left as it was after the upload.");
+		InstalledAppStoreConnectKey key = await InstallAppStoreConnectKeyAsync(DefaultAppStoreConnectKeyDirectory, keyBytes, options.AppStoreConnectKeyId, cancellationToken).ConfigureAwait(false);
 		List<string> uploaded = [];
 		try
 		{
@@ -292,6 +285,14 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 	}
 
 	/// <summary>
+	/// Gets the directory altool searches for API keys: <c>~/.appstoreconnect/private_keys</c>.
+	/// </summary>
+	internal static string DefaultAppStoreConnectKeyDirectory => Path.Combine(
+		Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+		".appstoreconnect",
+		"private_keys");
+
+	/// <summary>
 	/// Writes the App Store Connect API key to <c>AuthKey_&lt;id&gt;.p8</c> under
 	/// <paramref name="keyDir"/>, remembering what was there before so
 	/// <see cref="RemoveAppStoreConnectKey"/> can put it back. A file that already holds the
@@ -302,7 +303,16 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 	/// <param name="apiKeyId">The App Store Connect API key identifier.</param>
 	/// <param name="cancellationToken">A cancellation token.</param>
 	/// <returns>The installed key, with the file's earlier contents when it already existed.</returns>
-	internal static async Task<InstalledAppStoreConnectKey> InstallAppStoreConnectKeyAsync(string keyDir, byte[] keyBytes, string apiKeyId, CancellationToken cancellationToken)
+	internal async Task<InstalledAppStoreConnectKey> InstallAppStoreConnectKeyAsync(string keyDir, byte[] keyBytes, string apiKeyId, CancellationToken cancellationToken)
+	{
+		InstalledAppStoreConnectKey key = await WriteAppStoreConnectKeyAsync(keyDir, keyBytes, apiKeyId, cancellationToken).ConfigureAwait(false);
+		logger.WriteInfo(key.OriginalContents is null
+			? "Installed the App Store Connect API key."
+			: "An App Store Connect API key with this id is already installed; it will be left as it was after the upload.");
+		return key;
+	}
+
+	private static async Task<InstalledAppStoreConnectKey> WriteAppStoreConnectKeyAsync(string keyDir, byte[] keyBytes, string apiKeyId, CancellationToken cancellationToken)
 	{
 		Directory.CreateDirectory(keyDir);
 
