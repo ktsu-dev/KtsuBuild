@@ -108,71 +108,20 @@ internal sealed class Program
 
 		// Show subcommand
 		Command showCommand = versionCommand.Subcommands.First(c => c.Name == "show");
-		showCommand.SetAction(async (parseResult, ct) =>
+		showCommand.SetAction((parseResult, ct) => RunVersionReportAsync(processRunner, parseResult, "Failed to get version info", versionInfo =>
 		{
-			string workspace = parseResult.GetValue(GlobalOptions.Workspace)!;
-			bool verbose = parseResult.GetValue(GlobalOptions.Verbose);
-
-			// Standard output carries the result alone, so a script can capture it; the
-			// diagnostics the version calculation writes go to standard error.
-			KtsuBuild.Utilities.BuildLogger diagnostics = new() { VerboseEnabled = verbose, UseStandardError = true };
-
-			KtsuBuild.Git.GitService gitService = new(processRunner, diagnostics);
-			KtsuBuild.Git.VersionCalculator versionCalculator = new(gitService, diagnostics);
-
-#pragma warning disable CA1031 // Top-level command handler must catch all exceptions
-			try
-			{
-				string commitHash = await gitService.GetCurrentCommitHashAsync(workspace, ct).ConfigureAwait(false);
-				KtsuBuild.Git.VersionInfo versionInfo = await versionCalculator.GetVersionInfoAsync(workspace, commitHash, cancellationToken: ct).ConfigureAwait(false);
-
-				Console.WriteLine($"Current Version: {versionInfo.Version}");
-				Console.WriteLine($"Last Tag: {versionInfo.LastTag}");
-				Console.WriteLine($"Last Version: {versionInfo.LastVersion}");
-				Console.WriteLine($"Version Increment: {versionInfo.VersionIncrement}");
-				Console.WriteLine($"Reason: {versionInfo.IncrementReason}");
-				Console.WriteLine($"Is Prerelease: {versionInfo.IsPrerelease}");
-
-				return 0;
-			}
-			catch (Exception ex)
-			{
-				diagnostics.WriteError($"Failed to get version info: {ex.Message}");
-				return 1;
-			}
-#pragma warning restore CA1031
-		});
+			Console.WriteLine($"Current Version: {versionInfo.Version}");
+			Console.WriteLine($"Last Tag: {versionInfo.LastTag}");
+			Console.WriteLine($"Last Version: {versionInfo.LastVersion}");
+			Console.WriteLine($"Version Increment: {versionInfo.VersionIncrement}");
+			Console.WriteLine($"Reason: {versionInfo.IncrementReason}");
+			Console.WriteLine($"Is Prerelease: {versionInfo.IsPrerelease}");
+		}, ct));
 
 		// Bump subcommand
 		Command bumpCommand = versionCommand.Subcommands.First(c => c.Name == "bump");
-		bumpCommand.SetAction(async (parseResult, ct) =>
-		{
-			string workspace = parseResult.GetValue(GlobalOptions.Workspace)!;
-			bool verbose = parseResult.GetValue(GlobalOptions.Verbose);
-
-			// Standard output carries the result alone, so a script can capture it; the
-			// diagnostics the version calculation writes go to standard error.
-			KtsuBuild.Utilities.BuildLogger diagnostics = new() { VerboseEnabled = verbose, UseStandardError = true };
-
-			KtsuBuild.Git.GitService gitService = new(processRunner, diagnostics);
-			KtsuBuild.Git.VersionCalculator versionCalculator = new(gitService, diagnostics);
-
-#pragma warning disable CA1031 // Top-level command handler must catch all exceptions
-			try
-			{
-				string commitHash = await gitService.GetCurrentCommitHashAsync(workspace, ct).ConfigureAwait(false);
-				KtsuBuild.Git.VersionInfo versionInfo = await versionCalculator.GetVersionInfoAsync(workspace, commitHash, cancellationToken: ct).ConfigureAwait(false);
-
-				Console.WriteLine(versionInfo.Version);
-				return 0;
-			}
-			catch (Exception ex)
-			{
-				diagnostics.WriteError($"Failed to calculate version: {ex.Message}");
-				return 1;
-			}
-#pragma warning restore CA1031
-		});
+		bumpCommand.SetAction((parseResult, ct) => RunVersionReportAsync(processRunner, parseResult, "Failed to calculate version",
+			versionInfo => Console.WriteLine(versionInfo.Version), ct));
 
 		// Create subcommand
 		Command createCommand = versionCommand.Subcommands.First(c => c.Name == "create");
@@ -209,6 +158,35 @@ internal sealed class Program
 		rootCommand.Subcommands.Add(versionCommand);
 	}
 
+	/// <summary>
+	/// Calculates the workspace's version and hands it to <paramref name="report"/>, which writes the
+	/// command's result to standard output. The diagnostics the calculation writes go to standard
+	/// error, so a script capturing the output gets the result alone.
+	/// </summary>
+	private static async Task<int> RunVersionReportAsync(IProcessRunner processRunner, ParseResult parseResult, string failureMessage, Action<KtsuBuild.Git.VersionInfo> report, CancellationToken ct)
+	{
+		string workspace = parseResult.GetValue(GlobalOptions.Workspace)!;
+		bool verbose = parseResult.GetValue(GlobalOptions.Verbose);
+
+		KtsuBuild.Utilities.BuildLogger diagnostics = new() { VerboseEnabled = verbose, UseStandardError = true };
+		KtsuBuild.Git.GitService gitService = new(processRunner, diagnostics);
+		KtsuBuild.Git.VersionCalculator versionCalculator = new(gitService, diagnostics);
+
+#pragma warning disable CA1031 // Top-level command handler must catch all exceptions
+		try
+		{
+			string commitHash = await gitService.GetCurrentCommitHashAsync(workspace, ct).ConfigureAwait(false);
+			KtsuBuild.Git.VersionInfo versionInfo = await versionCalculator.GetVersionInfoAsync(workspace, commitHash, cancellationToken: ct).ConfigureAwait(false);
+			report(versionInfo);
+			return 0;
+		}
+		catch (Exception ex)
+		{
+			diagnostics.WriteError($"{failureMessage}: {ex.Message}");
+			return 1;
+		}
+#pragma warning restore CA1031
+	}
 	private static void AddTestCommand(RootCommand rootCommand, IProcessRunner processRunner, IBuildLogger logger)
 	{
 		TestCommand testCommand = new();
