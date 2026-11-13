@@ -23,7 +23,7 @@ public class MetadataUpdateOptions
 	/// <summary>
 	/// Gets or sets the commit message for metadata updates.
 	/// </summary>
-	public string CommitMessage { get; set; } = "[bot][skip ci] Update Metadata";
+	public string CommitMessage { get; set; } = AutomationIdentity.MetadataCommitMessage;
 
 	/// <summary>
 	/// Gets or sets whether to commit and push changes.
