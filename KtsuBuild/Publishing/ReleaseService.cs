@@ -31,6 +31,11 @@ public class ReleaseService(IDotNetService dotNetService, INuGetPublisher nuGetP
 		Ensure.NotNull(workspace);
 		Ensure.NotNull(configuration);
 
+		// staging/ and output/ are fixed paths under the workspace, so in a reused checkout they still
+		// hold the previous release's packages, zips and published files. Everything below globs
+		// staging/, so whatever was left there would be hashed, pushed and attached to this release.
+		ResetDirectory(config.StagingPath, workspace);
+
 		// Pack NuGet packages
 		await dotNetService.PackAsync(workspace, config.StagingPath, configuration, ResolveInWorkspace(workspace, config.LatestChangelogFile), cancellationToken).ConfigureAwait(false);
 
@@ -67,6 +72,10 @@ public class ReleaseService(IDotNetService dotNetService, INuGetPublisher nuGetP
 			foreach (string runtime in PublishRuntimes)
 			{
 				string outputDir = Path.Combine(config.OutputPath, $"{projectName}-{runtime}");
+
+				// dotnet publish adds to an existing folder, so files an earlier publish left here would
+				// be zipped into this version's archive.
+				ResetDirectory(outputDir, workspace);
 				PublishOptions publishOptions = new()
 				{
 					WorkingDirectory = workspace,
@@ -213,6 +222,41 @@ public class ReleaseService(IDotNetService dotNetService, INuGetPublisher nuGetP
 		};
 
 		await gitHubService.CreateReleaseAsync(releaseOptions, cancellationToken).ConfigureAwait(false);
+	}
+
+	/// <summary>
+	/// Deletes a directory the release writes into and recreates it empty.
+	/// </summary>
+	/// <param name="directory">The staging or per-runtime output directory.</param>
+	/// <param name="workspace">The workspace being released.</param>
+	/// <remarks>
+	/// A directory that is the workspace itself, or one that contains it, is refused rather than
+	/// emptied: a misconfigured staging path must not delete the checkout.
+	/// </remarks>
+	/// <exception cref="InvalidOperationException">The directory is the workspace or one of its ancestors.</exception>
+	private static void ResetDirectory(string directory, string workspace)
+	{
+		string fullDirectory = Path.TrimEndingDirectorySeparator(Path.GetFullPath(directory));
+		string fullWorkspace = Path.TrimEndingDirectorySeparator(Path.GetFullPath(workspace));
+		string relative = Path.GetRelativePath(fullDirectory, fullWorkspace);
+		// The way from the directory to the workspace climbs out of the directory, or switches drive,
+		// unless the workspace is the directory itself or lies inside it.
+		bool leavesDirectory = Path.IsPathRooted(relative)
+			|| relative == ".."
+			|| relative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal)
+			|| relative.StartsWith(".." + Path.AltDirectorySeparatorChar, StringComparison.Ordinal);
+		bool containsWorkspace = !leavesDirectory;
+		if (containsWorkspace)
+		{
+			throw new InvalidOperationException($"Refusing to empty '{fullDirectory}' before the release: it is the workspace or contains it.");
+		}
+
+		if (Directory.Exists(fullDirectory))
+		{
+			Directory.Delete(fullDirectory, recursive: true);
+		}
+
+		Directory.CreateDirectory(fullDirectory);
 	}
 
 	/// <summary>
