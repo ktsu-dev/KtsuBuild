@@ -18,6 +18,20 @@ using static Polyfill;
 /// <param name="logger">The build logger.</param>
 public class IosBuildService(IDotNetService dotNetService, IBuildLogger logger) : IIosBuildService
 {
+	private readonly IosService? toolchain;
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="IosBuildService"/> class that can also
+	/// provision the pinned Xcode and iOS workload before building, so a pull-request build
+	/// uses the same toolchain as the signed release.
+	/// </summary>
+	/// <param name="dotNetService">The .NET SDK service.</param>
+	/// <param name="processRunner">The process runner the toolchain commands go through.</param>
+	/// <param name="logger">The build logger.</param>
+	public IosBuildService(IDotNetService dotNetService, IProcessRunner processRunner, IBuildLogger logger)
+		: this(dotNetService, logger) =>
+		toolchain = new IosService(dotNetService, processRunner, logger);
+
 	/// <summary>
 	/// The simulator runtime identifier built by default.
 	/// </summary>
@@ -64,7 +78,24 @@ public class IosBuildService(IDotNetService dotNetService, IBuildLogger logger) 
 				logger.WriteInfo($"[DRY RUN] Would require embedded frameworks: {string.Join(", ", options.RequiredFrameworks)}");
 			}
 
+			if (!string.IsNullOrWhiteSpace(options.XcodeVersion) || !string.IsNullOrWhiteSpace(options.WorkloadVersion))
+			{
+				logger.WriteInfo($"[DRY RUN] Would provision Xcode '{options.XcodeVersion}' and iOS workload '{options.WorkloadVersion}' first");
+			}
+
 			return true;
+		}
+
+		// Apply the same Xcode and workload pins as `ios package`, so the pull-request build
+		// and the release build cannot drift apart. No pins means the host's toolchain as-is.
+		if (!string.IsNullOrWhiteSpace(options.XcodeVersion) || !string.IsNullOrWhiteSpace(options.WorkloadVersion))
+		{
+			if (toolchain is null)
+			{
+				throw new InvalidOperationException("An Xcode or iOS workload pin is set, but this IosBuildService was created without a process runner to provision it.");
+			}
+
+			await toolchain.ProvisionToolchainAsync(options.XcodeVersion, options.WorkloadVersion, cancellationToken).ConfigureAwait(false);
 		}
 
 		foreach (string head in heads)

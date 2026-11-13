@@ -193,6 +193,16 @@ public class BuildConfigurationProvider(IGitService gitService, IGitHubService g
 		return parts.Length == 2 ? (parts[0], ownerRepo) : (string.Empty, string.Empty);
 	}
 
+	/// <summary>
+	/// Reads the pinned Xcode version (<c>IOS_XCODE_VERSION</c>) and iOS workload version
+	/// (<c>IOS_WORKLOAD_VERSION</c>) from the environment. Every iOS path that builds reads
+	/// them here, so the unsigned build and the signed package apply the same pins.
+	/// </summary>
+	/// <returns>The Xcode and workload versions, each empty when unset.</returns>
+	public static (string XcodeVersion, string WorkloadVersion) ReadIosToolchainPins() =>
+		(Environment.GetEnvironmentVariable("IOS_XCODE_VERSION") ?? string.Empty,
+		Environment.GetEnvironmentVariable("IOS_WORKLOAD_VERSION") ?? string.Empty);
+
 	// Reads the iOS signing, toolchain, and App Store Connect inputs from the environment
 	// onto the configuration. Extracted to keep CreateFromEnvironmentAsync's complexity in
 	// check. These carry secrets and are read here only; nothing logs them.
@@ -206,8 +216,7 @@ public class BuildConfigurationProvider(IGitService gitService, IGitHubService g
 		configuration.IosCertP12Password = Environment.GetEnvironmentVariable("IOS_CERT_P12_PASSWORD") ?? string.Empty;
 		configuration.IosKeychainPassword = Environment.GetEnvironmentVariable("IOS_KEYCHAIN_PASSWORD") ?? string.Empty;
 		configuration.IosProvisioningProfileBase64 = Environment.GetEnvironmentVariable("IOS_PROVISIONING_PROFILE_BASE64") ?? string.Empty;
-		configuration.XcodeVersion = Environment.GetEnvironmentVariable("IOS_XCODE_VERSION") ?? string.Empty;
-		configuration.IosWorkloadVersion = Environment.GetEnvironmentVariable("IOS_WORKLOAD_VERSION") ?? string.Empty;
+		(configuration.XcodeVersion, configuration.IosWorkloadVersion) = ReadIosToolchainPins();
 
 		// App Store Connect API inputs for the TestFlight upload. The key is a secret and is
 		// never logged; the key/issuer identifiers are not surfaced either.

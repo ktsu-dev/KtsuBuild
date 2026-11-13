@@ -555,7 +555,7 @@ public class DotNetServiceTests
 		Directory.CreateDirectory(libDir);
 		await File.WriteAllTextAsync(Path.Combine(libDir, "Json.csproj"),
 			"<Project><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>").ConfigureAwait(false);
-		await File.WriteAllTextAsync(Path.Combine(_tempDir, "MySolution.slnx"), "<Solution />").ConfigureAwait(false);
+		await File.WriteAllTextAsync(Path.Combine(_tempDir, "MySolution.slnx"), "<Solution><Project Path=\"Providers/Json/Json.csproj\" /></Solution>").ConfigureAwait(false);
 
 		string outputPath = Path.Combine(_tempDir, "output");
 		_processRunner.RunWithCallbackAsync("dotnet", Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
@@ -567,6 +567,61 @@ public class DotNetServiceTests
 		// and must discover the .slnx solution for SolutionName.
 		await _processRunner.Received(1).RunWithCallbackAsync("dotnet",
 			ArgMatch.NotNull<string>(a => a.Contains("pack") && a.Contains("-p:SolutionDir=") && a.Contains("-p:SolutionName=\"MySolution\"")),
+			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+	}
+
+	// Restore and build run at the workspace root, so they cover only the solution's projects. Pack
+	// used to pick every .csproj on disk, and dotnet pack --no-build failed one outside the solution
+	// with NETSDK1004 (no assets file), aborting the release after a green build and test.
+
+	[TestMethod]
+	public async Task PackAsync_ProjectOutsideTheSlnx_IsSkippedAndNamed()
+	{
+		const string Library = "<Project><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>";
+		Directory.CreateDirectory(Path.Combine(_tempDir, "Lib"));
+		await File.WriteAllTextAsync(Path.Combine(_tempDir, "Lib", "Lib.csproj"), Library, TestContext.CancellationToken).ConfigureAwait(false);
+		Directory.CreateDirectory(Path.Combine(_tempDir, "stray"));
+		await File.WriteAllTextAsync(Path.Combine(_tempDir, "stray", "Stray.csproj"), Library, TestContext.CancellationToken).ConfigureAwait(false);
+		await File.WriteAllTextAsync(Path.Combine(_tempDir, "Repro.slnx"), "<Solution><Folder Name=\"/src/\"><Project Path=\"Lib/Lib.csproj\" /></Folder></Solution>", TestContext.CancellationToken).ConfigureAwait(false);
+
+		RecordingBuildLogger logger = new();
+		DotNetService service = new(_processRunner, logger, _toolsDir);
+		_processRunner.RunWithCallbackAsync("dotnet", Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
+			.Returns(0);
+
+		await service.PackAsync(_tempDir, Path.Combine(_tempDir, "staging"), cancellationToken: TestContext.CancellationToken).ConfigureAwait(false);
+
+		await _processRunner.Received(1).RunWithCallbackAsync("dotnet",
+			ArgMatch.NotNull<string>(a => a.StartsWith("pack ", StringComparison.Ordinal) && a.Contains("Lib.csproj", StringComparison.Ordinal)),
+			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+		await _processRunner.DidNotReceive().RunWithCallbackAsync("dotnet",
+			ArgMatch.NotNull<string>(a => a.Contains("Stray.csproj", StringComparison.Ordinal)),
+			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+		Assert.IsTrue(RecordingBuildLogger.Any(logger.Infos, "Skipping Stray: it is not in the solution"));
+	}
+
+	[TestMethod]
+	public async Task PackAsync_ProjectOutsideTheSln_WithBackslashPaths_IsSkipped()
+	{
+		const string Library = "<Project><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>";
+		Directory.CreateDirectory(Path.Combine(_tempDir, "src", "Lib"));
+		await File.WriteAllTextAsync(Path.Combine(_tempDir, "src", "Lib", "Lib.csproj"), Library, TestContext.CancellationToken).ConfigureAwait(false);
+		Directory.CreateDirectory(Path.Combine(_tempDir, "templates", "Template"));
+		await File.WriteAllTextAsync(Path.Combine(_tempDir, "templates", "Template", "Template.csproj"), Library, TestContext.CancellationToken).ConfigureAwait(false);
+		await File.WriteAllTextAsync(Path.Combine(_tempDir, "Repro.sln"),
+			"Microsoft Visual Studio Solution File, Format Version 12.00\n" +
+			"Project(\"{9A19103F-16F7-4668-BE54-9A1E7A4F7556}\") = \"Lib\", \"src\\Lib\\Lib.csproj\", \"{11111111-1111-1111-1111-111111111111}\"\nEndProject\n",
+			TestContext.CancellationToken).ConfigureAwait(false);
+		_processRunner.RunWithCallbackAsync("dotnet", Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
+			.Returns(0);
+
+		await _service.PackAsync(_tempDir, Path.Combine(_tempDir, "staging"), cancellationToken: TestContext.CancellationToken).ConfigureAwait(false);
+
+		await _processRunner.Received(1).RunWithCallbackAsync("dotnet",
+			ArgMatch.NotNull<string>(a => a.StartsWith("pack ", StringComparison.Ordinal) && a.Contains("Lib.csproj", StringComparison.Ordinal)),
+			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+		await _processRunner.DidNotReceive().RunWithCallbackAsync("dotnet",
+			ArgMatch.NotNull<string>(a => a.Contains("Template.csproj", StringComparison.Ordinal)),
 			Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 	}
 

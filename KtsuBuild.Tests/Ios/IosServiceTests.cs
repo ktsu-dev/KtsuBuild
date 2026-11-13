@@ -46,12 +46,12 @@ public class IosServiceTests
 			WorkingDirectory = _tempDir,
 			ShortVersion = "1.0.0",
 			SigningAvailable = false,
-		}).ConfigureAwait(false);
+		}, TestContext.CancellationToken).ConfigureAwait(false);
 
 		Assert.IsTrue(result.Success);
 		Assert.IsTrue(result.Skipped);
 		Assert.IsNotNull(result.SkipReason);
-		Assert.AreEqual(0, result.IpaPaths.Count);
+		Assert.IsEmpty(result.IpaPaths);
 
 		// The signing material is never touched, and no heads are even enumerated.
 		_dotNetService.DidNotReceive().GetIosHeads(Arg.Any<string>());
@@ -84,11 +84,11 @@ public class IosServiceTests
 			KeychainPassword = "keychain-password-secret",
 			ProvisioningProfileBase64 = "UFJPRklMRS1TRUNSRVQ=",
 			DryRun = true,
-		}).ConfigureAwait(false);
+		}, TestContext.CancellationToken).ConfigureAwait(false);
 
 		Assert.IsTrue(result.Success);
 		Assert.IsTrue(result.Skipped);
-		Assert.AreEqual(0, result.IpaPaths.Count);
+		Assert.IsEmpty(result.IpaPaths);
 		await AssertNoProcessStartedAsync().ConfigureAwait(false);
 
 		string log = string.Join("\n", logger.Infos.Concat(logger.Warnings));
@@ -118,13 +118,13 @@ public class IosServiceTests
 			Framework = "net10.0-ios",
 			SigningAvailable = false,
 			DryRun = true,
-		}).ConfigureAwait(false);
+		}, TestContext.CancellationToken).ConfigureAwait(false);
 
 		Assert.IsTrue(result.Success);
 		Assert.IsTrue(result.Skipped);
 		await AssertNoProcessStartedAsync().ConfigureAwait(false);
-		Assert.IsTrue(logger.Infos.Any(m => m.Contains(head, StringComparison.Ordinal)));
-		Assert.IsTrue(logger.Infos.Any(m => m.Contains("signing available: False", StringComparison.Ordinal)));
+		Assert.Contains(m => m.Contains(head, StringComparison.Ordinal), logger.Infos);
+		Assert.Contains(m => m.Contains("signing available: False", StringComparison.Ordinal), logger.Infos);
 	}
 
 	[TestMethod]
@@ -141,15 +141,15 @@ public class IosServiceTests
 			BundleId = "com.example app",
 			SigningAvailable = true,
 			DryRun = true,
-		}).ConfigureAwait(false);
+		}, TestContext.CancellationToken).ConfigureAwait(false);
 
 		Assert.IsTrue(result.Success);
 		Assert.IsTrue(result.Skipped);
 		await AssertNoProcessStartedAsync().ConfigureAwait(false);
 		Assert.HasCount(2, logger.Warnings);
-		Assert.IsTrue(logger.Warnings.Any(m => m.Contains("1.4.3-pre.1", StringComparison.Ordinal)));
-		Assert.IsTrue(logger.Warnings.Any(m => m.Contains("com.example app", StringComparison.Ordinal)));
-		Assert.IsTrue(logger.Infos.Any(m => m.Contains("No iOS heads", StringComparison.Ordinal)));
+		Assert.Contains(m => m.Contains("1.4.3-pre.1", StringComparison.Ordinal), logger.Warnings);
+		Assert.Contains(m => m.Contains("com.example app", StringComparison.Ordinal), logger.Warnings);
+		Assert.Contains(m => m.Contains("No iOS heads", StringComparison.Ordinal), logger.Infos);
 	}
 
 	// UploadAsync — dry run
@@ -171,11 +171,11 @@ public class IosServiceTests
 			AppStoreConnectKeyId = "KEYID-SECRET",
 			AppStoreConnectIssuerId = "ISSUER-SECRET",
 			DryRun = true,
-		}).ConfigureAwait(false);
+		}, TestContext.CancellationToken).ConfigureAwait(false);
 
 		Assert.IsTrue(result.Success);
 		Assert.IsTrue(result.Skipped);
-		Assert.AreEqual(0, result.UploadedIpaPaths.Count);
+		Assert.IsEmpty(result.UploadedIpaPaths);
 		await AssertNoProcessStartedAsync().ConfigureAwait(false);
 
 		string log = string.Join("\n", logger.Infos.Concat(logger.Warnings));
@@ -197,7 +197,7 @@ public class IosServiceTests
 			WorkingDirectory = _tempDir,
 			SigningAvailable = true,
 			DryRun = true,
-		}).ConfigureAwait(false);
+		}, TestContext.CancellationToken).ConfigureAwait(false);
 
 		Assert.IsTrue(result.Success);
 		Assert.IsTrue(result.Skipped);
@@ -341,12 +341,12 @@ public class IosServiceTests
 		{
 			WorkingDirectory = _tempDir,
 			SigningAvailable = false,
-		}).ConfigureAwait(false);
+		}, TestContext.CancellationToken).ConfigureAwait(false);
 
 		Assert.IsTrue(result.Success);
 		Assert.IsTrue(result.Skipped);
 		Assert.IsNotNull(result.SkipReason);
-		Assert.AreEqual(0, result.UploadedIpaPaths.Count);
+		Assert.IsEmpty(result.UploadedIpaPaths);
 
 		// The signing material is never touched, and no heads are even enumerated.
 		_dotNetService.DidNotReceive().GetIosHeads(Arg.Any<string>());

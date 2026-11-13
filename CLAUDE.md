@@ -381,9 +381,11 @@ Consumer projects clone KtsuBuild and invoke:
 ### iOS Pull-Request Validation
 
 A consumer with a `net*-ios` head adds a macOS job for unsigned build validation.
-The macOS runner, Xcode selection, and iOS workload pin still live in the
-consumer workflow for now (toolchain provisioning is a later phase); the build
-and the embedded-frameworks check move into the tool:
+Only the macOS runner lives in the consumer workflow. Before building, `ios build`
+(and the `ci` iOS auto-run on macOS) selects the Xcode pinned by `IOS_XCODE_VERSION`
+and installs the iOS workload pinned by `IOS_WORKLOAD_VERSION`, the same pins
+`ios package` applies, and fails if the workload can't be installed. With neither
+pin set it builds with the host's toolchain as-is:
 
 ```yaml
 ios-build:
@@ -391,13 +393,15 @@ ios-build:
   steps:
     - uses: actions/checkout@v4
     - uses: actions/setup-dotnet@v4
-    # ... select Xcode + install the pinned iOS workload ...
     - run: |
         dotnet tool install ktsu.KtsuBuild.Tool --tool-path "${{ runner.temp }}/ktsubuild"
         "${{ runner.temp }}/ktsubuild" >> $env:GITHUB_PATH
     - run: >
         ktsubuild ios build --workspace "${{ github.workspace }}" --verbose
         --require-framework libSkiaSharp
+      env:
+        IOS_XCODE_VERSION: ${{ vars.IOS_XCODE_VERSION }}
+        IOS_WORKLOAD_VERSION: ${{ vars.IOS_WORKLOAD_VERSION }}
 ```
 
 ### iOS Signed Packaging
