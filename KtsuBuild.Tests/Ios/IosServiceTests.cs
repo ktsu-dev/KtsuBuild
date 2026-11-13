@@ -406,6 +406,69 @@ public class IosServiceTests
 		}));
 	}
 
+	// Relative --project resolves against the workspace, not the process directory
+
+	private const string RelativeHead = "src/MyApp.iOS/MyApp.iOS.csproj";
+
+	private string CreateHeadUnderSrc()
+	{
+		string headDir = Path.Combine(_tempDir, "src", "MyApp.iOS");
+		Directory.CreateDirectory(headDir);
+		string head = Path.Combine(headDir, "MyApp.iOS.csproj");
+		File.WriteAllText(head, "<Project><PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0-ios</TargetFramework></PropertyGroup></Project>");
+		return head;
+	}
+
+	[TestMethod]
+	public void ResolveHeads_RelativeProject_ResolvesUnderWorkspace()
+	{
+		string head = CreateHeadUnderSrc();
+		File.WriteAllText(Path.Combine(Path.GetDirectoryName(head)!, "Info.plist"), "<plist />");
+		Assert.AreNotEqual(Path.GetFullPath(_tempDir), Path.GetFullPath(Directory.GetCurrentDirectory()));
+
+		IReadOnlyList<string> heads = _service.ResolveHeads(_tempDir, RelativeHead);
+
+		Assert.AreEqual(1, heads.Count);
+		Assert.AreEqual(Path.GetFullPath(head), heads[0]);
+		Assert.AreEqual(Path.Combine(Path.GetDirectoryName(head)!, "Info.plist"), IosService.ResolveInfoPlist(heads[0]));
+		Assert.AreEqual("net10.0-ios", IosService.ResolveIosFramework(heads[0]));
+		_dotNetService.DidNotReceive().GetIosHeads(Arg.Any<string>());
+	}
+
+	[TestMethod]
+	public void LocateIpas_RelativeProject_FindsArchiveUnderWorkspace()
+	{
+		CreateHeadUnderSrc();
+		string ipa = Path.Combine(_tempDir, "src", "MyApp.iOS", "bin", "Release", "net10.0-ios", "ios-arm64", "publish", "MyApp.ipa");
+		Directory.CreateDirectory(Path.GetDirectoryName(ipa)!);
+		File.WriteAllText(ipa, "archive");
+
+		IReadOnlyList<string> located = _service.LocateIpas(new IosUploadOptions
+		{
+			WorkingDirectory = _tempDir,
+			Project = RelativeHead,
+		});
+
+		Assert.AreEqual(1, located.Count);
+		Assert.AreEqual(Path.GetFullPath(ipa), Path.GetFullPath(located[0]));
+	}
+
+	[TestMethod]
+	public async Task ArchiveAsync_RelativeProject_FindsIpaUnderWorkspace()
+	{
+		CreateHeadUnderSrc();
+		string ipa = Path.Combine(_tempDir, "src", "MyApp.iOS", "bin", "Release", "net10.0-ios", "ios-arm64", "publish", "MyApp.ipa");
+		Directory.CreateDirectory(Path.GetDirectoryName(ipa)!);
+		await File.WriteAllTextAsync(ipa, "archive", TestContext.CancellationToken).ConfigureAwait(false);
+
+		_processRunner.RunWithCallbackAsync("dotnet", Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>())
+			.Returns(0);
+
+		string produced = await _service.ArchiveAsync(ArchiveOpts(_tempDir, RelativeHead, "net10.0-ios"), TestContext.CancellationToken).ConfigureAwait(false);
+
+		Assert.AreEqual(Path.GetFullPath(ipa), Path.GetFullPath(produced));
+	}
+
 	// ArchiveAsync — command-string construction
 
 	private static IosArchiveOptions ArchiveOpts(string workingDirectory, string head, string? framework, string codesignKey = "key", string provisionName = "profile") => new()

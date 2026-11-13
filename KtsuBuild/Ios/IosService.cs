@@ -5,6 +5,7 @@ namespace KtsuBuild.Ios;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using KtsuBuild.Abstractions;
+using KtsuBuild.DotNet;
 using KtsuBuild.Utilities;
 #if !NET10_0_OR_GREATER
 using static Polyfill;
@@ -66,9 +67,7 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 			return new IosPackageResult { Success = true, Skipped = true, SkipReason = reason };
 		}
 
-		IReadOnlyList<string> heads = string.IsNullOrEmpty(options.Project)
-			? dotNetService.GetIosHeads(options.WorkingDirectory)
-			: [options.Project];
+		IReadOnlyList<string> heads = ResolveHeads(options.WorkingDirectory, options.Project);
 
 		if (heads.Count == 0)
 		{
@@ -252,9 +251,7 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 			return [options.IpaPath];
 		}
 
-		IReadOnlyList<string> heads = string.IsNullOrEmpty(options.Project)
-			? dotNetService.GetIosHeads(options.WorkingDirectory)
-			: [options.Project];
+		IReadOnlyList<string> heads = ResolveHeads(options.WorkingDirectory, options.Project);
 
 		List<string> ipas = [];
 		List<string> searched = [];
@@ -562,7 +559,8 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 			throw new InvalidOperationException($"iOS archive failed for {options.ProjectPath} ({options.RuntimeIdentifier}) with exit code {exitCode}");
 		}
 
-		string headDir = Path.GetDirectoryName(Path.GetFullPath(options.ProjectPath)) ?? Directory.GetCurrentDirectory();
+		string projectPath = DotNetService.ResolveAgainst(options.WorkingDirectory, options.ProjectPath);
+		string headDir = Path.GetDirectoryName(projectPath) ?? options.WorkingDirectory;
 		string binDir = Path.Combine(headDir, "bin");
 		string ipa = FindIpa(binDir)
 			?? throw new InvalidOperationException($"iOS archive completed but no .ipa was produced under {binDir}.");
@@ -627,6 +625,20 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 			TryDeleteDirectory(workDir);
 		}
 	}
+
+	/// <summary>
+	/// Returns the iOS heads to act on: the explicit project when one is given, otherwise
+	/// every head detected in the workspace. A relative project names a path in the
+	/// workspace, where <c>dotnet</c> runs, not in the process directory, so it is
+	/// resolved against <paramref name="workingDirectory"/> before any file lookup.
+	/// </summary>
+	/// <param name="workingDirectory">The workspace the run is scoped to.</param>
+	/// <param name="project">The explicit head project, or null to detect heads.</param>
+	/// <returns>The head project paths.</returns>
+	internal IReadOnlyList<string> ResolveHeads(string workingDirectory, string? project) =>
+		string.IsNullOrEmpty(project)
+			? dotNetService.GetIosHeads(workingDirectory)
+			: [DotNetService.ResolveAgainst(workingDirectory, project!)];
 
 	/// <summary>
 	/// Resolves the head's <c>Info.plist</c>: the conventional location is next to the
