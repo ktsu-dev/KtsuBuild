@@ -210,8 +210,7 @@ public class ChangelogGenerator(IGitService gitService, IBuildLogger logger)
 		List<CommitInfo> uniqueCommits = [.. allCommits.DistinctBy(static c => c.Hash)];
 
 		// Determine if this is a prerelease version
-		(_, _, _, int toPrerelease) = ParseVersion(toTag);
-		bool isPrerelease = toPrerelease > 0;
+		bool isPrerelease = ParseVersion(toTag).IsPrerelease;
 
 		// Step 4: Multi-level commit filtering (4-level progressive relaxation)
 		List<CommitInfo> filteredCommits = ApplyMultiLevelFiltering(uniqueCommits, isPrerelease);
@@ -324,12 +323,12 @@ public class ChangelogGenerator(IGitService gitService, IBuildLogger logger)
 			return fromTag;
 		}
 
-		(int toMajor, int toMinor, int toPatch, int toPrerelease) = ParseVersion(toTag);
-		(int fromMajor, int fromMinor, int fromPatch, int fromPrerelease) = ParseVersion(fromTag);
+		(int toMajor, int toMinor, int toPatch, bool toIsPrerelease, int toPrerelease) = ParseVersion(toTag);
+		(int fromMajor, int fromMinor, int fromPatch, bool fromIsPrerelease, _) = ParseVersion(fromTag);
 
-		// A prerelease promoted to stable keeps the same X.Y.Z while the prerelease
-		// component drops from N to 0, so it is treated the same as a patch bump.
-		bool prereleasePromotedToStable = toMajor == fromMajor && toMinor == fromMinor && toPatch == fromPatch && fromPrerelease != 0;
+		// A prerelease promoted to stable keeps the same X.Y.Z while it loses its prerelease
+		// suffix, so it is treated the same as a patch bump.
+		bool prereleasePromotedToStable = !toIsPrerelease && toMajor == fromMajor && toMinor == fromMinor && toPatch == fromPatch && fromIsPrerelease;
 
 		// Calculate the search version based on version type
 		int searchMajor;
@@ -337,14 +336,15 @@ public class ChangelogGenerator(IGitService gitService, IBuildLogger logger)
 		int searchPatch;
 		int searchPrerelease;
 
-		if (toPrerelease == 1)
+		if (toIsPrerelease && toPrerelease <= 1)
 		{
-			// The first prerelease of a series has no earlier prerelease to diff against. Searching for
-			// "prerelease 0" would match the stable X.Y.Z tag, which comes after it, and produce an empty
-			// range, so diff against the adjacent earlier tag instead.
+			// The first prerelease of a series, or one with no number to count back from (rc1, dev),
+			// has no earlier prerelease to diff against. Searching for "prerelease 0" would match the
+			// stable X.Y.Z tag, which comes after it, and produce an empty range, so diff against the
+			// adjacent earlier tag instead.
 			return fromTag;
 		}
-		else if (toPrerelease != 0)
+		else if (toIsPrerelease)
 		{
 			// Prerelease: look for previous prerelease in same series
 			searchMajor = toMajor;
@@ -383,33 +383,31 @@ public class ChangelogGenerator(IGitService gitService, IBuildLogger logger)
 			return fromTag;
 		}
 
-		// Convert search version to 4-component form for matching
-		string searchVersion = $"{searchMajor}.{searchMinor}.{searchPatch}.{searchPrerelease}";
+		// A prerelease searches for the previous prerelease, anything else for a stable tag, so a
+		// numberless prerelease such as v1.0.0-dev is never taken for v1.0.0.
+		(int, int, int, bool, int) searchVersion = (searchMajor, searchMinor, searchPatch, toIsPrerelease, searchPrerelease);
 
 		// A previous prerelease must be in the same series (alpha.2 for alpha.3, not beta.2), and older
 		// than toTag. allTags is newest first, so once a later series on the same X.Y.Z exists, its tag
 		// with the same number would otherwise be found first and give an empty range.
-		string? searchLabel = toPrerelease != 0 ? GetPrereleaseLabel(toTag) : null;
-		int start = toPrerelease != 0 ? IndexOfTag(allTags, toTag) + 1 : 0;
+		string? searchLabel = toIsPrerelease ? GetPrereleaseLabel(toTag) : null;
+		int start = toIsPrerelease ? IndexOfTag(allTags, toTag) + 1 : 0;
 
 		// If no matching tag found, fall back to the original fromTag
 		return FindTag(allTags, start, searchVersion, searchLabel) ?? fromTag;
 	}
 
 	/// <summary>
-	/// Finds the first tag from <paramref name="start"/> whose 4-component version is
+	/// Finds the first tag from <paramref name="start"/> whose parsed version is
 	/// <paramref name="searchVersion"/> and, when <paramref name="searchLabel"/> is set, whose
 	/// prerelease label matches it.
 	/// </summary>
-	private static string? FindTag(IReadOnlyList<string> allTags, int start, string searchVersion, string? searchLabel)
+	private static string? FindTag(IReadOnlyList<string> allTags, int start, (int, int, int, bool, int) searchVersion, string? searchLabel)
 	{
 		for (int i = start; i < allTags.Count; i++)
 		{
 			string tag = allTags[i];
-			(int tagMajor, int tagMinor, int tagPatch, int tagPrerelease) = ParseVersion(tag);
-			string tagVersion = $"{tagMajor}.{tagMinor}.{tagPatch}.{tagPrerelease}";
-
-			if (searchVersion == tagVersion
+			if (ParseVersion(tag) == searchVersion
 				&& (searchLabel is null || string.Equals(GetPrereleaseLabel(tag), searchLabel, StringComparison.Ordinal)))
 			{
 				return tag;
@@ -421,17 +419,10 @@ public class ChangelogGenerator(IGitService gitService, IBuildLogger logger)
 
 	private static string DetermineVersionType(string fromTag, string toTag)
 	{
-		(int Major, int Minor, int Patch, int Prerelease) = ParseVersion(fromTag);
-		int fromMajor = Major;
-		int fromMinor = Minor;
-		int fromPatch = Patch;
-		(Major, Minor, Patch, Prerelease) = ParseVersion(toTag);
-		int toMajor = Major;
-		int toMinor = Minor;
-		int toPatch = Patch;
-		int toPrerelease = Prerelease;
+		(int fromMajor, int fromMinor, int fromPatch, _, _) = ParseVersion(fromTag);
+		(int toMajor, int toMinor, int toPatch, bool toIsPrerelease, _) = ParseVersion(toTag);
 
-		if (toPrerelease > 0)
+		if (toIsPrerelease)
 		{
 			return "prerelease";
 		}
@@ -466,26 +457,29 @@ public class ChangelogGenerator(IGitService gitService, IBuildLogger logger)
 		return prereleaseIndex >= 0 ? VersionCalculator.ParsePrerelease(version[(prereleaseIndex + 1)..]).Label : null;
 	}
 
-	private static (int Major, int Minor, int Patch, int Prerelease) ParseVersion(string tag)
+	/// <summary>
+	/// Parses a version tag. Any <c>-</c> suffix makes it a prerelease, and the prerelease number is
+	/// read by <see cref="VersionCalculator.ParsePrerelease"/>, so both classes agree about every tag:
+	/// <c>rc.1</c> and <c>alpha.beta.1</c> are number 1, while <c>rc1</c> and <c>dev</c> are number 0.
+	/// </summary>
+	private static (int Major, int Minor, int Patch, bool IsPrerelease, int Prerelease) ParseVersion(string tag)
 	{
 		string version = tag.TrimStart('v');
-		string[] mainParts = version.Split('-')[0].Split('.');
+		int buildIndex = version.IndexOf('+', StringComparison.Ordinal);
+		if (buildIndex >= 0)
+		{
+			version = version[..buildIndex];
+		}
+
+		int prereleaseIndex = version.IndexOf('-', StringComparison.Ordinal);
+		bool isPrerelease = prereleaseIndex >= 0;
+		string[] mainParts = (isPrerelease ? version[..prereleaseIndex] : version).Split('.');
 
 		int major = mainParts.Length > 0 && int.TryParse(mainParts[0], out int m) ? m : 0;
 		int minor = mainParts.Length > 1 && int.TryParse(mainParts[1], out int n) ? n : 0;
 		int patch = mainParts.Length > 2 && int.TryParse(mainParts[2], out int p) ? p : 0;
-		int prerelease = 0;
+		int prerelease = isPrerelease ? VersionCalculator.ParsePrerelease(version[(prereleaseIndex + 1)..]).Number : 0;
 
-		if (version.Contains('-'))
-		{
-			string prePart = version.Split('-')[1];
-			string[] preParts = prePart.Split('.');
-			if (preParts.Length > 1 && int.TryParse(preParts[1], out int pre))
-			{
-				prerelease = pre;
-			}
-		}
-
-		return (major, minor, patch, prerelease);
+		return (major, minor, patch, isPrerelease, prerelease);
 	}
 }
