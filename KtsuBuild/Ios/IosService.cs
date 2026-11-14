@@ -45,6 +45,13 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 	{
 		Ensure.NotNull(options);
 
+		// A dry run reports what would be packaged before any gate, so it can be previewed
+		// from any host and without secrets. It starts no process and logs no secret.
+		if (options.DryRun)
+		{
+			return DescribePackage(options);
+		}
+
 		// Gate on the signing material. Forks and contributors without secrets get a
 		// clean no-op rather than a failure, exactly like MeltdownMonitor's check-secrets
 		// job. Only the boolean is ever logged; the secret values never are.
@@ -119,6 +126,11 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 	{
 		Ensure.NotNull(options);
 
+		if (options.DryRun)
+		{
+			return DescribeUpload(options);
+		}
+
 		// Gate on the signing material, exactly like the package step. Forks and
 		// contributors without secrets get a clean no-op rather than a failure.
 		if (!options.SigningAvailable)
@@ -174,6 +186,95 @@ public class IosService(IDotNetService dotNetService, IProcessRunner processRunn
 		}
 
 		return new IosUploadResult { Success = true, UploadedIpaPaths = uploaded };
+	}
+
+	/// <summary>
+	/// Reports what <see cref="PackageAsync"/> would do, for <c>--dry-run</c>: the heads, the
+	/// runtime, each head's target framework, the version and build number, and whether
+	/// signing is available. Starts no process and logs no secret, only whether it is set.
+	/// </summary>
+	private IosPackageResult DescribePackage(IosPackageOptions options)
+	{
+		bool hostIsMacOs = RuntimeInformation.IsOSPlatform(OSPlatform.OSX);
+		logger.WriteInfo($"[DRY RUN] iOS signing available: {options.SigningAvailable}");
+		logger.WriteInfo($"[DRY RUN] Version: {options.ShortVersion} (build {options.BuildNumber})");
+		if (!string.IsNullOrEmpty(options.BundleId))
+		{
+			logger.WriteInfo($"[DRY RUN] Bundle id: {options.BundleId}");
+		}
+
+		// Report what a real run would refuse, but don't throw: a preview should show everything.
+		if (!IsValidShortVersion(options.ShortVersion))
+		{
+			logger.WriteWarning($"[DRY RUN] '{options.ShortVersion}' is not a valid CFBundleShortVersionString; a real run would fail.");
+		}
+
+		if (!string.IsNullOrEmpty(options.BundleId) && !IsValidBundleId(options.BundleId))
+		{
+			logger.WriteWarning($"[DRY RUN] '{options.BundleId}' is not a valid bundle identifier; a real run would fail.");
+		}
+
+		if (!options.SigningAvailable)
+		{
+			logger.WriteInfo("[DRY RUN] A real run would skip: iOS signing material is not available.");
+		}
+
+		if (!hostIsMacOs)
+		{
+			logger.WriteInfo("[DRY RUN] A real run would skip: iOS packaging requires a macOS host.");
+		}
+
+		IReadOnlyList<string> heads = string.IsNullOrEmpty(options.Project)
+			? dotNetService.GetIosHeads(options.WorkingDirectory)
+			: [options.Project];
+
+		if (heads.Count == 0)
+		{
+			logger.WriteInfo("[DRY RUN] No iOS heads found in workspace. Nothing would be packaged.");
+		}
+
+		foreach (string head in heads)
+		{
+			string? framework = string.IsNullOrEmpty(options.Framework) ? ResolveIosFramework(head) : options.Framework;
+			logger.WriteInfo($"[DRY RUN] Would package {head}: {framework ?? "(no iOS target framework found)"}, {options.Runtime}, {options.Configuration}");
+		}
+
+		return new IosPackageResult { Success = true, Skipped = true, SkipReason = "Dry run: nothing was packaged." };
+	}
+
+	/// <summary>
+	/// Reports what <see cref="UploadAsync"/> would do, for <c>--dry-run</c>: whether signing
+	/// and the App Store Connect key are configured, and which archives would be uploaded.
+	/// Starts no process and logs no secret, only whether each one is set.
+	/// </summary>
+	private IosUploadResult DescribeUpload(IosUploadOptions options)
+	{
+		logger.WriteInfo($"[DRY RUN] iOS signing available: {options.SigningAvailable}");
+		logger.WriteInfo($"[DRY RUN] App Store Connect key configured: {!string.IsNullOrWhiteSpace(options.AppStoreConnectKeyBase64)}, key id: {!string.IsNullOrWhiteSpace(options.AppStoreConnectKeyId)}, issuer id: {!string.IsNullOrWhiteSpace(options.AppStoreConnectIssuerId)}");
+
+		if (!options.SigningAvailable)
+		{
+			logger.WriteInfo("[DRY RUN] A real run would skip: iOS signing material is not available.");
+		}
+
+		if (!RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+		{
+			logger.WriteInfo("[DRY RUN] A real run would skip: iOS upload requires a macOS host.");
+		}
+
+		try
+		{
+			foreach (string ipa in LocateIpas(options))
+			{
+				logger.WriteInfo($"[DRY RUN] Would upload {ipa}");
+			}
+		}
+		catch (InvalidOperationException ex)
+		{
+			logger.WriteWarning($"[DRY RUN] {ex.Message}");
+		}
+
+		return new IosUploadResult { Success = true, Skipped = true, SkipReason = "Dry run: nothing was uploaded." };
 	}
 
 	/// <summary>

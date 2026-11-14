@@ -33,6 +33,40 @@ public class IosCommandTests
 	}
 
 	[TestMethod]
+	[DataRow("build")]
+	[DataRow("package")]
+	[DataRow("upload")]
+	public void Subcommand_AcceptsDryRun(string subcommand)
+	{
+		ParseResult result = new IosCommand().Parse($"{subcommand} --dry-run");
+
+		Assert.IsEmpty(result.Errors);
+		Assert.IsTrue(result.GetValue<bool>("--dry-run"));
+	}
+
+	[TestMethod]
+	[DataRow("build")]
+	[DataRow("package", "--version", "1.0.0")]
+	[DataRow("upload")]
+	public async Task Program_DryRun_ExitsZeroOnAnyHost(string subcommand, params string[] extra)
+	{
+		// A dry run skips the macOS gate and starts no build, signing or upload process, so it
+		// previews cleanly here whatever the host, even with no iOS head and no archive.
+		string workspace = Path.Combine(Path.GetTempPath(), $"IosDryRun_{Guid.NewGuid():N}");
+		Directory.CreateDirectory(workspace);
+		try
+		{
+			int exitCode = await Program.Main(["ios", subcommand, "--dry-run", "--workspace", workspace, .. extra]).ConfigureAwait(false);
+
+			Assert.AreEqual(0, exitCode);
+		}
+		finally
+		{
+			Directory.Delete(workspace, recursive: true);
+		}
+	}
+
+	[TestMethod]
 	public async Task Program_WiresIosPackageOptions()
 	{
 		// Building the command tree looks up every ios package option the handler reads, so a

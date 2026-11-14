@@ -467,6 +467,7 @@ internal sealed class Program
 			string workspace = parseResult.GetValue(GlobalOptions.Workspace)!;
 			string configuration = parseResult.GetValue(GlobalOptions.Configuration)!;
 			bool verbose = parseResult.GetValue(GlobalOptions.Verbose);
+			bool dryRun = parseResult.GetValue(GlobalOptions.DryRun);
 			string? project = parseResult.GetValue(projectOption);
 			string? runtime = parseResult.GetValue(runtimeOption);
 			string[] requireFrameworks = parseResult.GetValue(requireFrameworkOption) ?? [];
@@ -479,8 +480,9 @@ internal sealed class Program
 			{
 				// iOS heads build only on macOS (the workload and the Xcode toolchain
 				// are macOS-only). Skip cleanly elsewhere so the command is safe to call
-				// unconditionally from a consumer workflow.
-				if (!RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+				// unconditionally from a consumer workflow. A dry run starts no build, so it
+				// previews from any host.
+				if (!dryRun && !RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
 				{
 					logger.WriteInfo("iOS builds require a macOS host. Skipping iOS build on this platform.");
 					return 0;
@@ -496,11 +498,17 @@ internal sealed class Program
 					Project = project,
 					Runtime = runtime,
 					RequiredFrameworks = requireFrameworks,
+					DryRun = dryRun,
 				}.WithToolchainPinsFromEnvironment(), ct).ConfigureAwait(false);
 
 				if (!success)
 				{
 					return 1;
+				}
+
+				if (dryRun)
+				{
+					return 0;
 				}
 
 				logger.WriteSuccess("iOS build(s) completed successfully!");
@@ -530,6 +538,7 @@ internal sealed class Program
 			string workspace = parseResult.GetValue(GlobalOptions.Workspace)!;
 			string configuration = parseResult.GetValue(GlobalOptions.Configuration)!;
 			bool verbose = parseResult.GetValue(GlobalOptions.Verbose);
+			bool dryRun = parseResult.GetValue(GlobalOptions.DryRun);
 			string? project = parseResult.GetValue(packageProjectOption);
 			string? runtime = parseResult.GetValue(packageRuntimeOption);
 			string? framework = parseResult.GetValue(packageFrameworkOption);
@@ -546,7 +555,7 @@ internal sealed class Program
 				// iOS packaging builds only on macOS. Skip cleanly elsewhere so the command
 				// is safe to call unconditionally from a consumer workflow, before touching
 				// git or the signing material.
-				if (!RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+				if (!dryRun && !RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
 				{
 					logger.WriteInfo("iOS packaging requires a macOS host. Skipping iOS packaging on this platform.");
 					return 0;
@@ -588,6 +597,7 @@ internal sealed class Program
 					ProvisioningProfileBase64 = buildConfig.IosProvisioningProfileBase64,
 					XcodeVersion = buildConfig.XcodeVersion,
 					WorkloadVersion = buildConfig.IosWorkloadVersion,
+					DryRun = dryRun,
 				}, ct).ConfigureAwait(false);
 
 				return ReportIosPackageResult(result, logger);
@@ -671,6 +681,7 @@ internal sealed class Program
 			string workspace = parseResult.GetValue(GlobalOptions.Workspace)!;
 			string configuration = parseResult.GetValue(GlobalOptions.Configuration)!;
 			bool verbose = parseResult.GetValue(GlobalOptions.Verbose);
+			bool dryRun = parseResult.GetValue(GlobalOptions.DryRun);
 			string? project = parseResult.GetValue(uploadProjectOption);
 			string? ipa = parseResult.GetValue(uploadIpaOption);
 
@@ -682,7 +693,7 @@ internal sealed class Program
 			{
 				// The upload runs altool, which is macOS-only. Skip cleanly elsewhere so the
 				// command is safe to call unconditionally, before touching the signing material.
-				if (!RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+				if (!dryRun && !RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
 				{
 					logger.WriteInfo("iOS upload requires a macOS host. Skipping iOS upload on this platform.");
 					return 0;
@@ -708,6 +719,7 @@ internal sealed class Program
 					AppStoreConnectKeyBase64 = buildConfig.AppStoreConnectKeyBase64,
 					AppStoreConnectKeyId = buildConfig.AppStoreConnectKeyId,
 					AppStoreConnectIssuerId = buildConfig.AppStoreConnectIssuerId,
+					DryRun = dryRun,
 				}, ct).ConfigureAwait(false);
 
 				if (result.Skipped)

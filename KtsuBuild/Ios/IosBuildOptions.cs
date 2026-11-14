@@ -49,6 +49,12 @@ public class IosBuildOptions
 	public string WorkloadVersion { get; set; } = string.Empty;
 
 	/// <summary>
+	/// Gets or sets a value indicating whether to report the heads and runtimes that would be
+	/// built, without provisioning the toolchain, building anything or starting any process.
+	/// </summary>
+	public bool DryRun { get; set; }
+
+	/// <summary>
 	/// Sets <see cref="XcodeVersion"/> and <see cref="WorkloadVersion"/> from the pins in the
 	/// environment, the same ones <c>ios package</c> applies.
 	/// </summary>

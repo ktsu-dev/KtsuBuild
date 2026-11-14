@@ -15,6 +15,8 @@ public class IosBuildServiceTests
 	private IosBuildService _service = null!;
 	private string _tempDir = null!;
 
+	public TestContext TestContext { get; set; } = null!;
+
 	[TestInitialize]
 	public void Setup()
 	{
@@ -121,7 +123,7 @@ public class IosBuildServiceTests
 			WorkingDirectory = _tempDir,
 			Project = head,
 			Runtime = IosBuildService.SimulatorRuntime,
-		}).ConfigureAwait(false);
+		}, TestContext.CancellationToken).ConfigureAwait(false);
 
 		// Simulator-only: no device build, and no missing-bundle failure.
 		Assert.IsTrue(result);
@@ -166,7 +168,7 @@ public class IosBuildServiceTests
 		{
 			WorkingDirectory = _tempDir,
 			RequiredFrameworks = ["libSkiaSharp"],
-		}).ConfigureAwait(false);
+		}, TestContext.CancellationToken).ConfigureAwait(false);
 
 		Assert.IsTrue(result);
 	}
@@ -181,7 +183,7 @@ public class IosBuildServiceTests
 		{
 			WorkingDirectory = _tempDir,
 			RequiredFrameworks = ["libSkiaSharp"],
-		}).ConfigureAwait(false);
+		}, TestContext.CancellationToken).ConfigureAwait(false);
 
 		Assert.IsFalse(result);
 	}
@@ -240,7 +242,7 @@ public class IosBuildServiceTests
 			WorkingDirectory = _tempDir,
 			Runtime = IosBuildService.SimulatorRuntime,
 			WorkloadVersion = "26.2.10233/10.0.100",
-		}).ConfigureAwait(false);
+		}, TestContext.CancellationToken).ConfigureAwait(false);
 
 		Assert.IsTrue(success);
 		Received.InOrder(() =>
@@ -268,7 +270,7 @@ public class IosBuildServiceTests
 				WorkingDirectory = _tempDir,
 				Runtime = IosBuildService.SimulatorRuntime,
 				WorkloadVersion = "26.2.10233/10.0.100",
-			})).ConfigureAwait(false);
+			}, TestContext.CancellationToken)).ConfigureAwait(false);
 
 		Assert.Contains("26.2.10233/10.0.100", ex.Message);
 		await _dotNetService.DidNotReceive().BuildIosAsync(
@@ -286,7 +288,7 @@ public class IosBuildServiceTests
 		{
 			WorkingDirectory = _tempDir,
 			Runtime = IosBuildService.SimulatorRuntime,
-		}).ConfigureAwait(false);
+		}, TestContext.CancellationToken).ConfigureAwait(false);
 
 		Assert.IsTrue(success);
 		await processRunner.DidNotReceive().RunWithCallbackAsync(
@@ -338,7 +340,59 @@ public class IosBuildServiceTests
 			{
 				WorkingDirectory = _tempDir,
 				WorkloadVersion = "26.2.10233/10.0.100",
-			})).ConfigureAwait(false);
+			}, TestContext.CancellationToken)).ConfigureAwait(false);
+	}
+
+	// BuildAsync — dry run
+
+	[TestMethod]
+	public async Task BuildAsync_DryRun_ReportsHeadsWithoutBuilding()
+	{
+		string head = Path.Combine(_tempDir, "MyApp.iOS", "MyApp.iOS.csproj");
+		_dotNetService.GetIosHeads(_tempDir).Returns([head]);
+		RecordingBuildLogger logger = new();
+		IosBuildService service = new(_dotNetService, logger);
+
+		bool success = await service.BuildAsync(new IosBuildOptions
+		{
+			WorkingDirectory = _tempDir,
+			RequiredFrameworks = ["Native"],
+			DryRun = true,
+		}, TestContext.CancellationToken).ConfigureAwait(false);
+
+		Assert.IsTrue(success);
+		await _dotNetService.DidNotReceive().BuildIosAsync(
+			Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<bool>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+		Assert.Contains(
+			m => m.Contains(head, StringComparison.Ordinal)
+				&& m.Contains(IosBuildService.SimulatorRuntime, StringComparison.Ordinal)
+				&& m.Contains(IosBuildService.DeviceRuntime, StringComparison.Ordinal),
+			logger.Infos);
+		Assert.Contains(m => m.Contains("Native", StringComparison.Ordinal), logger.Infos);
+	}
+
+	[TestMethod]
+	public async Task BuildAsync_DryRunWithPins_ReportsThemWithoutProvisioning()
+	{
+		IProcessRunner processRunner = Substitute.For<IProcessRunner>();
+		_dotNetService.GetIosHeads(_tempDir).Returns([Path.Combine(_tempDir, "MyApp.iOS.csproj")]);
+		RecordingBuildLogger logger = new();
+		IosBuildService service = new(_dotNetService, processRunner, logger);
+
+		bool success = await service.BuildAsync(new IosBuildOptions
+		{
+			WorkingDirectory = _tempDir,
+			XcodeVersion = "26.2",
+			WorkloadVersion = "26.2.10233/10.0.100",
+			DryRun = true,
+		}, TestContext.CancellationToken).ConfigureAwait(false);
+
+		Assert.IsTrue(success);
+		await processRunner.DidNotReceive().RunWithCallbackAsync(
+			Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<Action<string>?>(), Arg.Any<Action<string>?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+		await processRunner.DidNotReceive().RunAsync(
+			Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+		Assert.Contains(m => m.Contains("26.2.10233/10.0.100", StringComparison.Ordinal), logger.Infos);
 	}
 
 	// Creates a head project plus a device .app bundle under bin/{configuration}, optionally
