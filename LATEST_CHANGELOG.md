@@ -1,7 +1,6 @@
-## v2.25.0 (minor)
+## v2.25.1-pre.1 (prerelease)
 
-Changes since v2.24.0:
+Changes since v2.25.0:
 
-- Read rc1, alpha.beta.1 and dev tags as prereleases in the changelog [patch] (#323) (matt-edmondson)
-- Accept --dry-run on ios build, package and upload [minor] (#334) (matt-edmondson)
+- Bump the ktsu group with 12 updates (dependabot[bot])
 
